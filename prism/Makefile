@@ -107,13 +107,13 @@ endif
 #JAVA_DIR =	/bham/java/packages/j2sdk1.4.2
 #JAVA_DIR =	/cygdrive/c/java/j2sdk1.4.2
 #JAVA_DIR =	/System/Library/Frameworks/JavaVM.framework
-
+JAVA_DIR = /usr/lib/jvm/default-java
 ##################
 # Compilers etc. #
 ##################
 
-C = gcc
-CPP = g++
+C = gcc-4.8
+CPP = g++-4.8
 LD = $(CPP)
 JAVAC = javac
 JAVACC = javacc
