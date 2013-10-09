@@ -320,7 +320,7 @@ public class GUIExperiment
 									}
 									// do simulation
 									res = prism.modelCheckSimulator(propertiesFile, propertyToCheck.getExpression(), definedPFConstants, initialState,
-											info.getMaxPathLength(), info.createSimulationMethod());
+											info.getMaxPathLength(), info);
 								}
 							} catch (PrismException e) {
 								// in case of error, report it (in log only), store exception as the result and proceed

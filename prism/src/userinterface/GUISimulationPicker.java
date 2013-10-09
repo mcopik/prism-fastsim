@@ -120,9 +120,7 @@ public class GUISimulationPicker extends javax.swing.JDialog implements KeyListe
 	javax.swing.JCheckBox useDefaultInitialCheck;
 
 	//platform&device
-	private javax.swing.JPanel jPanelPlatform;
-	javax.swing.JComboBox selectPlatform;
-	private final String PLATFORM_TITLE = "Simulation platform";
+	private GUISimulationPlatform jPanelPlatform;
 	
 	// End of variables declaration//GEN-END:variables
 
@@ -554,22 +552,7 @@ public class GUISimulationPicker extends javax.swing.JDialog implements KeyListe
 
 		jPanel10.add(jPanel15);
 
-		jPanelPlatform = new JPanel();
-		jPanelPlatform.setBorder(new javax.swing.border.TitledBorder(PLATFORM_TITLE));
-		selectPlatform = new JComboBox<>();
-		ArrayList<String> methods2 = new ArrayList<String>();
-		methods2.add("CPU(default implementation)");
-		methods2.add("OpenCL");
-		selectPlatform.setModel(new javax.swing.DefaultComboBoxModel(methods2.toArray()));
-
-		selectPlatform.addActionListener(new java.awt.event.ActionListener()
-		{
-			public void actionPerformed(java.awt.event.ActionEvent evt)
-			{
-				//
-			}
-		});
-		jPanelPlatform.add(selectPlatform);
+		jPanelPlatform = new GUISimulationPlatform();
 		jPanel10.add(jPanelPlatform);
 		jPanel7.add(jPanel10, java.awt.BorderLayout.EAST);
 
@@ -985,7 +968,8 @@ public class GUISimulationPicker extends javax.swing.JDialog implements KeyListe
 				}
 				information.setInitialState(newInitState);
 			}
-			
+			//get simulation platform
+			jPanelPlatform.setSimulationPlatform(information);
 			//information.setDistributed(distributedCheck.isSelected());
 			cancelled = false;
 			lastSimulationInformation = information;

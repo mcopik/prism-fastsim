@@ -59,11 +59,14 @@ import parser.ast.Property;
 import pta.DigitalClocks;
 import pta.PTAModelChecker;
 import simulator.GenerateSimulationPath;
+import simulator.ModelCheckInterface;
 import simulator.PrismModelExplorer;
 import simulator.SimulatorEngine;
+import simulator.gpu.GPUSimulatorEngine;
 import simulator.method.SimulationMethod;
 import sparse.PrismSparse;
 import strat.Strategy;
+import userinterface.SimulationInformation;
 import dv.DoubleVector;
 import explicit.CTMC;
 import explicit.CTMCModelChecker;
@@ -212,7 +215,7 @@ public class Prism extends PrismComponent implements PrismSettingsListener
 	private ExplicitFiles2MTBDD expf2mtbdd = null;
 	private ExplicitModel2MTBDD expm2mtbdd = null;
 	private SimulatorEngine theSimulator = null;
-
+	private GPUSimulatorEngine gpuSimulator = null;
 	//------------------------------------------------------------------------------
 	// Event listeners
 	//------------------------------------------------------------------------------
@@ -959,6 +962,24 @@ public class Prism extends PrismComponent implements PrismSettingsListener
 			theSimulator = new SimulatorEngine(this);
 		}
 		return theSimulator;
+	}
+	/**
+	 * Get the SimulatorEngine object for PRISM, creating if necessary.
+	 * Enables choosing between different implementations of simulator.
+	 * @param simInfo object with detailed informations about simulation
+	 * @return reference to used simulator
+	 */
+	public ModelCheckInterface getSimulator(SimulationInformation simInfo)
+	{
+		if (simInfo.getPlatform() == SimulationInformation.Platform.CPU) {
+			return getSimulator();
+		}
+		else {
+			if (gpuSimulator == null) {
+				gpuSimulator = new GPUSimulatorEngine(getLog());
+			}
+			return gpuSimulator;
+		}
 	}
 
 	/**
@@ -2680,6 +2701,31 @@ public class Prism extends PrismComponent implements PrismSettingsListener
 	public Result modelCheckSimulator(PropertiesFile propertiesFile, Expression expr, Values definedPFConstants, State initialState, int maxPathLength,
 			SimulationMethod simMethod) throws PrismException
 	{
+		return modelCheckSimulator(propertiesFile,expr,definedPFConstants,initialState,
+				maxPathLength,simMethod,getSimulator());
+	}
+	/**
+	 * Perform approximate model checking of a property on the currently loaded model, using the simulator.
+	 * Sampling starts from the initial state provided or, if null, the default
+	 * initial state is used, selecting randomly (each time) if there are more than one.
+	 * Returns a Result object, except in case of error, where an Exception is thrown.
+	 * Note: All constants in the model/property files must have already been defined.
+	 * @param propertiesFile Parent property file of property (for labels/constants/...)
+	 * @param expr The property to check
+	 * @param definedPFConstants Optional values info for properties file (to display in log) 
+	 * @param initialState Initial state (if null, use default, selecting randomly if needed)
+	 * @param maxPathLength The maximum path length for sampling
+	 * @param simMethod Object specifying details of method to use for simulation
+	 */
+	public Result modelCheckSimulator(PropertiesFile propertiesFile, Expression expr, Values definedPFConstants, State initialState, int maxPathLength,
+			SimulationInformation simInfo) throws PrismException
+	{
+		return modelCheckSimulator(propertiesFile,expr,definedPFConstants,initialState,
+				maxPathLength,simInfo.createSimulationMethod(),getSimulator(simInfo));
+	}
+	private Result modelCheckSimulator(PropertiesFile propertiesFile, Expression expr, Values definedPFConstants, State initialState, int maxPathLength,
+			SimulationMethod simMethod,ModelCheckInterface simulator) throws PrismException
+	{
 		Object res = null;
 
 		// Print info
@@ -2694,11 +2740,32 @@ public class Prism extends PrismComponent implements PrismSettingsListener
 		expr.checkValid(currentModelType);
 
 		// Do simulation
-		res = getSimulator().modelCheckSingleProperty(currentModulesFile, propertiesFile, expr, initialState, maxPathLength, simMethod);
+		res = simulator.modelCheckSingleProperty(currentModulesFile, propertiesFile, 
+				expr, initialState, maxPathLength, simMethod);
 
 		return new Result(res);
 	}
-
+	/**
+	 * OLD API
+	 * Perform approximate model checking of several properties (simultaneously) on the currently loaded model, using the simulator.
+	 * Sampling starts from the initial state provided or, if null, the default
+	 * initial state is used, selecting randomly (each time) if there are more than one.
+	 * Returns an array of results, some of which may be Exception objects if there were errors.
+	 * In the case of an error which affects all properties, an exception is thrown.
+	 * Note: All constants in the model/property files must have already been defined.
+	 * @param propertiesFile Parent property file of property (for labels/constants/...)
+	 * @param exprs The properties to check
+	 * @param definedPFConstants Optional values info for properties file (to display in log) 
+	 * @param initialState Initial state (if null, use default, selecting randomly if needed)
+	 * @param maxPathLength The maximum path length for sampling
+	 * @param simMethod Object specifying details of simulation method
+	 */
+	public Result[] modelCheckSimulatorSimultaneously(PropertiesFile propertiesFile, List<Expression> exprs, Values definedPFConstants, State initialState,
+			int maxPathLength, SimulationMethod simMethod) throws PrismException
+	{
+		return modelCheckSimulatorSimultaneously(propertiesFile,exprs,definedPFConstants,
+				initialState,maxPathLength,simMethod,getSimulator());
+	}
 	/**
 	 * Perform approximate model checking of several properties (simultaneously) on the currently loaded model, using the simulator.
 	 * Sampling starts from the initial state provided or, if null, the default
@@ -2711,10 +2778,18 @@ public class Prism extends PrismComponent implements PrismSettingsListener
 	 * @param definedPFConstants Optional values info for properties file (to display in log) 
 	 * @param initialState Initial state (if null, use default, selecting randomly if needed)
 	 * @param maxPathLength The maximum path length for sampling
-	 * @param simMethod Object specifying details of method to use for simulation
+	 * @param simMethod Object specifying details of simulation method
 	 */
 	public Result[] modelCheckSimulatorSimultaneously(PropertiesFile propertiesFile, List<Expression> exprs, Values definedPFConstants, State initialState,
-			int maxPathLength, SimulationMethod simMethod) throws PrismException
+			int maxPathLength, SimulationInformation simInfo) throws PrismException
+	{
+		return modelCheckSimulatorSimultaneously(propertiesFile,exprs,definedPFConstants,
+				initialState,maxPathLength,simInfo.createSimulationMethod(),
+				getSimulator(simInfo));
+	}
+
+	private Result[] modelCheckSimulatorSimultaneously(PropertiesFile propertiesFile, List<Expression> exprs, Values definedPFConstants, State initialState,
+			int maxPathLength, SimulationMethod simMethod,ModelCheckInterface simulator) throws PrismException
 	{
 		Object[] res = null;
 
@@ -2739,14 +2814,14 @@ public class Prism extends PrismComponent implements PrismSettingsListener
 			expr.checkValid(currentModelType);
 
 		// Do simulation
-		res = getSimulator().modelCheckMultipleProperties(currentModulesFile, propertiesFile, exprs, initialState, maxPathLength, simMethod);
+		res = simulator.modelCheckMultipleProperties(currentModulesFile, propertiesFile, 
+				exprs, initialState, maxPathLength, simMethod);
 
 		Result[] resArray = new Result[res.length];
 		for (int i = 0; i < res.length; i++)
 			resArray[i] = new Result(res[i]);
 		return resArray;
 	}
-
 	/**
 	 * Perform an approximate model checking experiment on the currently loaded model, using the simulator.
 	 * (specified by values for undefined constants from the property only).
@@ -2777,7 +2852,8 @@ public class Prism extends PrismComponent implements PrismSettingsListener
 		mainLog.println("Property constants: " + undefinedConstants.getPFDefinedConstantsString());
 
 		// Do simulation
-		getSimulator().modelCheckExperiment(currentModulesFile, propertiesFile, undefinedConstants, results, expr, initialState, pathLength, simMethod);
+		getSimulator().modelCheckExperiment(currentModulesFile, propertiesFile, undefinedConstants, 
+				results, expr, initialState, pathLength, simMethod);
 	}
 
 	/**

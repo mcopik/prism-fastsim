@@ -44,7 +44,7 @@ public class SimulationInformation
 	public enum Unknown { WIDTH, CONFIDENCE, NUM_SAMPLES };
 	private Unknown unknown;
 	// Platform
-	public enum Platform {CPU, OPENCL};
+	public enum Platform { CPU, OPENCL};
 	private Platform platform;
 	
 	
@@ -166,7 +166,6 @@ public class SimulationInformation
 	{
 		this.width = width;
 	}
-
 	/**
 	 * Getter for property confidence.
 	 * @return Value of property confidence.
@@ -300,5 +299,14 @@ public class SimulationInformation
 		default:
 			return null;
 		}
+	}
+	
+	public void setPlatform(Platform platform)
+	{
+		this.platform = platform;
+	}
+	public Platform getPlatform()
+	{
+		return platform;
 	}
 }

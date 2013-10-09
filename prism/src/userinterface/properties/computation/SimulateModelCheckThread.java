@@ -71,7 +71,7 @@ public class SimulateModelCheckThread extends GUIComputationThread
 	{
 		boolean allAtOnce = prism.getSettings().getBoolean(PrismSettings.SIMULATOR_SIMULTANEOUS);
 
-		SimulationMethod method = info.createSimulationMethod();
+		//SimulationMethod method = info.createSimulationMethod();
 
 		//Notify user interface of the start of computation
 		SwingUtilities.invokeLater(new Runnable()
@@ -115,8 +115,8 @@ public class SimulateModelCheckThread extends GUIComputationThread
 					initialState = new parser.State(info.getInitialState(), prism.getPRISMModel());
 				}
 				// do simulation
-				results = prism.modelCheckSimulatorSimultaneously(pf, properties, definedPFConstants, initialState, maxPathLength, method);
-				method.reset();
+				results = prism.modelCheckSimulatorSimultaneously(pf, properties, definedPFConstants, initialState, maxPathLength, info);
+				//method.reset();
 			} catch (PrismException e) {
 				// in the case of an error which affects all props, store/report it
 				resultError = e;
@@ -162,8 +162,8 @@ public class SimulateModelCheckThread extends GUIComputationThread
 						initialState = new parser.State(info.getInitialState(), prism.getPRISMModel());
 					}
 					// do simulation
-					result = prism.modelCheckSimulator(pf, pf.getProperty(i), definedPFConstants, initialState, maxPathLength, method);
-					method.reset();
+					result = prism.modelCheckSimulator(pf, pf.getProperty(i), definedPFConstants, initialState, maxPathLength, info);
+					//method.reset();
 				} catch (PrismException e) {
 					result = new Result(e);
 					error(e.getMessage());
