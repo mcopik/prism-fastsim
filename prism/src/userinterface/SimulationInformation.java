@@ -43,7 +43,12 @@ public class SimulationInformation
 	// Unknown variable
 	public enum Unknown { WIDTH, CONFIDENCE, NUM_SAMPLES };
 	private Unknown unknown;
-
+	// Platform
+	public enum Platform {CPU, OPENCL};
+	private Platform platform;
+	
+	
+	
 	// Settings
 	private Values initialState;
 

@@ -93,7 +93,7 @@ import userinterface.graph.Graph;
  * <LI> {@link #modelCheckExperiment}
  * </UL>
  */
-public class SimulatorEngine
+public class SimulatorEngine implements ModelCheckInterface
 {
 	// PRISM stuff
 	protected Prism prism;
