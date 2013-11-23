@@ -2,7 +2,7 @@
 //	
 //	Copyright (c) 2002-
 //	Authors:
-//	* Dave Parker <david.parker@comlab.ox.ac.uk> (University of Oxford)
+//	* Marcin Copik <mcopik@gmail.com> (Silesian University of Technology)
 //	
 //------------------------------------------------------------------------------
 //	
@@ -23,27 +23,21 @@
 //	Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 //	
 //==============================================================================
+package simulator.gpu.automaton.command;
 
-package prism;
+import prism.PrismException;
+import simulator.gpu.automaton.Guard;
+import simulator.gpu.automaton.update.Update;
 
-/**
- * Simple class to store a pair of values.
- */
-public class Pair<X,Y>
+public interface CommandInterface
 {
-	public final X first;
-	public final Y second;
-	
-	public Pair(X first, Y second)
-	{
-		this.first = first;
-		this.second = second;
-	}
-	/**
-	 * Returns toString() description of pair elements.
-	 */
-    public String toString()
-    { 
-           return "<" + first + ", " + second + ">"; 
-    }
+	Guard getGuard() throws PrismException;
+	Update getUpdate() throws PrismException;
+	/*
+	Rate getRateSumUpdate(int i) throws PrismException;
+	Rate getRateSumModule(int i) throws PrismException;
+	int getUpdateNumberModule(int i) throws PrismException;
+	*/
+	boolean isSynchronized();
+	public String toString();
 }

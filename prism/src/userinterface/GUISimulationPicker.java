@@ -553,8 +553,9 @@ public class GUISimulationPicker extends javax.swing.JDialog implements KeyListe
 		jPanel10.add(jPanel15);
 
 		jPanelPlatform = new GUISimulationPlatform();
-		jPanel10.add(jPanelPlatform);
+		//jPanel10.add(jPanelPlatform);
 		jPanel7.add(jPanel10, java.awt.BorderLayout.EAST);
+		jPanel7.add(jPanelPlatform,java.awt.BorderLayout.SOUTH);
 
 		getContentPane().add(jPanel7, java.awt.BorderLayout.CENTER);
 

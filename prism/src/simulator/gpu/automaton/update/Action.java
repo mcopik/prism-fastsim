@@ -2,7 +2,7 @@
 //	
 //	Copyright (c) 2002-
 //	Authors:
-//	* Dave Parker <david.parker@comlab.ox.ac.uk> (University of Oxford)
+//	* Marcin Copik <mcopik@gmail.com> (Silesian University of Technology)
 //	
 //------------------------------------------------------------------------------
 //	
@@ -23,27 +23,30 @@
 //	Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 //	
 //==============================================================================
+package simulator.gpu.automaton.update;
 
-package prism;
+import java.util.ArrayList;
+import java.util.List;
 
-/**
- * Simple class to store a pair of values.
- */
-public class Pair<X,Y>
+import parser.ast.Expression;
+import prism.Pair;
+import simulator.gpu.automaton.Variable;
+
+public class Action
 {
-	public final X first;
-	public final Y second;
-	
-	public Pair(X first, Y second)
+	public List< Pair<Variable, Expression> > expressions = new ArrayList<>();
+	public void addExpr(Variable var,Expression expr)
 	{
-		this.first = first;
-		this.second = second;
+		expressions.add(new Pair<>(var,expr));
 	}
-	/**
-	 * Returns toString() description of pair elements.
-	 */
-    public String toString()
-    { 
-           return "<" + first + ", " + second + ">"; 
-    }
+	public String toString()
+	{
+		StringBuilder builder = new StringBuilder();
+		for(Pair<Variable,Expression> expr : expressions)
+		{
+			builder.append("(").append(expr.first.name).append("=")
+					.append(expr.second).append(")");
+		}
+		return builder.toString();
+	}
 }

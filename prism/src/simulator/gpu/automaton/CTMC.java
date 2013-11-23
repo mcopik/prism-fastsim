@@ -2,7 +2,7 @@
 //	
 //	Copyright (c) 2002-
 //	Authors:
-//	* Dave Parker <david.parker@comlab.ox.ac.uk> (University of Oxford)
+//	* Marcin Copik <mcopik@gmail.com> (Silesian University of Technology)
 //	
 //------------------------------------------------------------------------------
 //	
@@ -23,27 +23,26 @@
 //	Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 //	
 //==============================================================================
+package simulator.gpu.automaton;
 
-package prism;
+import parser.ast.ModulesFile;
+import prism.ModelType;
+import prism.PrismException;
 
-/**
- * Simple class to store a pair of values.
- */
-public class Pair<X,Y>
+
+public class CTMC extends AbstractAutomaton
 {
-	public final X first;
-	public final Y second;
-	
-	public Pair(X first, Y second)
+	public CTMC(ModulesFile modulesFile) throws PrismException
 	{
-		this.first = first;
-		this.second = second;
+		super(modulesFile);
+		if(modulesFile.getModelType() != ModelType.CTMC)
+		{
+			throw new IllegalArgumentException("Attempt to create CTMC from automaton which"
+					+ " is " + modulesFile.getModelType().fullName());
+		}
 	}
-	/**
-	 * Returns toString() description of pair elements.
-	 */
-    public String toString()
-    { 
-           return "<" + first + ", " + second + ">"; 
-    }
+	public AutomatonType getType()
+	{
+		return AutomatonType.CTMC;
+	}
 }

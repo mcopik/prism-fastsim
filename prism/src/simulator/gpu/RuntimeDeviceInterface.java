@@ -2,7 +2,7 @@
 //	
 //	Copyright (c) 2002-
 //	Authors:
-//	* Dave Parker <david.parker@comlab.ox.ac.uk> (University of Oxford)
+//	* Marcin Copik <mcopik@gmail.com> (Silesian University of Technology)
 //	
 //------------------------------------------------------------------------------
 //	
@@ -23,27 +23,13 @@
 //	Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 //	
 //==============================================================================
+package simulator.gpu;
 
-package prism;
 
-/**
- * Simple class to store a pair of values.
- */
-public class Pair<X,Y>
+public interface RuntimeDeviceInterface
 {
-	public final X first;
-	public final Y second;
-	
-	public Pair(X first, Y second)
-	{
-		this.first = first;
-		this.second = second;
-	}
-	/**
-	 * Returns toString() description of pair elements.
-	 */
-    public String toString()
-    { 
-           return "<" + first + ", " + second + ">"; 
-    }
+	public String getName();
+	public String getPlatformName();
+	public String getFrameworkVersion();
+	public String toString();
 }

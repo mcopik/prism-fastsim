@@ -2,7 +2,7 @@
 //	
 //	Copyright (c) 2002-
 //	Authors:
-//	* Dave Parker <david.parker@comlab.ox.ac.uk> (University of Oxford)
+//	* Marcin Copik <mcopik@gmail.com> (Silesian University of Technology)
 //	
 //------------------------------------------------------------------------------
 //	
@@ -23,27 +23,33 @@
 //	Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 //	
 //==============================================================================
+package simulator.gpu;
 
-package prism;
+import simulator.gpu.automaton.AbstractAutomaton;
 
-/**
- * Simple class to store a pair of values.
- */
-public class Pair<X,Y>
+
+public interface RuntimeFrameworkInterface
 {
-	public final X first;
-	public final Y second;
-	
-	public Pair(X first, Y second)
-	{
-		this.first = first;
-		this.second = second;
-	}
+	//FRAMEWORK
 	/**
-	 * Returns toString() description of pair elements.
+	 * Get name of framework
+	 * @return string with name
 	 */
-    public String toString()
-    { 
-           return "<" + first + ", " + second + ">"; 
-    }
+	String getFrameworkName();
+	//PLATFORM
+	/**
+	 *
+	 * @return
+	 */
+	String[] getPlatformNames();
+	int getPlatformNumber();
+	String getPlatformInfo(int i);
+	//DEVICE
+	RuntimeDeviceInterface[] getDevices();
+	String[] getDevicesNames();
+	RuntimeDeviceInterface getMaxFlopsDevice();
+	void selectDevice(int number);
+	void selectDevice(RuntimeDeviceInterface device);
+	//MODEL
+	void provideModel(AbstractAutomaton model);
 }

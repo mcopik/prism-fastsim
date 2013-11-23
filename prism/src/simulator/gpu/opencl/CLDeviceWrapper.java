@@ -2,7 +2,7 @@
 //	
 //	Copyright (c) 2002-
 //	Authors:
-//	* Dave Parker <david.parker@comlab.ox.ac.uk> (University of Oxford)
+//	* Marcin Copik <mcopik@gmail.com> (Silesian University of Technology)
 //	
 //------------------------------------------------------------------------------
 //	
@@ -23,27 +23,35 @@
 //	Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 //	
 //==============================================================================
+package simulator.gpu.opencl;
 
-package prism;
+import com.nativelibs4java.opencl.CLDevice;
+import simulator.gpu.RuntimeDeviceInterface;
 
-/**
- * Simple class to store a pair of values.
- */
-public class Pair<X,Y>
+public class CLDeviceWrapper implements RuntimeDeviceInterface
 {
-	public final X first;
-	public final Y second;
-	
-	public Pair(X first, Y second)
+	private CLDevice device = null;
+	public CLDeviceWrapper(CLDevice device)
 	{
-		this.first = first;
-		this.second = second;
+		this.device = device;
 	}
-	/**
-	 * Returns toString() description of pair elements.
-	 */
-    public String toString()
-    { 
-           return "<" + first + ", " + second + ">"; 
-    }
+	public String getName()
+	{
+		System.out.println(device.getExecutionCapabilities());
+		for(String str : device.getExtensions())
+		System.out.println(str);
+		return device.getName();
+	}
+	public String getPlatformName()
+	{
+		return device.getPlatform().getName();
+	}
+	public String getFrameworkVersion()
+	{
+		return device.getOpenCLVersion();
+	}
+	public String toString()
+	{
+		return device.toString();
+	}
 }

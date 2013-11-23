@@ -2,7 +2,7 @@
 //	
 //	Copyright (c) 2002-
 //	Authors:
-//	* Dave Parker <david.parker@comlab.ox.ac.uk> (University of Oxford)
+//	* Marcin Copik <mcopik@gmail.com> (Silesian University of Technology)
 //	
 //------------------------------------------------------------------------------
 //	
@@ -23,27 +23,24 @@
 //	Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 //	
 //==============================================================================
+package simulator.gpu.automaton;
 
-package prism;
+import parser.ast.Expression;
 
-/**
- * Simple class to store a pair of values.
- */
-public class Pair<X,Y>
+public class Guard
 {
-	public final X first;
-	public final Y second;
-	
-	public Pair(X first, Y second)
+	private Expression guard;
+	public Guard(Expression guard)
 	{
-		this.first = first;
-		this.second = second;
+		this.guard = guard;
+		simplify(guard);
 	}
-	/**
-	 * Returns toString() description of pair elements.
-	 */
-    public String toString()
-    { 
-           return "<" + first + ", " + second + ">"; 
-    }
+	public String toString()
+	{
+		return guard.toString();
+	}
+	private void simplify(Expression guard)
+	{
+		
+	}
 }

@@ -280,7 +280,7 @@ public class GUIExperiment
 							}
 							// do simulation
 							prism.modelCheckSimulatorExperiment(propertiesFile, undefinedConstants, results, propertyToCheck.getExpression(), initialState,
-									info.getMaxPathLength(), info.createSimulationMethod());
+									info.getMaxPathLength(), info);
 							// update progress meter
 							// (all properties simulated simultaneously so can't get more accurate feedback at the moment anyway)
 							table.progressChanged();

@@ -39,6 +39,8 @@ import parser.ast.ModulesFile;
 import parser.ast.PropertiesFile;
 import parser.ast.Property;
 import simulator.GenerateSimulationPath;
+import simulator.SimulationSettings;
+import simulator.SimulationSettings.SimulationPlatform;
 import simulator.method.ACIconfidence;
 import simulator.method.ACIiterations;
 import simulator.method.ACIwidth;
@@ -50,6 +52,7 @@ import simulator.method.CIiterations;
 import simulator.method.CIwidth;
 import simulator.method.SPRTMethod;
 import simulator.method.SimulationMethod;
+import userinterface.SimulationInformation;
 
 // prism - command line version
 
@@ -169,6 +172,7 @@ public class PrismCL implements PrismModelListener
 
 	// simulation info
 	private String simMethodName = null;
+	private String simPlatform = null;
 	private double simApprox;
 	private double simConfidence;
 	private int simNumSamples;
@@ -183,6 +187,7 @@ public class PrismCL implements PrismModelListener
 	private boolean reqIterToConcludeGiven = false;
 	private boolean simMaxRewardGiven = false;
 	private boolean simMaxPathGiven = false;
+	private boolean simPlatformGiven = false;
 	private boolean simManual = false;
 	private SimulationMethod simMethod = null;
 
@@ -301,9 +306,11 @@ public class PrismCL implements PrismModelListener
 				// for simulation we can do multiple values of property constants simultaneously
 				if (simulate && undefinedConstants[j].getNumPropertyIterations() > 1) {
 					try {
-						simMethod = processSimulationOptions(propertiesToCheck.get(j).getExpression());
+						SimulationSettings settings = 
+								processSimulationOptions(propertiesToCheck.get(j).getExpression());
+						simMethod = settings.getMethod();
 						prism.modelCheckSimulatorExperiment(propertiesFile, undefinedConstants[j], results[j], propertiesToCheck.get(j).getExpression(), null,
-								simMaxPath, simMethod);
+								simMaxPath, settings);
 					} catch (PrismException e) {
 						// in case of (overall) error, report it, store as result for property, and proceed
 						error(e.getMessage());
@@ -333,9 +340,11 @@ public class PrismCL implements PrismModelListener
 							}
 							// Approximate (simulation-based) model checking
 							else if (simulate) {
-								simMethod = processSimulationOptions(propertiesToCheck.get(j).getExpression());
+								SimulationSettings settings = 
+										processSimulationOptions(propertiesToCheck.get(j).getExpression());
+								simMethod = settings.getMethod();
 								res = prism.modelCheckSimulator(propertiesFile, propertiesToCheck.get(j).getExpression(), definedPFConstants, null, simMaxPath,
-										simMethod);
+										settings);
 								simMethod.reset();
 							} else {
 								throw new PrismException("Cannot use parametric model checking and simulation at the same time");
@@ -1494,6 +1503,18 @@ public class PrismCL implements PrismModelListener
 						errorAndExit("No value specified for -" + sw + " switch");
 					}
 				}
+				// simulation max path length
+				else if (sw.equals("simplatform")) {
+					if (i < args.length - 1) {
+						simPlatform = args[++i];
+						if (!simPlatform.equalsIgnoreCase("OpenCL") && 
+								!simPlatform.equalsIgnoreCase("CPU"))
+							errorAndExit("Invalid value for -" + sw + " switch");
+						simPlatformGiven = true;
+					} else {
+						errorAndExit("No value specified for -" + sw + " switch");
+					}
+				}
 
 				// FURTHER OPTIONS - NEED TIDYING/FIXING
 
@@ -1934,8 +1955,9 @@ public class PrismCL implements PrismModelListener
 	 * @param expr The property to be checked (note: constants may not be defined)
 	 * @throws PrismException if there are problems with the specified options
 	 */
-	private SimulationMethod processSimulationOptions(Expression expr) throws PrismException
+	private SimulationSettings processSimulationOptions(Expression expr) throws PrismException
 	{
+		SimulationSettings simSettings = null;
 		SimulationMethod aSimMethod = null;
 
 		// See if property to be checked is a reward (R) operator
@@ -2048,7 +2070,20 @@ public class PrismCL implements PrismModelListener
 		} else
 			throw new PrismException("Unknown simulation method \"" + simMethodName + "\"");
 
-		return aSimMethod;
+		simSettings = new SimulationSettings();
+		simSettings.setMethod(aSimMethod);
+		if(simPlatformGiven) {
+			if(simPlatform.equalsIgnoreCase("CPU")) {
+				simSettings.setPlatform(SimulationPlatform.CPU);
+			}
+			else {
+				simSettings.setPlatform(SimulationPlatform.OPENCL);
+			}
+		}
+		else {
+			simSettings.setPlatform(SimulationPlatform.CPU);
+		}
+		return simSettings;
 	}
 
 	/**
