@@ -23,24 +23,46 @@
 //	Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 //	
 //==============================================================================
-package simulator.gpu.automaton.command;
+package simulator.gpu.opencl.kernel;
 
-import prism.PrismException;
-import simulator.gpu.automaton.Guard;
-import simulator.gpu.automaton.update.Update;
+import java.util.HashMap;
+import java.util.Map;
 
-public interface CommandInterface
+import simulator.gpu.opencl.kernel.memory.CLVariable;
+
+public class Method
 {
-	Guard getGuard() throws PrismException;
+	protected String methodName = null;
+	protected Map<String, CLVariable> localVars = new HashMap<>();
 
-	Update getUpdate() throws PrismException;
+	//protected CLVariable. returnType = new CLVariable(CLVariable.Type.VOID);
+
+	public Method(String name)
+	{
+		methodName = name;
+	}
 
 	/*
-	Rate getRateSumUpdate(int i) throws PrismException;
-	Rate getRateSumModule(int i) throws PrismException;
-	int getUpdateNumberModule(int i) throws PrismException;
-	*/
-	boolean isSynchronized();
+		public void addVar(CLVariable var) throws KernelException
+		{
+			if (localVars.containsKey(var.varName)) {
+				throw new KernelException("Variable " + var.varName + " already exists in method " + methodName);
+			}
+			localVars.put(var.varName, var);
+		}
+		public void addArg(CLVariable var)*/
+	public int getVarsNum()
+	{
+		return localVars.size();
+	}
+	/*
+		public void setReturnType(CLVariable type)
+		{
+			returnType = type;
+		}
 
-	public String toString();
+		public void setReturn(CLVariable var)
+		{
+			returnType = var;
+		}*/
 }

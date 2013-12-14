@@ -25,27 +25,16 @@
 //==============================================================================
 package simulator.gpu.automaton;
 
+import simulator.gpu.opencl.kernel.memory.VariableType;
 
-public class Variable
+public class PrismVariable
 {
-	/**
-	 * Variable type, according to C/C++ language.
-	 *
-	 */
-	public enum Type {
-		BOOL,
-		UINT8,
-		INT8,
-		UINT16,
-		INT16,
-		INT32,
-		UINT32
-	}
 	public final String name;
 	public final boolean signFlag;
 	public final int initValue;
 	public final int bitsNumber;
-	public final Type varType;
+	public final VariableType.Type varType;
+
 	/**
 	 * Constructor.
 	 * @param name variable name
@@ -53,7 +42,7 @@ public class Variable
 	 * @param init initial value
 	 * @param bits number of bits necessary to encode this var
 	 */
-	public Variable(String name,int low,int init,int bits)
+	public PrismVariable(String name, int low, int init, int bits)
 	{
 		this.name = name;
 		signFlag = low < 0;
@@ -61,47 +50,44 @@ public class Variable
 		bitsNumber = bits;
 		varType = getType();
 	}
+
 	/**
 	 * Return type of this variable in C.
 	 * @return enum value
 	 */
-	private Type getType()
+	private VariableType.Type getType()
 	{
-		 if(bitsNumber == 1) {
-			 return Type.BOOL;
-		 }
-		 else if(bitsNumber <= 8) {
-			 if(signFlag) {
-				 return Type.UINT8;
-			 }
-			 else {
-				 return Type.INT8;
-			 }
-		 }
-		 else if(bitsNumber <= 16) {
-			 if(signFlag) {
-				 return Type.UINT16;
-			 }
-			 else {
-				 return Type.INT16;
-			 }
-		 }
-		 else {
-			 if(signFlag) {
-				 return Type.UINT32;
-			 }
-			 else {
-				 return Type.INT32;
-			 }
-		 }
+		VariableType.Type type;
+		if (bitsNumber == 1) {
+			type = VariableType.Type.BOOL;
+		} else if (bitsNumber <= 8) {
+			if (signFlag) {
+				type = VariableType.Type.UINT8;
+			} else {
+				type = VariableType.Type.INT8;
+			}
+		} else if (bitsNumber <= 16) {
+			if (signFlag) {
+				type = VariableType.Type.UINT16;
+			} else {
+				type = VariableType.Type.INT16;
+			}
+		} else {
+			if (signFlag) {
+				type = VariableType.Type.UINT32;
+			} else {
+				type = VariableType.Type.INT32;
+			}
+		}
+		return type;
 	}
+
 	@Override
 	public String toString()
 	{
 		StringBuilder builder = new StringBuilder();
-		builder.append(varType.toString()).append(" variable ").
-				append(name).append(" initial value: ").append(initValue).
-				append(" encoded with ").append(bitsNumber).append(" bytes");
+		builder.append(varType.toString()).append(" variable ").append(name).append(" initial value: ").append(initValue).append(" encoded with ")
+				.append(bitsNumber).append(" bytes");
 		return builder.toString();
 	}
 }

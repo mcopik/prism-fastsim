@@ -23,24 +23,18 @@
 //	Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 //	
 //==============================================================================
-package simulator.gpu.automaton.command;
+package simulator.gpu.opencl.kernel.memory;
 
-import prism.PrismException;
-import simulator.gpu.automaton.Guard;
-import simulator.gpu.automaton.update.Update;
-
-public interface CommandInterface
+public class VariableType
 {
-	Guard getGuard() throws PrismException;
+	public enum Type {
+		BOOL, UINT8, INT8, UINT16, INT16, INT32, UINT32, INT64, UINT64, FLOAT, DOUBLE, VOID, USER_DEFINED
+	}
 
-	Update getUpdate() throws PrismException;
+	public final Type varType;
 
-	/*
-	Rate getRateSumUpdate(int i) throws PrismException;
-	Rate getRateSumModule(int i) throws PrismException;
-	int getUpdateNumberModule(int i) throws PrismException;
-	*/
-	boolean isSynchronized();
-
-	public String toString();
+	public VariableType(VariableType.Type type)
+	{
+		varType = type;
+	}
 }

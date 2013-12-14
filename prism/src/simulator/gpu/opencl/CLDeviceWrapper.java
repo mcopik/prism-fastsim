@@ -25,31 +25,50 @@
 //==============================================================================
 package simulator.gpu.opencl;
 
-import com.nativelibs4java.opencl.CLDevice;
 import simulator.gpu.RuntimeDeviceInterface;
+
+import com.nativelibs4java.opencl.CLContext;
+import com.nativelibs4java.opencl.CLDevice;
+import com.nativelibs4java.opencl.CLPlatform;
+import com.nativelibs4java.opencl.JavaCL;
 
 public class CLDeviceWrapper implements RuntimeDeviceInterface
 {
 	private CLDevice device = null;
+
 	public CLDeviceWrapper(CLDevice device)
 	{
 		this.device = device;
 	}
+
 	public String getName()
 	{
 		System.out.println(device.getExecutionCapabilities());
-		for(String str : device.getExtensions())
-		System.out.println(str);
+		for (String str : device.getExtensions())
+			System.out.println(str);
 		return device.getName();
 	}
+
 	public String getPlatformName()
 	{
 		return device.getPlatform().getName();
 	}
+
 	public String getFrameworkVersion()
 	{
 		return device.getOpenCLVersion();
 	}
+
+	public CLContext createDeviceContext()
+	{
+		return JavaCL.createContext(null, device);
+	}
+
+	public CLPlatform getDevicePlatform()
+	{
+		return device.getPlatform();
+	}
+
 	public String toString()
 	{
 		return device.toString();

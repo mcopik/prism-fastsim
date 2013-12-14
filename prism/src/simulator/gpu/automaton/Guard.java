@@ -30,17 +30,20 @@ import parser.ast.Expression;
 public class Guard
 {
 	private Expression guard;
+
 	public Guard(Expression guard)
 	{
 		this.guard = guard;
 		simplify(guard);
 	}
+
 	public String toString()
 	{
 		return guard.toString();
 	}
+
 	private void simplify(Expression guard)
 	{
-		
+
 	}
 }

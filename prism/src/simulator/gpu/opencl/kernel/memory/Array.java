@@ -23,24 +23,53 @@
 //	Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 //	
 //==============================================================================
-package simulator.gpu.automaton.command;
+package simulator.gpu.opencl.kernel.memory;
 
-import prism.PrismException;
-import simulator.gpu.automaton.Guard;
-import simulator.gpu.automaton.update.Update;
+import simulator.gpu.opencl.kernel.KernelException;
 
-public interface CommandInterface
+public class Array implements CLVariable
 {
-	Guard getGuard() throws PrismException;
 
-	Update getUpdate() throws PrismException;
+	@Override
+	public Pointer getPointer()
+	{
+		// TODO Auto-generated method stub
+		return null;
+	}
 
-	/*
-	Rate getRateSumUpdate(int i) throws PrismException;
-	Rate getRateSumModule(int i) throws PrismException;
-	int getUpdateNumberModule(int i) throws PrismException;
-	*/
-	boolean isSynchronized();
+	@Override
+	public boolean isArray()
+	{
+		// TODO Auto-generated method stub
+		return false;
+	}
 
-	public String toString();
+	@Override
+	public int length() throws KernelException
+	{
+		// TODO Auto-generated method stub
+		return 0;
+	}
+
+	@Override
+	public boolean isPointer()
+	{
+		// TODO Auto-generated method stub
+		return false;
+	}
+
+	@Override
+	public void setMemoryLocation(Location loc)
+	{
+		// TODO Auto-generated method stub
+
+	}
+
+	@Override
+	public VariableType getType()
+	{
+		// TODO Auto-generated method stub
+		return null;
+	}
+
 }

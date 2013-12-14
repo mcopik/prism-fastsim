@@ -42,48 +42,42 @@ public class CommandBuilder
 {
 	private AbstractAutomaton.AutomatonType type = null;
 	private List<CommandInterface> commands = new ArrayList<>();
-	private Map<String,SynchronizedCommand> synchronizedCommands = new HashMap<>();
+	private Map<String, SynchronizedCommand> synchronizedCommands = new HashMap<>();
 	private StateVector variables = null;
 	private String currentModule = null;
+
 	public CommandBuilder(AbstractAutomaton.AutomatonType type, StateVector vars)
 	{
 		this.type = type;
 		this.variables = vars;
 	}
-	public void addCommand(String synch,Expression expr, Updates updates)
+
+	public void addCommand(String synch, Expression expr, Updates updates)
 	{
-		Command cmd = new Command(
-				new Guard(expr),
-				new Update(updates,variables)
-				);
-		if(synch.isEmpty()) {
+		Command cmd = new Command(new Guard(expr), new Update(updates, variables));
+		if (synch.isEmpty()) {
 			commands.add(cmd);
-		}
-		else {
+		} else {
 			SynchronizedCommand synCmd = null;
-			if(synchronizedCommands.containsKey(synch)) {
+			if (synchronizedCommands.containsKey(synch)) {
 				synCmd = synchronizedCommands.get(synch);
-			}
-			else {
+			} else {
 				synCmd = new SynchronizedCommand(currentModule);
 				synchronizedCommands.put(synch, synCmd);
 			}
-			if(type == AutomatonType.CTMC) {
-				synCmd.addCommandCTMC(
-						currentModule,
-						cmd);
-			}
-			else {
-				synCmd.addCommandDTMC(
-						currentModule,
-						cmd);
+			if (type == AutomatonType.CTMC) {
+				synCmd.addCommandCTMC(currentModule, cmd);
+			} else {
+				synCmd.addCommandDTMC(currentModule, cmd);
 			}
 		}
 	}
+
 	public void setCurrentModule(String name)
 	{
 		currentModule = name;
 	}
+
 	public List<CommandInterface> getResults()
 	{
 		commands.addAll(synchronizedCommands.values());

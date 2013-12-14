@@ -25,11 +25,13 @@
 //==============================================================================
 package simulator.gpu;
 
-
 public interface RuntimeDeviceInterface
 {
 	public String getName();
+
 	public String getPlatformName();
+
 	public String getFrameworkVersion();
+
 	public String toString();
 }

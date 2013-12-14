@@ -23,24 +23,28 @@
 //	Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 //	
 //==============================================================================
-package simulator.gpu.automaton.command;
+package simulator.gpu.opencl.kernel.memory;
 
-import prism.PrismException;
-import simulator.gpu.automaton.Guard;
-import simulator.gpu.automaton.update.Update;
+import simulator.gpu.opencl.kernel.KernelException;
 
-public interface CommandInterface
+public interface CLVariable
 {
-	Guard getGuard() throws PrismException;
 
-	Update getUpdate() throws PrismException;
+	public enum Location {
+		REGISTER, LOCAL, GLOBAL
+	}
 
-	/*
-	Rate getRateSumUpdate(int i) throws PrismException;
-	Rate getRateSumModule(int i) throws PrismException;
-	int getUpdateNumberModule(int i) throws PrismException;
-	*/
-	boolean isSynchronized();
+	public void setMemoryLocation(Location loc);
+
+	public VariableType getType();
+
+	public Pointer getPointer();
+
+	public boolean isArray();
+
+	public int length() throws KernelException;
+
+	public boolean isPointer();
 
 	public String toString();
 }

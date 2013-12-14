@@ -30,22 +30,22 @@ import java.util.List;
 
 import parser.ast.Expression;
 import prism.Pair;
-import simulator.gpu.automaton.Variable;
+import simulator.gpu.automaton.PrismVariable;
 
 public class Action
 {
-	public List< Pair<Variable, Expression> > expressions = new ArrayList<>();
-	public void addExpr(Variable var,Expression expr)
+	public List<Pair<PrismVariable, Expression>> expressions = new ArrayList<>();
+
+	public void addExpr(PrismVariable var, Expression expr)
 	{
-		expressions.add(new Pair<>(var,expr));
+		expressions.add(new Pair<>(var, expr));
 	}
+
 	public String toString()
 	{
 		StringBuilder builder = new StringBuilder();
-		for(Pair<Variable,Expression> expr : expressions)
-		{
-			builder.append("(").append(expr.first.name).append("=")
-					.append(expr.second).append(")");
+		for (Pair<PrismVariable, Expression> expr : expressions) {
+			builder.append("(").append(expr.first.name).append("=").append(expr.second).append(")");
 		}
 		return builder.toString();
 	}

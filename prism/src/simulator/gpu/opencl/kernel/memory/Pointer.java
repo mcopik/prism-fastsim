@@ -23,24 +23,65 @@
 //	Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 //	
 //==============================================================================
-package simulator.gpu.automaton.command;
+package simulator.gpu.opencl.kernel.memory;
 
-import prism.PrismException;
-import simulator.gpu.automaton.Guard;
-import simulator.gpu.automaton.update.Update;
+import simulator.gpu.opencl.kernel.KernelException;
 
-public interface CommandInterface
+public class Pointer implements CLVariable
 {
-	Guard getGuard() throws PrismException;
 
-	Update getUpdate() throws PrismException;
+	/* (non-Javadoc)
+	 * @see simulator.gpu.opencl.kernel.memory.CLVariable#getPointer()
+	 */
+	@Override
+	public Pointer getPointer()
+	{
+		// TODO Auto-generated method stub
+		return null;
+	}
 
-	/*
-	Rate getRateSumUpdate(int i) throws PrismException;
-	Rate getRateSumModule(int i) throws PrismException;
-	int getUpdateNumberModule(int i) throws PrismException;
-	*/
-	boolean isSynchronized();
+	/* (non-Javadoc)
+	 * @see simulator.gpu.opencl.kernel.memory.CLVariable#isArray()
+	 */
+	@Override
+	public boolean isArray()
+	{
+		// TODO Auto-generated method stub
+		return false;
+	}
 
-	public String toString();
+	/* (non-Javadoc)
+	 * @see simulator.gpu.opencl.kernel.memory.CLVariable#length()
+	 */
+	@Override
+	public int length() throws KernelException
+	{
+		// TODO Auto-generated method stub
+		return 0;
+	}
+
+	/* (non-Javadoc)
+	 * @see simulator.gpu.opencl.kernel.memory.CLVariable#isPointer()
+	 */
+	@Override
+	public boolean isPointer()
+	{
+		// TODO Auto-generated method stub
+		return false;
+	}
+
+	@Override
+	public void setMemoryLocation(Location loc)
+	{
+		// TODO Auto-generated method stub
+
+	}
+
+	@Override
+	public VariableType getType()
+	{
+		// TODO Auto-generated method stub
+		return null;
+	}
+
 }

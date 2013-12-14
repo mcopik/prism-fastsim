@@ -36,41 +36,44 @@ public class Rate
 	public double rate = 0.0;
 	public List<Expression> expressions = null;
 	private boolean isConst = true;
+
 	public Rate()
 	{
-		
+
 	}
+
 	public Rate(double initial)
 	{
 		rate = initial;
 	}
+
 	public void addRate(Expression expr)
 	{
-		if(expr == null) {
+		if (expr == null) {
 			rate += 1.0;
 			return;
 		}
-		if(expr.isConstant())
-		{
+		if (expr.isConstant()) {
 			add(expr);
-		}
-		else {
+		} else {
 			expressions = new ArrayList<>();
 			expressions.add(expr);
 			this.isConst = false;
 		}
 	}
+
 	public void addRate(Rate rate)
 	{
 		this.rate += rate.rate;
-		if(!isConst) {
-			if(isConst) {
+		if (!isConst) {
+			if (isConst) {
 				expressions = new ArrayList<>();
 			}
 			expressions.addAll(rate.expressions);
 			this.isConst = false;
 		}
 	}
+
 	private void add(Expression expr)
 	{
 		try {
@@ -80,23 +83,24 @@ public class Rate
 			e.printStackTrace();
 		}
 	}
+
 	public boolean isRateConst()
 	{
 		return isConst;
 	}
+
 	public String toString()
 	{
 		StringBuilder builder = new StringBuilder();
-		if(rate != 0.0) {
+		if (rate != 0.0) {
 			builder.append("(").append(rate).append(") +");
 		}
-		if(expressions != null) {
-			for(Expression expr : expressions)
-			{
+		if (expressions != null) {
+			for (Expression expr : expressions) {
 				builder.append("(").append(expr).append(") +");
 			}
 		}
-		builder.deleteCharAt(builder.length()-1);
+		builder.deleteCharAt(builder.length() - 1);
 		return builder.toString();
 	}
 }

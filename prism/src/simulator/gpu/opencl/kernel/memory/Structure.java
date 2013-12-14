@@ -23,24 +23,24 @@
 //	Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 //	
 //==============================================================================
-package simulator.gpu.automaton.command;
+package simulator.gpu.opencl.kernel.memory;
 
-import prism.PrismException;
-import simulator.gpu.automaton.Guard;
-import simulator.gpu.automaton.update.Update;
+import java.util.ArrayList;
+import java.util.List;
 
-public interface CommandInterface
+public class Structure extends VariableType
 {
-	Guard getGuard() throws PrismException;
+	private List<CLVariable> fields = new ArrayList<>();
+	private String typeName;
 
-	Update getUpdate() throws PrismException;
+	public Structure(String name)
+	{
+		super(Type.USER_DEFINED);
+		typeName = name;
+	}
 
-	/*
-	Rate getRateSumUpdate(int i) throws PrismException;
-	Rate getRateSumModule(int i) throws PrismException;
-	int getUpdateNumberModule(int i) throws PrismException;
-	*/
-	boolean isSynchronized();
-
-	public String toString();
+	public void addVariable(CLVariable var)
+	{
+		fields.add(var);
+	}
 }

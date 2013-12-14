@@ -25,8 +25,10 @@
 //==============================================================================
 package simulator.gpu;
 
+import prism.PrismLog;
 import simulator.gpu.automaton.AbstractAutomaton;
-
+import simulator.gpu.property.Property;
+import simulator.gpu.property.PropertyResult;
 
 public interface RuntimeFrameworkInterface
 {
@@ -36,20 +38,30 @@ public interface RuntimeFrameworkInterface
 	 * @return string with name
 	 */
 	String getFrameworkName();
+
 	//PLATFORM
 	/**
 	 *
 	 * @return
 	 */
 	String[] getPlatformNames();
+
 	int getPlatformNumber();
+
 	String getPlatformInfo(int i);
+
 	//DEVICE
 	RuntimeDeviceInterface[] getDevices();
+
 	String[] getDevicesNames();
+
 	RuntimeDeviceInterface getMaxFlopsDevice();
-	void selectDevice(int number);
+
 	void selectDevice(RuntimeDeviceInterface device);
+
 	//MODEL
-	void provideModel(AbstractAutomaton model);
+
+	PropertyResult[] simulateProperty(AbstractAutomaton model, Property[] properties, PrismLog mainLog);
+
+	void simulateTest(PrismLog mainLog);
 }

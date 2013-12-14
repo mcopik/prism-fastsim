@@ -27,6 +27,7 @@ package simulator.gpu.automaton.update;
 
 import java.util.ArrayList;
 import java.util.List;
+
 import parser.ast.Expression;
 import parser.ast.Updates;
 import prism.Pair;
@@ -34,45 +35,45 @@ import simulator.gpu.automaton.AbstractAutomaton.StateVector;
 
 public class Update
 {
-	private List< Pair<Rate,Action> > updatesList = new ArrayList<>();
-	public Update(Updates updates,StateVector variables)
+	private List<Pair<Rate, Action>> updatesList = new ArrayList<>();
+
+	public Update(Updates updates, StateVector variables)
 	{
 		int updatesCount = updates.getNumUpdates();
-		for(int i = 0;i < updatesCount;++i)
-		{
+		for (int i = 0; i < updatesCount; ++i) {
 			parser.ast.Update cur = updates.getUpdate(i);
 			Expression prob = updates.getProbability(i);
 			Rate rate = new Rate();
 			Action action = new Action();
 			rate.addRate(prob);
 			int exprCount = cur.getNumElements();
-			for(int j = 0;j < exprCount;++j)
-			{
-				action.addExpr(variables.getVar(cur.getVar(j)),
-								cur.getExpression(j));
+			for (int j = 0; j < exprCount; ++j) {
+				action.addExpr(variables.getVar(cur.getVar(j)), cur.getExpression(j));
 			}
-			updatesList.add(new Pair<>(rate,action));
+			updatesList.add(new Pair<>(rate, action));
 		}
 	}
+
 	public int getActionsNumber()
 	{
 		return updatesList.size();
 	}
+
 	public Rate getRate(int updateNumber)
 	{
 		return updatesList.get(updateNumber).first;
 	}
+
 	public Action getAction(int updateNumber)
 	{
 		return updatesList.get(updateNumber).second;
 	}
+
 	public String toString()
 	{
 		StringBuilder builder = new StringBuilder();
-		for(Pair<Rate,Action> pair : updatesList)
-		{
-			builder.append(pair.first).append(":")
-					.append(pair.second).append(" ");
+		for (Pair<Rate, Action> pair : updatesList) {
+			builder.append(pair.first).append(":").append(pair.second).append(" ");
 		}
 		return builder.toString();
 	}

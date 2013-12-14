@@ -3,6 +3,7 @@
  */
 package simulator;
 
+import simulator.gpu.RuntimeFrameworkInterface;
 import simulator.method.SimulationMethod;
 
 /**
@@ -12,25 +13,48 @@ import simulator.method.SimulationMethod;
 public class SimulationSettings
 {
 	private SimulationMethod simMethod;
-	private SimulationPlatform simPlatform;
-	public enum SimulationPlatform {
-		CPU,
-		OPENCL
+
+	private RuntimeFrameworkInterface simulator = null;
+	private boolean simulatorTest = false;
+
+	public SimulationSettings(SimulationMethod simMethod)
+	{
+		this.simMethod = simMethod;
 	}
+
+	public SimulationSettings(SimulationMethod simMethod, RuntimeFrameworkInterface simulator)
+	{
+		this.simMethod = simMethod;
+		this.simulator = simulator;
+	}
+
+	public void runSimulatorTest()
+	{
+		simulatorTest = true;
+	}
+
+	public boolean isSimulatorTest()
+	{
+		return simulatorTest;
+	}
+
 	public void setMethod(SimulationMethod simMethod)
 	{
 		this.simMethod = simMethod;
 	}
+
 	public SimulationMethod getMethod()
 	{
 		return simMethod;
 	}
-	public void setPlatform(SimulationPlatform simPlatform)
+
+	public boolean selectedStandardEngine()
 	{
-		this.simPlatform = simPlatform;
+		return simulator == null;
 	}
-	public SimulationPlatform getPlatform()
+
+	public RuntimeFrameworkInterface getSimulatorFramework()
 	{
-		return simPlatform;
+		return simulator;
 	}
 }

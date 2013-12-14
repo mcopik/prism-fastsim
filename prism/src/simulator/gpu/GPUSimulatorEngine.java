@@ -42,7 +42,6 @@ import simulator.gpu.automaton.CTMC;
 import simulator.gpu.automaton.DTMC;
 import simulator.method.SimulationMethod;
 
-
 public class GPUSimulatorEngine implements ModelCheckInterface
 {
 	/**
@@ -58,14 +57,18 @@ public class GPUSimulatorEngine implements ModelCheckInterface
 	 * Current automaton structure for GPU.
 	 */
 	private AbstractAutomaton automaton;
+	private RuntimeFrameworkInterface simFramework;
+
 	/**
 	 * Main constructor
 	 * @param log Prism main log
 	 */
-	public GPUSimulatorEngine(PrismLog log)
+	public GPUSimulatorEngine(RuntimeFrameworkInterface framework, PrismLog log)
 	{
 		mainLog = log;
+		simFramework = framework;
 	}
+
 	/**
 	 * Create automaton object using PRISM object
 	 * @param modulesFile
@@ -73,56 +76,60 @@ public class GPUSimulatorEngine implements ModelCheckInterface
 	 */
 	private void loadModel(ModulesFile modulesFile) throws PrismException
 	{
-		if(modulesFile.getModelType() == ModelType.DTMC)
-		{
+		if (modulesFile.getModelType() == ModelType.DTMC) {
 			automaton = new DTMC(modulesFile);
-		}
-		else if(modulesFile.getModelType() == ModelType.CTMC)
-		{
+		} else if (modulesFile.getModelType() == ModelType.CTMC) {
 			automaton = new CTMC(modulesFile);
 		}
 	}
+
+	public void setSimulatorFramework(RuntimeFrameworkInterface framework)
+	{
+		simFramework = framework;
+	}
+
 	@Override
 	public void checkModelForSimulation(ModulesFile modulesFile) throws PrismException
 	{
-		if(modulesFile.getModelType() != ModelType.DTMC ||
-				modulesFile.getModelType() != ModelType.CTMC)
-		{
+		if (modulesFile.getModelType() != ModelType.DTMC || modulesFile.getModelType() != ModelType.CTMC) {
 			throw new PrismException("Currently only DTMC/CTMC is supported!");
 		}
 	}
+
 	@Override
 	public boolean isPropertyOKForSimulation(Expression expr)
 	{
 		//TODO: implement!
 		return false;
 	}
+
 	@Override
 	public void checkPropertyForSimulation(Expression expr) throws PrismException
 	{
 		throw new PrismException("Not implemented yet!");
 	}
+
 	@Override
-	public Object modelCheckSingleProperty(ModulesFile modulesFile, PropertiesFile propertiesFile, 
-			Expression expr, State initialState, int maxPathLength,
+	public Object modelCheckSingleProperty(ModulesFile modulesFile, PropertiesFile propertiesFile, Expression expr, State initialState, int maxPathLength,
 			SimulationMethod simMethod) throws PrismException
 	{
 		loadModel(modulesFile);
-		System.out.println(automaton);
+		mainLog.println(automaton);
+		simFramework.simulateTest(mainLog);
 		throw new PrismException("Not implemented yet!");
 	}
+
 	@Override
-	public Object[] modelCheckMultipleProperties(ModulesFile modulesFile, PropertiesFile propertiesFile, 
-			List<Expression> exprs, State initialState, int maxPathLength, 
-			SimulationMethod simMethod) throws PrismException
+	public Object[] modelCheckMultipleProperties(ModulesFile modulesFile, PropertiesFile propertiesFile, List<Expression> exprs, State initialState,
+			int maxPathLength, SimulationMethod simMethod) throws PrismException
 	{
 		throw new PrismException("Not implemented yet!");
 	}
+
 	@Override
-	public void modelCheckExperiment(ModulesFile modulesFile, PropertiesFile propertiesFile, 
-			UndefinedConstants undefinedConstants, ResultsCollection resultsCollection, 
-			Expression expr, State initialState, int maxPathLength, SimulationMethod simMethod) 
-			throws PrismException, InterruptedException
+	public void modelCheckExperiment(ModulesFile modulesFile, PropertiesFile propertiesFile, UndefinedConstants undefinedConstants,
+			ResultsCollection resultsCollection, Expression expr, State initialState, int maxPathLength, SimulationMethod simMethod) throws PrismException,
+			InterruptedException
 	{
 		throw new PrismException("Not implemented yet!");
 	}

@@ -23,24 +23,36 @@
 //	Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 //	
 //==============================================================================
-package simulator.gpu.automaton.command;
+package simulator.gpu.opencl.kernel;
 
-import prism.PrismException;
-import simulator.gpu.automaton.Guard;
-import simulator.gpu.automaton.update.Update;
+import simulator.gpu.automaton.AbstractAutomaton;
 
-public interface CommandInterface
+public class Kernel
 {
-	Guard getGuard() throws PrismException;
+	/**
+	 * BasicDebug_Kernel.cl from AMDAPP's samples.
+	 */
+	public final static String TEST_KERNEL = "__kernel void main() { \n" + "uint globalID = get_global_id(0); \n" + "uint groupID = get_group_id(0);  \n"
+			+ "uint localID = get_local_id(0); \n" + "printf(\"the global ID of this thread is : %d\\n\",globalID); \n" + "}";
+	public String kernelSource;
 
-	Update getUpdate() throws PrismException;
+	public Kernel(AbstractAutomaton model)
+	{
 
-	/*
-	Rate getRateSumUpdate(int i) throws PrismException;
-	Rate getRateSumModule(int i) throws PrismException;
-	int getUpdateNumberModule(int i) throws PrismException;
-	*/
-	boolean isSynchronized();
+	}
 
-	public String toString();
+	private Kernel(String source)
+	{
+		kernelSource = source;
+	}
+
+	public static Kernel createTestKernel()
+	{
+		return new Kernel(TEST_KERNEL);
+	}
+
+	public String getSource()
+	{
+		return kernelSource;
+	}
 }

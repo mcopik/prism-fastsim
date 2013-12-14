@@ -29,6 +29,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
 import parser.VarList;
 import parser.ast.Module;
 import parser.ast.ModulesFile;
@@ -43,78 +44,78 @@ import simulator.gpu.automaton.command.CommandInterface;
 public abstract class AbstractAutomaton
 {
 	public enum AutomatonType {
-		DTMC,
-		CTMC
+		DTMC, CTMC
 	}
+
 	protected ModulesFile modulesFile = null;
 	protected VarList varList = null;
 	protected List<CommandInterface> commands = new ArrayList<>();
 	protected StateVector variables = new StateVector();
 	protected int numOfCommands = 0;
 	protected int numOfSyncCommands = 0;
-	public class StateVector {
-		protected Map<String,Variable> variables = new HashMap<>();
-		public void addVariable(Variable var)
+
+	public class StateVector
+	{
+		protected Map<String, PrismVariable> variables = new HashMap<>();
+
+		public void addVariable(PrismVariable var)
 		{
-			variables.put(var.name,var);
+			variables.put(var.name, var);
 		}
-		public Variable getVar(String name)
+
+		public PrismVariable getVar(String name)
 		{
 			return variables.get(name);
 		}
+
 		public String toString()
 		{
 			StringBuilder builder = new StringBuilder();
-			for(Map.Entry<String, Variable> var : variables.entrySet())
-			{
-				builder.append(var.getValue().toString()+"\n");
+			for (Map.Entry<String, PrismVariable> var : variables.entrySet()) {
+				builder.append(var.getValue().toString() + "\n");
 			}
 			return builder.toString();
 		}
 	}
+
 	public AbstractAutomaton(ModulesFile modulesFile) throws PrismException
 	{
 		varList = modulesFile.createVarList();
-		modulesFile = (ModulesFile) modulesFile.deepCopy().
-				replaceConstants(modulesFile.getConstantValues()).simplify();
+		modulesFile = (ModulesFile) modulesFile.deepCopy().replaceConstants(modulesFile.getConstantValues()).simplify();
 		this.modulesFile = modulesFile;
 		this.modulesFile.tidyUp();
 		extractVariables();
 		extractUpdates();
 	}
+
 	protected void extractVariables()
 	{
-		int varLen = varList.getNumVars(),i = 0;
-		for(i = 0;i < varLen;++i)
-		{
-			Variable variable = new Variable(varList.getName(i),
-						varList.getLow(i),varList.getStart(i),varList.getRangeLogTwo(i));
+		int varLen = varList.getNumVars(), i = 0;
+		for (i = 0; i < varLen; ++i) {
+			PrismVariable variable = new PrismVariable(varList.getName(i), varList.getLow(i), varList.getStart(i), varList.getRangeLogTwo(i));
 			variables.addVariable(variable);
 		}
 	}
+
 	protected void extractUpdates()
 	{
-		CommandBuilder builder = new CommandBuilder(getType(),variables);
-		for(String moduleName : modulesFile.getModuleNames())
-		{
+		CommandBuilder builder = new CommandBuilder(getType(), variables);
+		for (String moduleName : modulesFile.getModuleNames()) {
 			Module currentModule = modulesFile.getModule(modulesFile.getModuleIndex(moduleName));
 			builder.setCurrentModule(currentModule.getName());
-			for(int i = 0; i < currentModule.getNumCommands();++i)
-			{
-				builder.addCommand(
-						currentModule.getCommand(i).getSynch(),
-						currentModule.getCommand(i).getGuard(),
-						currentModule.getCommand(i).getUpdates()
-						);
+			for (int i = 0; i < currentModule.getNumCommands(); ++i) {
+				builder.addCommand(currentModule.getCommand(i).getSynch(), currentModule.getCommand(i).getGuard(), currentModule.getCommand(i).getUpdates());
 			}
 		}
 		commands = builder.getResults();
 	}
+
 	/**
 	 * 
 	 * @return
 	 */
 	public abstract AutomatonType getType();
+
 	@Override
 	public String toString()
 	{
@@ -122,8 +123,7 @@ public abstract class AbstractAutomaton
 		builder.append("Variables: \n");
 		builder.append(variables);
 		builder.append("Commands: \n");
-		for(CommandInterface cmd : commands)
-		{
+		for (CommandInterface cmd : commands) {
 			builder.append(cmd).append("\n");
 		}
 		return builder.toString();

@@ -29,18 +29,16 @@ import parser.ast.ModulesFile;
 import prism.ModelType;
 import prism.PrismException;
 
-
 public class CTMC extends AbstractAutomaton
 {
 	public CTMC(ModulesFile modulesFile) throws PrismException
 	{
 		super(modulesFile);
-		if(modulesFile.getModelType() != ModelType.CTMC)
-		{
-			throw new IllegalArgumentException("Attempt to create CTMC from automaton which"
-					+ " is " + modulesFile.getModelType().fullName());
+		if (modulesFile.getModelType() != ModelType.CTMC) {
+			throw new IllegalArgumentException("Attempt to create CTMC from automaton which" + " is " + modulesFile.getModelType().fullName());
 		}
 	}
+
 	public AutomatonType getType()
 	{
 		return AutomatonType.CTMC;

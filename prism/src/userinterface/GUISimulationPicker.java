@@ -28,18 +28,32 @@
 
 package userinterface;
 
-import java.util.*;
+import java.awt.Component;
+import java.awt.Dimension;
+import java.awt.event.KeyEvent;
+import java.awt.event.KeyListener;
+import java.util.ArrayList;
 import java.util.List;
-import java.awt.*;
-import java.awt.event.*;
-import javax.swing.*;
-import javax.swing.table.*;
+import java.util.Vector;
 
-import parser.*;
-import parser.ast.*;
-import parser.type.*;
-import prism.*;
-import simulator.method.*;
+import javax.swing.DefaultListSelectionModel;
+import javax.swing.JScrollPane;
+import javax.swing.JTable;
+import javax.swing.table.AbstractTableModel;
+import javax.swing.table.TableCellRenderer;
+
+import parser.State;
+import parser.Values;
+import parser.ast.Expression;
+import parser.ast.ExpressionReward;
+import parser.ast.ModulesFile;
+import parser.type.TypeBool;
+import parser.type.TypeInt;
+import prism.PrismException;
+import prism.PrismSettings;
+import simulator.method.APMCapproximation;
+import simulator.method.APMCconfidence;
+import simulator.method.APMCiterations;
 
 /**
  *  GUISimulationPicker is a dialog to collect the details required for
@@ -121,7 +135,7 @@ public class GUISimulationPicker extends javax.swing.JDialog implements KeyListe
 
 	//platform&device
 	private GUISimulationPlatform jPanelPlatform;
-	
+
 	// End of variables declaration//GEN-END:variables
 
 	/**
@@ -192,7 +206,7 @@ public class GUISimulationPicker extends javax.swing.JDialog implements KeyListe
 		// currently, we deliberately do not recall the last initial state used
 		// since it may no longer be valid due to changes in the model
 		information.setInitialState(null);
-		
+
 		// initialise
 		initComponents();
 		this.getRootPane().setDefaultButton(okayButton);
@@ -316,7 +330,7 @@ public class GUISimulationPicker extends javax.swing.JDialog implements KeyListe
 		gridBagConstraints.gridx = 0;
 		gridBagConstraints.gridy = 4;
 		jPanel1.add(jPanel5, gridBagConstraints);
-		
+
 		useDefaultInitialCheck.setText("Use default initial state");
 		useDefaultInitialCheck.addActionListener(new java.awt.event.ActionListener()
 		{
@@ -330,7 +344,7 @@ public class GUISimulationPicker extends javax.swing.JDialog implements KeyListe
 		gridBagConstraints.gridy = 1;
 		gridBagConstraints.fill = java.awt.GridBagConstraints.BOTH;
 		jPanel1.add(useDefaultInitialCheck, gridBagConstraints);
-		
+
 		topPanel.setLayout(new java.awt.BorderLayout());
 		gridBagConstraints = new java.awt.GridBagConstraints();
 		gridBagConstraints.gridx = 1;
@@ -415,7 +429,7 @@ public class GUISimulationPicker extends javax.swing.JDialog implements KeyListe
 			}
 		});
 
-		automaticCalculateCombo.setModel(new javax.swing.DefaultComboBoxModel(new String[] { }));
+		automaticCalculateCombo.setModel(new javax.swing.DefaultComboBoxModel(new String[] {}));
 		automaticCalculateCombo.addActionListener(new java.awt.event.ActionListener()
 		{
 			public void actionPerformed(java.awt.event.ActionEvent evt)
@@ -555,7 +569,7 @@ public class GUISimulationPicker extends javax.swing.JDialog implements KeyListe
 		jPanelPlatform = new GUISimulationPlatform();
 		//jPanel10.add(jPanelPlatform);
 		jPanel7.add(jPanel10, java.awt.BorderLayout.EAST);
-		jPanel7.add(jPanelPlatform,java.awt.BorderLayout.SOUTH);
+		jPanel7.add(jPanelPlatform, java.awt.BorderLayout.SOUTH);
 
 		getContentPane().add(jPanel7, java.awt.BorderLayout.CENTER);
 
@@ -648,7 +662,7 @@ public class GUISimulationPicker extends javax.swing.JDialog implements KeyListe
 	{
 		double width, confidence;
 		int numSamples;
-		
+
 		// Save valid values for later
 		if (isValidDoubleOrEmpty(confidenceField.getText()))
 			lastConf = confidenceField.getText();
@@ -825,7 +839,7 @@ public class GUISimulationPicker extends javax.swing.JDialog implements KeyListe
 			}
 			// Disable table
 			if (initValuesTable.getCellEditor() != null)
-			initValuesTable.getCellEditor().stopCellEditing();
+				initValuesTable.getCellEditor().stopCellEditing();
 			initValuesTable.getSelectionModel().clearSelection();
 			initValuesTable.setEnabled(false);
 		} else {
@@ -962,7 +976,7 @@ public class GUISimulationPicker extends javax.swing.JDialog implements KeyListe
 						parameterValue = new Boolean(bool);
 					} else if (initValuesModel.getValue(i).type instanceof TypeInt) {
 						parameterValue = new Integer(initValuesModel.getValue(i).value.toString());
-					} else { 
+					} else {
 						throw new NumberFormatException();
 					}
 					newInitState.addValue(parameter, parameterValue);
@@ -970,7 +984,7 @@ public class GUISimulationPicker extends javax.swing.JDialog implements KeyListe
 				information.setInitialState(newInitState);
 			}
 			//get simulation platform
-			jPanelPlatform.setSimulationPlatform(information);
+			jPanelPlatform.setSimulationInfo(information);
 			//information.setDistributed(distributedCheck.isSelected());
 			cancelled = false;
 			lastSimulationInformation = information;
@@ -991,7 +1005,7 @@ public class GUISimulationPicker extends javax.swing.JDialog implements KeyListe
 			}
 			// Disable table
 			if (initValuesTable.getCellEditor() != null)
-			initValuesTable.getCellEditor().stopCellEditing();
+				initValuesTable.getCellEditor().stopCellEditing();
 			initValuesTable.getSelectionModel().clearSelection();
 			initValuesTable.setEnabled(false);
 		}
@@ -1014,7 +1028,7 @@ public class GUISimulationPicker extends javax.swing.JDialog implements KeyListe
 			initValuesTable.setEnabled(true);
 		}
 	}
-	
+
 	private void cancelButtonActionPerformed(java.awt.event.ActionEvent evt)//GEN-FIRST:event_cancelButtonActionPerformed
 	{//GEN-HEADEREND:event_cancelButtonActionPerformed
 		dispose();

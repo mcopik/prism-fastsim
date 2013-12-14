@@ -28,9 +28,20 @@
 
 package userinterface;
 
-import parser.*;
+import parser.Values;
 import prism.PrismSettings;
-import simulator.method.*;
+import simulator.gpu.RuntimeFrameworkInterface;
+import simulator.method.ACIconfidence;
+import simulator.method.ACIiterations;
+import simulator.method.ACIwidth;
+import simulator.method.APMCapproximation;
+import simulator.method.APMCconfidence;
+import simulator.method.APMCiterations;
+import simulator.method.CIconfidence;
+import simulator.method.CIiterations;
+import simulator.method.CIwidth;
+import simulator.method.SPRTMethod;
+import simulator.method.SimulationMethod;
 
 public class SimulationInformation
 {
@@ -38,20 +49,23 @@ public class SimulationInformation
 	private PrismSettings settings;
 
 	// Simulation method
-	public enum Method { CI, ACI, APMC, SPRT };
+	public enum Method {
+		CI, ACI, APMC, SPRT
+	};
+
 	private Method method;
+
 	// Unknown variable
-	public enum Unknown { WIDTH, CONFIDENCE, NUM_SAMPLES };
+	public enum Unknown {
+		WIDTH, CONFIDENCE, NUM_SAMPLES
+	};
+
 	private Unknown unknown;
-	// Platform
-	public enum Platform { CPU, OPENCL};
-	private Platform platform;
-	
-	
-	
+
+	private RuntimeFrameworkInterface simFramework = null;
+
 	// Settings
 	private Values initialState;
-
 
 	private double width;
 	private double confidence;
@@ -79,10 +93,29 @@ public class SimulationInformation
 		this.numSamples = settings.getInteger(PrismSettings.SIMULATOR_DEFAULT_NUM_SAMPLES);
 		this.maxPathLength = settings.getInteger(PrismSettings.SIMULATOR_DEFAULT_MAX_PATH);
 
-
 		this.distributed = false;
 
 		this.maxRewardGiven = false;
+	}
+
+	public boolean selectedStandardEngine()
+	{
+		return simFramework == null;
+	}
+
+	public void setStandardSimulator()
+	{
+		simFramework = null;
+	}
+
+	public void setSimulatorFramework(RuntimeFrameworkInterface simFramework)
+	{
+		this.simFramework = simFramework;
+	}
+
+	public RuntimeFrameworkInterface getSimulatorFramework()
+	{
+		return simFramework;
 	}
 
 	public void setMethod(Method method)
@@ -114,7 +147,7 @@ public class SimulationInformation
 	{
 		if (name.equals("Width") || name.equals("Approximation")) {
 			setUnknown(Unknown.WIDTH);
-		} else if  (name.equals("Confidence")) {
+		} else if (name.equals("Confidence")) {
 			setUnknown(Unknown.CONFIDENCE);
 		} else if (name.equals("Number of samples")) {
 			setUnknown(Unknown.NUM_SAMPLES);
@@ -138,7 +171,7 @@ public class SimulationInformation
 	{
 		return unknown;
 	}
-	
+
 	/**
 	 * Getter for property initialState.
 	 * @return Value of property initialState.
@@ -166,6 +199,7 @@ public class SimulationInformation
 	{
 		this.width = width;
 	}
+
 	/**
 	 * Getter for property confidence.
 	 * @return Value of property confidence.
@@ -300,13 +334,5 @@ public class SimulationInformation
 			return null;
 		}
 	}
-	
-	public void setPlatform(Platform platform)
-	{
-		this.platform = platform;
-	}
-	public Platform getPlatform()
-	{
-		return platform;
-	}
+
 }

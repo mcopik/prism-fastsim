@@ -40,7 +40,7 @@ import parser.ast.PropertiesFile;
 import parser.ast.Property;
 import simulator.GenerateSimulationPath;
 import simulator.SimulationSettings;
-import simulator.SimulationSettings.SimulationPlatform;
+import simulator.gpu.opencl.RuntimeOpenCL;
 import simulator.method.ACIconfidence;
 import simulator.method.ACIiterations;
 import simulator.method.ACIwidth;
@@ -52,7 +52,6 @@ import simulator.method.CIiterations;
 import simulator.method.CIwidth;
 import simulator.method.SPRTMethod;
 import simulator.method.SimulationMethod;
-import userinterface.SimulationInformation;
 
 // prism - command line version
 
@@ -306,8 +305,7 @@ public class PrismCL implements PrismModelListener
 				// for simulation we can do multiple values of property constants simultaneously
 				if (simulate && undefinedConstants[j].getNumPropertyIterations() > 1) {
 					try {
-						SimulationSettings settings = 
-								processSimulationOptions(propertiesToCheck.get(j).getExpression());
+						SimulationSettings settings = processSimulationOptions(propertiesToCheck.get(j).getExpression());
 						simMethod = settings.getMethod();
 						prism.modelCheckSimulatorExperiment(propertiesFile, undefinedConstants[j], results[j], propertiesToCheck.get(j).getExpression(), null,
 								simMaxPath, settings);
@@ -340,8 +338,7 @@ public class PrismCL implements PrismModelListener
 							}
 							// Approximate (simulation-based) model checking
 							else if (simulate) {
-								SimulationSettings settings = 
-										processSimulationOptions(propertiesToCheck.get(j).getExpression());
+								SimulationSettings settings = processSimulationOptions(propertiesToCheck.get(j).getExpression());
 								simMethod = settings.getMethod();
 								res = prism.modelCheckSimulator(propertiesFile, propertiesToCheck.get(j).getExpression(), definedPFConstants, null, simMaxPath,
 										settings);
@@ -363,7 +360,7 @@ public class PrismCL implements PrismModelListener
 
 						// store result of model checking
 						results[j].setResult(definedMFConstants, definedPFConstants, res.getResult());
-						
+
 						// if a counterexample was generated, display it
 						Object cex = res.getCounterexample();
 						if (cex != null) {
@@ -393,7 +390,7 @@ public class PrismCL implements PrismModelListener
 								error(e.getMessage());
 							}
 						}
-						
+
 						// if required, check result against expected value
 						if (test) {
 							try {
@@ -1117,18 +1114,17 @@ public class PrismCL implements PrismModelListener
 						s = args[++i];
 						// Assume use of : to split filename/options but check for , if : not found
 						// (this was the old notation)
-						String halves[] = splitFilesAndOptions(s); 
+						String halves[] = splitFilesAndOptions(s);
 						if (halves[1].length() == 0 && halves[0].indexOf(',') > -1) {
 							int comma = halves[0].indexOf(',');
-							halves[1] = halves[0].substring(comma + 1); 
+							halves[1] = halves[0].substring(comma + 1);
 							halves[0] = halves[0].substring(0, comma);
 						}
 						exportResultsFilename = halves[0];
 						String ss[] = halves[1].split(",");
 						for (j = 0; j < ss.length; j++) {
 							if (ss[j].equals("")) {
-							}
-							else if (ss[j].equals("csv"))
+							} else if (ss[j].equals("csv"))
 								exportresultscsv = true;
 							else if (ss[j].equals("matrix"))
 								exportresultsmatrix = true;
@@ -1503,12 +1499,11 @@ public class PrismCL implements PrismModelListener
 						errorAndExit("No value specified for -" + sw + " switch");
 					}
 				}
-				// simulation max path length
+				// simulation platform
 				else if (sw.equals("simplatform")) {
 					if (i < args.length - 1) {
 						simPlatform = args[++i];
-						if (!simPlatform.equalsIgnoreCase("OpenCL") && 
-								!simPlatform.equalsIgnoreCase("CPU"))
+						if (!simPlatform.equalsIgnoreCase("OpenCL") && !simPlatform.equalsIgnoreCase("CPU"))
 							errorAndExit("Invalid value for -" + sw + " switch");
 						simPlatformGiven = true;
 					} else {
@@ -1930,7 +1925,7 @@ public class PrismCL implements PrismModelListener
 				}
 			}
 		}
-		
+
 		// plug in basename for -exportmodel switch if needed
 		if (exportModelNoBasename) {
 			String modelFileBasename = modelFilename;
@@ -2070,18 +2065,17 @@ public class PrismCL implements PrismModelListener
 		} else
 			throw new PrismException("Unknown simulation method \"" + simMethodName + "\"");
 
-		simSettings = new SimulationSettings();
-		simSettings.setMethod(aSimMethod);
-		if(simPlatformGiven) {
-			if(simPlatform.equalsIgnoreCase("CPU")) {
-				simSettings.setPlatform(SimulationPlatform.CPU);
+		simSettings = null;
+		if (simPlatformGiven) {
+			if (simPlatform.equalsIgnoreCase("CPU")) {
+				simSettings = new SimulationSettings(aSimMethod);
+			} else {
+				RuntimeOpenCL runtime = new RuntimeOpenCL();
+				runtime.selectDevice(runtime.getMaxFlopsDevice());
+				simSettings = new SimulationSettings(aSimMethod, runtime);
 			}
-			else {
-				simSettings.setPlatform(SimulationPlatform.OPENCL);
-			}
-		}
-		else {
-			simSettings.setPlatform(SimulationPlatform.CPU);
+		} else {
+			simSettings = new SimulationSettings(aSimMethod);
 		}
 		return simSettings;
 	}

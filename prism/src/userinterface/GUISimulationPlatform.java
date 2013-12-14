@@ -42,7 +42,6 @@ import simulator.gpu.RuntimeDeviceInterface;
 import simulator.gpu.RuntimeFrameworkInterface;
 import simulator.gpu.opencl.RuntimeOpenCL;
 
-
 public class GUISimulationPlatform extends JPanel
 {
 	/**
@@ -65,10 +64,7 @@ public class GUISimulationPlatform extends JPanel
 	/**
 	 * Hard coded, possible platforms to select from.
 	 */
-	private final static String AVAILABLE_PLATFORMS [] = {
-		"CPU(default implementation)",
-		"OpenCL"
-	};
+	private final static String AVAILABLE_PLATFORMS[] = { "CPU(default implementation)", "OpenCL" };
 	/**
 	 * Remember current selected platform - to revert in case of error.
 	 */
@@ -89,8 +85,7 @@ public class GUISimulationPlatform extends JPanel
 	/**
 	 * Hard coded possible device for default platform.
 	 */
-	private DefaultComboBoxModel<String> availableDevices = 
-			new DefaultComboBoxModel<>( new String[]{"CPU"});
+	private DefaultComboBoxModel<String> availableDevices = new DefaultComboBoxModel<>(new String[] { "CPU" });
 	//--------------DEVICE INFO------------------
 	/**
 	 * Device name label - caption.
@@ -120,6 +115,11 @@ public class GUISimulationPlatform extends JPanel
 	 * Current selected platform.
 	 */
 	private RuntimeFrameworkInterface currentFramework = null;
+	/**
+	 * Current selected device.
+	 */
+	private RuntimeDeviceInterface currentDevice = null;
+
 	public GUISimulationPlatform()
 	{
 		super(new GridBagLayout());
@@ -127,22 +127,28 @@ public class GUISimulationPlatform extends JPanel
 		initComponentsSelect(this);
 		initComponentsDetails(this);
 	}
+
 	/**
 	 * Write selected simulation platform to SimulationInformation 
 	 * @param info
 	 */
-	public void setSimulationPlatform(SimulationInformation info)
+	public void setSimulationInfo(SimulationInformation info)
 	{
-		switch(selectPlatform.getSelectedIndex())
-		{
-			case 0:
-				info.setPlatform(SimulationInformation.Platform.CPU);
+		switch (selectPlatform.getSelectedIndex()) {
+		case 0:
+			info.setStandardSimulator();
 			break;
-			case 1:
-				info.setPlatform(SimulationInformation.Platform.OPENCL);
+		case 1:
+			if (currentDevice != null) {
+				currentFramework.selectDevice(currentDevice);
+			} else {
+				currentFramework.selectDevice(currentFramework.getMaxFlopsDevice());
+			}
+			info.setSimulatorFramework(currentFramework);
 			break;
 		}
 	}
+
 	/**
 	 * Initialize components from section 'device details/info'
 	 * @param panel parent
@@ -150,20 +156,21 @@ public class GUISimulationPlatform extends JPanel
 	private void initComponentsDetails(JPanel panel)
 	{
 
-		initLabel(panel,labelName,DEVICE_NAME_CAPTION,1,4,GridBagConstraints.WEST);
-		initLabel(panel,labelPlatformName,DEVICE_PLATFORM_CAPTION,1,5,GridBagConstraints.WEST);
-		initLabel(panel,labelVersion,DEVICE_VERSION_CAPTION,1,6,GridBagConstraints.WEST);
+		initLabel(panel, labelName, DEVICE_NAME_CAPTION, 1, 4, GridBagConstraints.WEST);
+		initLabel(panel, labelPlatformName, DEVICE_PLATFORM_CAPTION, 1, 5, GridBagConstraints.WEST);
+		initLabel(panel, labelVersion, DEVICE_VERSION_CAPTION, 1, 6, GridBagConstraints.WEST);
 	}
+
 	/**
 	 * Initialize components from section 'device selection'
 	 * @param panel parent
 	 */
 	private void initComponentsSelect(JPanel panel)
 	{
-		
+
 		GridBagConstraints gridBagConstraints;
 		//SELECT PLATFORM
-		initLabel(panel,labelPlatform,LABEL_PLATFORM_CAPTION,1,2,GridBagConstraints.WEST);
+		initLabel(panel, labelPlatform, LABEL_PLATFORM_CAPTION, 1, 2, GridBagConstraints.WEST);
 		gridBagConstraints = new GridBagConstraints();
 		gridBagConstraints.gridx = 3;
 		gridBagConstraints.gridy = 2;
@@ -176,10 +183,10 @@ public class GUISimulationPlatform extends JPanel
 				changeSelectedPlatform(evt);
 			}
 		});
-		panel.add(selectPlatform,gridBagConstraints);
-		
+		panel.add(selectPlatform, gridBagConstraints);
+
 		//SELECT DEVICE
-		initLabel(panel,labelDevice,LABEL_DEVICE_CAPTION,1,3,GridBagConstraints.WEST);
+		initLabel(panel, labelDevice, LABEL_DEVICE_CAPTION, 1, 3, GridBagConstraints.WEST);
 		gridBagConstraints = new GridBagConstraints();
 		gridBagConstraints.gridx = 3;
 		gridBagConstraints.gridy = 3;
@@ -193,9 +200,10 @@ public class GUISimulationPlatform extends JPanel
 				changeSelectedDevice(evt);
 			}
 		});
-		panel.add(selectDevice,gridBagConstraints);
-		
+		panel.add(selectDevice, gridBagConstraints);
+
 	}
+
 	/**
 	 * Initialize label.
 	 * @param panel parent
@@ -205,49 +213,44 @@ public class GUISimulationPlatform extends JPanel
 	 * @param gridY y position
 	 * @param gridFill GridBar fill method
 	 */
-	private void initLabel(JPanel panel,JLabel label,String caption,
-			int gridX,int gridY,int gridFill)
+	private void initLabel(JPanel panel, JLabel label, String caption, int gridX, int gridY, int gridFill)
 	{
 		GridBagConstraints gridBagConstraints = new GridBagConstraints();
 		gridBagConstraints.gridx = gridX;
 		gridBagConstraints.gridy = gridY;
 		gridBagConstraints.anchor = gridFill;
 		label.setText(caption);
-		panel.add(label,gridBagConstraints);
+		panel.add(label, gridBagConstraints);
 	}
+
 	/**
 	 * Action method for platform selection
 	 * @param evt
 	 */
 	private void changeSelectedPlatform(ActionEvent evt)
 	{
-		switch(selectPlatform.getSelectedIndex())
-		{
-			case 0:
-				selectDevice.setEnabled(false);
-				labelName.setText(DEVICE_NAME_CAPTION);
-				labelPlatformName.setText(DEVICE_PLATFORM_CAPTION);
-				labelVersion.setText(DEVICE_VERSION_CAPTION);
-				previousPlatformSelection = 0;
+		switch (selectPlatform.getSelectedIndex()) {
+		case 0:
+			selectDevice.setEnabled(false);
+			labelName.setText(DEVICE_NAME_CAPTION);
+			labelPlatformName.setText(DEVICE_PLATFORM_CAPTION);
+			labelVersion.setText(DEVICE_VERSION_CAPTION);
+			previousPlatformSelection = 0;
 			break;
-			case 1:
-				selectDevice.setEnabled(true);
-				try {
-					currentFramework = new RuntimeOpenCL();
-					selectDevice.setModel(new DefaultComboBoxModel<String>(
-							currentFramework.getDevicesNames()));
-					previousPlatformSelection = 1;
-				} catch (PrismException exc) {
-					JOptionPane.showMessageDialog(
-							null, 
-							exc.getMessage(), 
-							"Error!", 
-							JOptionPane.ERROR_MESSAGE);
-					selectPlatform.setSelectedIndex(previousPlatformSelection);
-				}
+		case 1:
+			selectDevice.setEnabled(true);
+			try {
+				currentFramework = new RuntimeOpenCL();
+				selectDevice.setModel(new DefaultComboBoxModel<String>(currentFramework.getDevicesNames()));
+				previousPlatformSelection = 1;
+			} catch (PrismException exc) {
+				JOptionPane.showMessageDialog(null, exc.getMessage(), "Error!", JOptionPane.ERROR_MESSAGE);
+				selectPlatform.setSelectedIndex(previousPlatformSelection);
+			}
 			break;
 		}
 	}
+
 	/**
 	 * Action method for device selection.
 	 * @param evt
@@ -255,9 +258,9 @@ public class GUISimulationPlatform extends JPanel
 	private void changeSelectedDevice(ActionEvent evt)
 	{
 		RuntimeDeviceInterface[] devices = currentFramework.getDevices();
-		RuntimeDeviceInterface selection = devices[selectDevice.getSelectedIndex()];
-		labelName.setText(DEVICE_NAME_CAPTION + selection.getName());
-		labelPlatformName.setText(DEVICE_PLATFORM_CAPTION + selection.getPlatformName());
-		labelVersion.setText(DEVICE_VERSION_CAPTION + selection.getFrameworkVersion());
+		currentDevice = devices[selectDevice.getSelectedIndex()];
+		labelName.setText(DEVICE_NAME_CAPTION + currentDevice.getName());
+		labelPlatformName.setText(DEVICE_PLATFORM_CAPTION + currentDevice.getPlatformName());
+		labelVersion.setText(DEVICE_VERSION_CAPTION + currentDevice.getFrameworkVersion());
 	}
 }

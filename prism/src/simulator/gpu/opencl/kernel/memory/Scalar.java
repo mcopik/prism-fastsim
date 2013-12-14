@@ -23,46 +23,76 @@
 //	Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 //	
 //==============================================================================
-package simulator.gpu.automaton.command;
 
-import prism.PrismException;
-import simulator.gpu.automaton.Guard;
-import simulator.gpu.automaton.update.Update;
+package simulator.gpu.opencl.kernel.memory;
 
-public class Command implements CommandInterface
+import simulator.gpu.opencl.kernel.KernelException;
+
+public class Scalar implements CLVariable
 {
-	private final Guard guard;
-	private final Update update;
 
-	public Command(Guard guard, Update update)
+	public final String varName;
+	public final VariableType type;
+	public final boolean isPointer;
+
+	public Scalar(VariableType type)
 	{
-		this.guard = guard;
-		this.update = update;
+		this.varName = null;
+		this.type = type;
+		this.isPointer = false;
+	}
+
+	public Scalar(String name, VariableType type)
+	{
+		this.varName = name;
+		this.type = type;
+		this.isPointer = false;
+	}
+
+	public Scalar(String name, VariableType type, boolean isPtr, boolean isConst)
+	{
+		this.varName = name;
+		this.type = type;
+		this.isPointer = isPtr;
 	}
 
 	@Override
-	public Guard getGuard() throws PrismException
+	public Pointer getPointer()
 	{
-		return guard;
+		// TODO Auto-generated method stub
+		return null;
 	}
 
 	@Override
-	public Update getUpdate() throws PrismException
+	public boolean isArray()
 	{
-		return update;
-	}
-
-	@Override
-	public boolean isSynchronized()
-	{
+		// TODO Auto-generated method stub
 		return false;
 	}
 
 	@Override
-	public String toString()
+	public int length() throws KernelException
 	{
-		StringBuilder builder = new StringBuilder();
-		builder.append(guard).append(" -> ").append(update).append("\n");
-		return builder.toString();
+		throw new KernelException("Calling length() on non-array variable " + varName);
+	}
+
+	@Override
+	public boolean isPointer()
+	{
+		return isPointer;
+	}
+
+	@Override
+	public void setMemoryLocation(Location loc)
+	{
+		// TODO Auto-generated method stub
+
+	}
+
+	@Override
+	public VariableType getType()
+	{
+		// TODO Auto-generated method stub
+		return null;
 	}
 }
