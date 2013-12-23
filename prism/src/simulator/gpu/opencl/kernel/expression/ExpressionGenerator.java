@@ -23,9 +23,30 @@
 //	Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 //	
 //==============================================================================
-package simulator.gpu.opencl.kernel;
+package simulator.gpu.opencl.kernel.expression;
 
-public class KernelBuilder
+import simulator.gpu.automaton.PrismVariable;
+import simulator.gpu.opencl.kernel.memory.CLVariable;
+
+/**
+ * @author mcopik
+ *
+ */
+public class ExpressionGenerator
 {
+	public static String createVariableInitialization(CLVariable var, PrismVariable initial)
+	{
+		return null;
+	}
 
+	public static String declareVariable(CLVariable var)
+	{
+		return var.getDeclaration();
+	}
+
+	public static String defineVariable(CLVariable var)
+	{
+		//TODO: initialization
+		return var.getDeclaration() + ";";
+	}
 }

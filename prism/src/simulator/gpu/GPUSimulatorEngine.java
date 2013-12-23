@@ -115,7 +115,7 @@ public class GPUSimulatorEngine implements ModelCheckInterface
 	{
 		loadModel(modulesFile);
 		mainLog.println(automaton);
-		simFramework.simulateTest(mainLog);
+		simFramework.simulateProperty(automaton, null, mainLog);
 		throw new PrismException("Not implemented yet!");
 	}
 

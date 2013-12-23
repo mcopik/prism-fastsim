@@ -26,6 +26,7 @@
 package simulator.gpu.automaton;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -66,6 +67,11 @@ public abstract class AbstractAutomaton
 		public PrismVariable getVar(String name)
 		{
 			return variables.get(name);
+		}
+
+		public Collection<PrismVariable> getVars()
+		{
+			return variables.values();
 		}
 
 		public String toString()
@@ -115,6 +121,11 @@ public abstract class AbstractAutomaton
 	 * @return
 	 */
 	public abstract AutomatonType getType();
+
+	public StateVector getStateVector()
+	{
+		return variables;
+	}
 
 	@Override
 	public String toString()

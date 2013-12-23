@@ -25,16 +25,10 @@
 //==============================================================================
 package simulator.gpu.opencl.kernel.memory;
 
-public class VariableType
+import simulator.gpu.opencl.kernel.KernelComponent;
+
+public interface VariableType extends KernelComponent
 {
-	public enum Type {
-		BOOL, UINT8, INT8, UINT16, INT16, INT32, UINT32, INT64, UINT64, FLOAT, DOUBLE, VOID, USER_DEFINED
-	}
-
-	public final Type varType;
-
-	public VariableType(VariableType.Type type)
-	{
-		varType = type;
-	}
+	@Override
+	String getDeclaration();
 }

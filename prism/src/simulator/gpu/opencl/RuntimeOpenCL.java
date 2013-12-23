@@ -178,7 +178,17 @@ public class RuntimeOpenCL implements RuntimeFrameworkInterface
 	@Override
 	public PropertyResult[] simulateProperty(AbstractAutomaton model, Property[] properties, PrismLog mainLog)
 	{
-		// TODO Auto-generated method stub
+		currentContexts = createContexts();
+		mainLog.println("Using " + currentContexts.size() + " OpenCL devices.");
+		for (RuntimeContext context : currentContexts) {
+			mainLog.println(context);
+		}
+		for (RuntimeContext context : currentContexts) {
+			context.createKernel(model, null);
+		}
+		for (RuntimeContext context : currentContexts) {
+			context.runSimulation(mainLog);
+		}
 		return null;
 	}
 

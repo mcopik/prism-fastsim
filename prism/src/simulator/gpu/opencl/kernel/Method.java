@@ -28,41 +28,76 @@ package simulator.gpu.opencl.kernel;
 import java.util.HashMap;
 import java.util.Map;
 
+import simulator.gpu.opencl.kernel.expression.ExpressionGenerator;
 import simulator.gpu.opencl.kernel.memory.CLVariable;
+import simulator.gpu.opencl.kernel.memory.VariableType;
 
-public class Method
+public class Method implements KernelComponent
 {
 	protected String methodName = null;
+	protected VariableType methodType;
 	protected Map<String, CLVariable> localVars = new HashMap<>();
+	protected Map<String, CLVariable> args = new HashMap<>();
 
 	//protected CLVariable. returnType = new CLVariable(CLVariable.Type.VOID);
 
-	public Method(String name)
+	public Method(String name, VariableType type)
 	{
 		methodName = name;
+		methodType = type;
 	}
 
-	/*
-		public void addVar(CLVariable var) throws KernelException
-		{
-			if (localVars.containsKey(var.varName)) {
-				throw new KernelException("Variable " + var.varName + " already exists in method " + methodName);
-			}
-			localVars.put(var.varName, var);
+	public void addLocalVar(CLVariable var) throws KernelException
+	{
+		if (localVars.containsKey(var.varName)) {
+			throw new KernelException("Variable " + var.varName + " already exists in method " + methodName);
 		}
-		public void addArg(CLVariable var)*/
+		localVars.put(var.varName, var);
+	}
+
+	public void addArg(CLVariable var) throws KernelException
+	{
+		if (args.containsKey(var.varName)) {
+			throw new KernelException("Variable " + var.varName + " already exists in arg list of method " + methodName);
+		}
+		args.put(var.varName, var);
+	}
+
 	public int getVarsNum()
 	{
 		return localVars.size();
 	}
-	/*
-		public void setReturnType(CLVariable type)
-		{
-			returnType = type;
-		}
 
-		public void setReturn(CLVariable var)
-		{
-			returnType = var;
-		}*/
+	protected void declareVariables(StringBuilder builder)
+	{
+		for (Map.Entry<String, CLVariable> decl : localVars.entrySet()) {
+			builder.append(ExpressionGenerator.defineVariable(decl.getValue()));
+			builder.append("\n");
+		}
+	}
+
+	@Override
+	public String getDeclaration()
+	{
+		StringBuilder builder = new StringBuilder();
+		builder.append(methodType.getType()).append(" ").append(methodName).append("(");
+		for (Map.Entry<String, CLVariable> decl : args.entrySet()) {
+			builder.append(ExpressionGenerator.declareVariable(decl.getValue()));
+			builder.append(", ");
+		}
+		if (args.size() != 0) {
+			int len = builder.length();
+			builder.delete(len - 2, len - 1);
+		}
+		builder.append(") {\n");
+		declareVariables(builder);
+		builder.append("\n").append("}");
+		return builder.toString();
+	}
+
+	@Override
+	public String getType()
+	{
+		return methodType.getType();
+	}
 }

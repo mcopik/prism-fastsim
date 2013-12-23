@@ -25,26 +25,43 @@
 //==============================================================================
 package simulator.gpu.opencl.kernel.memory;
 
-import simulator.gpu.opencl.kernel.KernelException;
+import simulator.gpu.opencl.kernel.KernelComponent;
 
-public interface CLVariable
+public class CLVariable implements KernelComponent
 {
-
 	public enum Location {
 		REGISTER, LOCAL, GLOBAL
 	}
 
-	public void setMemoryLocation(Location loc);
+	public final String varName;
+	public final VariableType varType;
+	public Location memLocation = Location.REGISTER;
 
-	public VariableType getType();
+	public CLVariable(VariableType varType, String varName)
+	{
+		this.varName = varName;
+		this.varType = varType;
+	}
 
-	public Pointer getPointer();
+	public void setMemoryLocation(Location loc)
+	{
+		memLocation = loc;
+	}
 
-	public boolean isArray();
+	public VariableType getPointer()
+	{
+		return new PointerType(varType);
+	}
 
-	public int length() throws KernelException;
+	@Override
+	public String getDeclaration()
+	{
+		return varType.getType() + " " + varName;
+	}
 
-	public boolean isPointer();
-
-	public String toString();
+	@Override
+	public String getType()
+	{
+		return varType.getType();
+	}
 }

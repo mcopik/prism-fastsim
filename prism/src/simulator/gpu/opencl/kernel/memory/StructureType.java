@@ -25,51 +25,50 @@
 //==============================================================================
 package simulator.gpu.opencl.kernel.memory;
 
-import simulator.gpu.opencl.kernel.KernelException;
+import java.util.ArrayList;
+import java.util.List;
 
-public class Array implements CLVariable
+public class StructureType implements VariableType
 {
-
-	@Override
-	public Pointer getPointer()
+	private static class StructureValue extends CLValue
 	{
-		// TODO Auto-generated method stub
-		return null;
-	}
-
-	@Override
-	public boolean isArray()
-	{
-		// TODO Auto-generated method stub
-		return false;
-	}
-
-	@Override
-	public int length() throws KernelException
-	{
-		// TODO Auto-generated method stub
-		return 0;
-	}
-
-	@Override
-	public boolean isPointer()
-	{
-		// TODO Auto-generated method stub
-		return false;
-	}
-
-	@Override
-	public void setMemoryLocation(Location loc)
-	{
-		// TODO Auto-generated method stub
 
 	}
 
-	@Override
-	public VariableType getType()
+	private List<CLVariable> fields = new ArrayList<>();
+	private String typeName;
+
+	public StructureType(String typeName)
 	{
-		// TODO Auto-generated method stub
-		return null;
+		this.typeName = typeName;
 	}
 
+	public void addVariable(CLVariable var)
+	{
+		fields.add(var);
+	}
+
+	public List<CLVariable> getFields()
+	{
+		return fields;
+	}
+
+	@Override
+	public String getDeclaration()
+	{
+		StringBuilder builder = new StringBuilder();
+		builder.append("typedef struct _").append(typeName).append("{\n");
+		for (CLVariable var : fields) {
+			builder.append(var.getDeclaration()).append(";");
+			builder.append("\n");
+		}
+		builder.append("} ").append(typeName).append(";\n");
+		return builder.toString();
+	}
+
+	@Override
+	public String getType()
+	{
+		return typeName;
+	}
 }

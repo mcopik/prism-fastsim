@@ -25,15 +25,12 @@
 //==============================================================================
 package simulator.gpu.automaton;
 
-import simulator.gpu.opencl.kernel.memory.VariableType;
-
 public class PrismVariable
 {
 	public final String name;
 	public final boolean signFlag;
 	public final int initValue;
 	public final int bitsNumber;
-	public final VariableType.Type varType;
 
 	/**
 	 * Constructor.
@@ -48,46 +45,13 @@ public class PrismVariable
 		signFlag = low < 0;
 		initValue = init;
 		bitsNumber = bits;
-		varType = getType();
-	}
-
-	/**
-	 * Return type of this variable in C.
-	 * @return enum value
-	 */
-	private VariableType.Type getType()
-	{
-		VariableType.Type type;
-		if (bitsNumber == 1) {
-			type = VariableType.Type.BOOL;
-		} else if (bitsNumber <= 8) {
-			if (signFlag) {
-				type = VariableType.Type.UINT8;
-			} else {
-				type = VariableType.Type.INT8;
-			}
-		} else if (bitsNumber <= 16) {
-			if (signFlag) {
-				type = VariableType.Type.UINT16;
-			} else {
-				type = VariableType.Type.INT16;
-			}
-		} else {
-			if (signFlag) {
-				type = VariableType.Type.UINT32;
-			} else {
-				type = VariableType.Type.INT32;
-			}
-		}
-		return type;
 	}
 
 	@Override
 	public String toString()
 	{
 		StringBuilder builder = new StringBuilder();
-		builder.append(varType.toString()).append(" variable ").append(name).append(" initial value: ").append(initValue).append(" encoded with ")
-				.append(bitsNumber).append(" bytes");
+		builder.append("Variable ").append(name).append(" initial value: ").append(initValue).append(" encoded with ").append(bitsNumber).append(" bytes");
 		return builder.toString();
 	}
 }

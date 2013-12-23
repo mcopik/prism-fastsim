@@ -25,63 +25,61 @@
 //==============================================================================
 package simulator.gpu.opencl.kernel.memory;
 
-import simulator.gpu.opencl.kernel.KernelException;
+import simulator.gpu.automaton.PrismVariable;
 
-public class Pointer implements CLVariable
+public class StdVariableType implements VariableType
 {
+	public enum StdType {
+		VOID, BOOL, INT8, UINT8, INT16, UINT16, INT32, UINT32, FLOAT, DOUBLE, INT64, UINT64
+	}
 
-	/* (non-Javadoc)
-	 * @see simulator.gpu.opencl.kernel.memory.CLVariable#getPointer()
-	 */
-	@Override
-	public Pointer getPointer()
+	public final StdType varType;
+
+	public StdVariableType(StdType type)
 	{
-		// TODO Auto-generated method stub
+		this.varType = type;
+	}
+
+	public StdVariableType(PrismVariable var)
+	{
+		if (var.bitsNumber == 1) {
+			varType = StdType.BOOL;
+		} else if (var.bitsNumber <= 8) {
+			if (var.signFlag) {
+				varType = StdType.INT8;
+			} else {
+				varType = StdType.UINT8;
+			}
+		} else if (var.bitsNumber <= 16) {
+			if (var.signFlag) {
+				varType = StdType.INT16;
+			} else {
+				varType = StdType.UINT16;
+			}
+		} else if (var.bitsNumber <= 32) {
+			if (var.signFlag) {
+				varType = StdType.INT32;
+			} else {
+				varType = StdType.UINT32;
+			}
+		} else {
+			if (var.signFlag) {
+				varType = StdType.INT64;
+			} else {
+				varType = StdType.UINT64;
+			}
+		}
+	}
+
+	@Override
+	public String getDeclaration()
+	{
 		return null;
 	}
 
-	/* (non-Javadoc)
-	 * @see simulator.gpu.opencl.kernel.memory.CLVariable#isArray()
-	 */
 	@Override
-	public boolean isArray()
+	public String getType()
 	{
-		// TODO Auto-generated method stub
-		return false;
+		return varType.toString().toLowerCase();
 	}
-
-	/* (non-Javadoc)
-	 * @see simulator.gpu.opencl.kernel.memory.CLVariable#length()
-	 */
-	@Override
-	public int length() throws KernelException
-	{
-		// TODO Auto-generated method stub
-		return 0;
-	}
-
-	/* (non-Javadoc)
-	 * @see simulator.gpu.opencl.kernel.memory.CLVariable#isPointer()
-	 */
-	@Override
-	public boolean isPointer()
-	{
-		// TODO Auto-generated method stub
-		return false;
-	}
-
-	@Override
-	public void setMemoryLocation(Location loc)
-	{
-		// TODO Auto-generated method stub
-
-	}
-
-	@Override
-	public VariableType getType()
-	{
-		// TODO Auto-generated method stub
-		return null;
-	}
-
 }

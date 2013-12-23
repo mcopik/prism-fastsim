@@ -25,10 +25,19 @@
 //==============================================================================
 package simulator.gpu.opencl.kernel;
 
+import simulator.gpu.opencl.kernel.memory.StdVariableType;
+import simulator.gpu.opencl.kernel.memory.StdVariableType.StdType;
+
 public class KernelMethod extends Method
 {
 	public KernelMethod()
 	{
-		super("main");
+		super("main", new StdVariableType(StdType.VOID));
+	}
+
+	@Override
+	public String getDeclaration()
+	{
+		return "__kernel " + super.getDeclaration();
 	}
 }

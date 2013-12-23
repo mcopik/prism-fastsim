@@ -25,22 +25,25 @@
 //==============================================================================
 package simulator.gpu.opencl.kernel.memory;
 
-import java.util.ArrayList;
-import java.util.List;
-
-public class Structure extends VariableType
+public class ArrayType implements VariableType
 {
-	private List<CLVariable> fields = new ArrayList<>();
-	private String typeName;
+	private final CLVariable varType;
 
-	public Structure(String name)
+	public ArrayType(CLVariable type)
 	{
-		super(Type.USER_DEFINED);
-		typeName = name;
+		this.varType = type;
 	}
 
-	public void addVariable(CLVariable var)
+	@Override
+	public String getDeclaration()
 	{
-		fields.add(var);
+		return getType() + varType.varName;
 	}
+
+	@Override
+	public String getType()
+	{
+		return varType.getType() + "[]";
+	}
+
 }

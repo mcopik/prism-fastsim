@@ -54,7 +54,7 @@ public class RuntimeContext
 
 	public void createKernel(AbstractAutomaton automaton, Property[] properties)
 	{
-
+		kernel = new Kernel(currentDevice, automaton, properties);
 	}
 
 	public void createTestKernel()
@@ -62,8 +62,18 @@ public class RuntimeContext
 		kernel = Kernel.createTestKernel();
 	}
 
-	public void runSimulation()
+	public void runSimulation(PrismLog mainLog)
 	{
+		mainLog.println(kernel.getSource());
+		try {
+			CLProgram program = context.createProgram(kernel.getSource()).build();
+			CLKernel programKernel = program.createKernel("main");
+			CLQueue queue = context.createDefaultQueue();
+			programKernel.enqueueNDRange(queue, new int[] { 100, 100 });
+			queue.finish();
+		} catch (CLBuildException exc) {
+			mainLog.println("Program build error: " + exc.getMessage());
+		}
 	}
 
 	public void runTestSimulation(PrismLog mainLog)

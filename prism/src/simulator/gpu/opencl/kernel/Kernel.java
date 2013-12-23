@@ -25,7 +25,19 @@
 //==============================================================================
 package simulator.gpu.opencl.kernel;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import simulator.gpu.automaton.AbstractAutomaton;
+import simulator.gpu.automaton.AbstractAutomaton.StateVector;
+import simulator.gpu.automaton.PrismVariable;
+import simulator.gpu.opencl.CLDeviceWrapper;
+import simulator.gpu.opencl.kernel.expression.Expression;
+import simulator.gpu.opencl.kernel.memory.CLVariable;
+import simulator.gpu.opencl.kernel.memory.StdVariableType;
+import simulator.gpu.opencl.kernel.memory.StdVariableType.StdType;
+import simulator.gpu.opencl.kernel.memory.StructureType;
+import simulator.gpu.property.Property;
 
 public class Kernel
 {
@@ -34,14 +46,27 @@ public class Kernel
 	 */
 	public final static String TEST_KERNEL = "__kernel void main() { \n" + "uint globalID = get_global_id(0); \n" + "uint groupID = get_group_id(0);  \n"
 			+ "uint localID = get_local_id(0); \n" + "printf(\"the global ID of this thread is : %d\\n\",globalID); \n" + "}";
-	public String kernelSource;
 
-	public Kernel(AbstractAutomaton model)
+	private String kernelSource = null;
+	private KernelMethod mainMethod;
+	private StructureType stateVector;
+
+	private List<Expression> globalDeclarations = new ArrayList<>();
+
+	public Kernel(CLDeviceWrapper wrapper, AbstractAutomaton model, Property[] properties)
 	{
+		importStateVector(model.getStateVector());
+		try {
+			createMainMethod();
+		} catch (KernelException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
 
+		generateSource();
 	}
 
-	private Kernel(String source)
+	public Kernel(String source)
 	{
 		kernelSource = source;
 	}
@@ -49,6 +74,31 @@ public class Kernel
 	public static Kernel createTestKernel()
 	{
 		return new Kernel(TEST_KERNEL);
+	}
+
+	private void importStateVector(StateVector sv)
+	{
+		stateVector = new StructureType("StateVector");
+		for (PrismVariable var : sv.getVars()) {
+			stateVector.addVariable(new CLVariable(new StdVariableType(var), var.name));
+		}
+		globalDeclarations.add(new Expression(stateVector.getDeclaration()));
+	}
+
+	private void createMainMethod() throws KernelException
+	{
+		mainMethod = new KernelMethod();
+		mainMethod.addLocalVar(new CLVariable(new StdVariableType(StdType.INT16), "stateVector2"));
+	}
+
+	private void generateSource()
+	{
+		StringBuilder builder = new StringBuilder();
+		for (Expression expr : globalDeclarations) {
+			builder.append(expr.getSource()).append("\n");
+		}
+		builder.append(mainMethod.getDeclaration());
+		kernelSource = builder.toString();
 	}
 
 	public String getSource()

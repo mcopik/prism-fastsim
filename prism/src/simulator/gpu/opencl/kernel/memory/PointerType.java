@@ -23,76 +23,27 @@
 //	Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 //	
 //==============================================================================
-
 package simulator.gpu.opencl.kernel.memory;
 
-import simulator.gpu.opencl.kernel.KernelException;
-
-public class Scalar implements CLVariable
+public class PointerType implements VariableType
 {
+	private final VariableType internalType;
 
-	public final String varName;
-	public final VariableType type;
-	public final boolean isPointer;
-
-	public Scalar(VariableType type)
+	public PointerType(VariableType type)
 	{
-		this.varName = null;
-		this.type = type;
-		this.isPointer = false;
-	}
-
-	public Scalar(String name, VariableType type)
-	{
-		this.varName = name;
-		this.type = type;
-		this.isPointer = false;
-	}
-
-	public Scalar(String name, VariableType type, boolean isPtr, boolean isConst)
-	{
-		this.varName = name;
-		this.type = type;
-		this.isPointer = isPtr;
+		this.internalType = type;
 	}
 
 	@Override
-	public Pointer getPointer()
+	public String getDeclaration()
 	{
-		// TODO Auto-generated method stub
-		return null;
+		return internalType.getType() + "*" + internalType;
 	}
 
 	@Override
-	public boolean isArray()
+	public String getType()
 	{
-		// TODO Auto-generated method stub
-		return false;
+		return internalType.getType() + "*";
 	}
 
-	@Override
-	public int length() throws KernelException
-	{
-		throw new KernelException("Calling length() on non-array variable " + varName);
-	}
-
-	@Override
-	public boolean isPointer()
-	{
-		return isPointer;
-	}
-
-	@Override
-	public void setMemoryLocation(Location loc)
-	{
-		// TODO Auto-generated method stub
-
-	}
-
-	@Override
-	public VariableType getType()
-	{
-		// TODO Auto-generated method stub
-		return null;
-	}
 }
