@@ -23,66 +23,79 @@
 //	Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 //	
 //==============================================================================
-package simulator.gpu.opencl.kernel.memory;
+package simulator.gpu.opencl.kernel;
 
 import java.util.List;
 
-import simulator.gpu.opencl.kernel.Include;
-import simulator.gpu.opencl.kernel.KernelComponent;
-
-public class CLVariable implements KernelComponent
+/**
+ * @author mcopik
+ *
+ */
+public class Include implements KernelComponent
 {
-	public enum Location {
-		REGISTER, LOCAL, GLOBAL
-	}
+	public final String includePath;
+	public final boolean isLocal;
 
-	public final String varName;
-	public final VariableType varType;
-	public Location memLocation = Location.REGISTER;
-
-	public CLVariable(VariableType varType, String varName)
+	public Include(String path, boolean isLocal)
 	{
-		this.varName = varName;
-		this.varType = varType;
+		includePath = path;
+		this.isLocal = isLocal;
 	}
 
-	public void setMemoryLocation(Location loc)
-	{
-		memLocation = loc;
-	}
-
-	public VariableType getPointer()
-	{
-		return new PointerType(varType);
-	}
-
-	@Override
-	public String getDeclaration()
-	{
-		return null;
-	}
-
+	/* (non-Javadoc)
+	 * @see simulator.gpu.opencl.kernel.KernelComponent#hasInclude()
+	 */
 	@Override
 	public boolean hasInclude()
 	{
 		return false;
 	}
 
+	/* (non-Javadoc)
+	 * @see simulator.gpu.opencl.kernel.KernelComponent#hasDeclaration()
+	 */
 	@Override
 	public boolean hasDeclaration()
 	{
 		return false;
 	}
 
+	/* (non-Javadoc)
+	 * @see simulator.gpu.opencl.kernel.KernelComponent#getInclude()
+	 */
 	@Override
 	public List<Include> getInclude()
 	{
 		return null;
 	}
 
+	/* (non-Javadoc)
+	 * @see simulator.gpu.opencl.kernel.KernelComponent#getDeclaration()
+	 */
+	@Override
+	public String getDeclaration()
+	{
+		return null;
+	}
+
+	/* (non-Javadoc)
+	 * @see simulator.gpu.opencl.kernel.KernelComponent#getSource()
+	 */
 	@Override
 	public String getSource()
 	{
-		return varType.getType() + " " + varName + ";";
+		StringBuilder builder = new StringBuilder("#include ");
+		if (isLocal) {
+			builder.append("\"");
+		} else {
+			builder.append("<");
+		}
+		builder.append(includePath);
+		if (isLocal) {
+			builder.append("\"");
+		} else {
+			builder.append(">");
+		}
+		return builder.toString();
 	}
 }

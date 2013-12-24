@@ -94,6 +94,11 @@ public abstract class AbstractAutomaton
 		extractUpdates();
 	}
 
+	public int synchCmdsNumber()
+	{
+		return numOfSyncCommands;
+	}
+
 	protected void extractVariables()
 	{
 		int varLen = varList.getNumVars(), i = 0;
@@ -113,6 +118,7 @@ public abstract class AbstractAutomaton
 				builder.addCommand(currentModule.getCommand(i).getSynch(), currentModule.getCommand(i).getGuard(), currentModule.getCommand(i).getUpdates());
 			}
 		}
+		numOfSyncCommands = builder.synchCmdsNumber();
 		commands = builder.getResults();
 	}
 

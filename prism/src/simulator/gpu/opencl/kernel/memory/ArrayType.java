@@ -25,6 +25,7 @@
 //==============================================================================
 package simulator.gpu.opencl.kernel.memory;
 
+
 public class ArrayType implements VariableType
 {
 	private final CLVariable varType;
@@ -35,15 +36,9 @@ public class ArrayType implements VariableType
 	}
 
 	@Override
-	public String getDeclaration()
-	{
-		return getType() + varType.varName;
-	}
-
-	@Override
 	public String getType()
 	{
-		return varType.getType() + "[]";
+		return varType.getSource() + "[]";
 	}
 
 }

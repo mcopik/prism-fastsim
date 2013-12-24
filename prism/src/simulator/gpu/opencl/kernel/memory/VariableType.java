@@ -25,10 +25,7 @@
 //==============================================================================
 package simulator.gpu.opencl.kernel.memory;
 
-import simulator.gpu.opencl.kernel.KernelComponent;
-
-public interface VariableType extends KernelComponent
+public interface VariableType
 {
-	@Override
-	String getDeclaration();
+	String getType();
 }

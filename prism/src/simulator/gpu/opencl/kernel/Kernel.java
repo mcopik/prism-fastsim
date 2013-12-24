@@ -82,7 +82,7 @@ public class Kernel
 		for (PrismVariable var : sv.getVars()) {
 			stateVector.addVariable(new CLVariable(new StdVariableType(var), var.name));
 		}
-		globalDeclarations.add(new Expression(stateVector.getDeclaration()));
+		globalDeclarations.add(new Expression(stateVector.getSource()));
 	}
 
 	private void createMainMethod() throws KernelException
@@ -94,10 +94,11 @@ public class Kernel
 	private void generateSource()
 	{
 		StringBuilder builder = new StringBuilder();
+		builder.append(mainMethod.getDeclaration()).append("\n");
 		for (Expression expr : globalDeclarations) {
 			builder.append(expr.getSource()).append("\n");
 		}
-		builder.append(mainMethod.getDeclaration());
+		builder.append(mainMethod.getSource());
 		kernelSource = builder.toString();
 	}
 

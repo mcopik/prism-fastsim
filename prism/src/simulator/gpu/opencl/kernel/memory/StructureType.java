@@ -28,7 +28,14 @@ package simulator.gpu.opencl.kernel.memory;
 import java.util.ArrayList;
 import java.util.List;
 
-public class StructureType implements VariableType
+import simulator.gpu.opencl.kernel.Include;
+import simulator.gpu.opencl.kernel.KernelComponent;
+
+/**
+ * 
+ *
+ */
+public class StructureType implements VariableType, KernelComponent
 {
 	private static class StructureValue extends CLValue
 	{
@@ -36,7 +43,7 @@ public class StructureType implements VariableType
 	}
 
 	private List<CLVariable> fields = new ArrayList<>();
-	private String typeName;
+	public final String typeName;
 
 	public StructureType(String typeName)
 	{
@@ -57,12 +64,8 @@ public class StructureType implements VariableType
 	public String getDeclaration()
 	{
 		StringBuilder builder = new StringBuilder();
-		builder.append("typedef struct _").append(typeName).append("{\n");
-		for (CLVariable var : fields) {
-			builder.append(var.getDeclaration()).append(";");
-			builder.append("\n");
-		}
-		builder.append("} ").append(typeName).append(";\n");
+		builder.append("typedef struct _").append(typeName).append(" ");
+		builder.append(typeName).append(";");
 		return builder.toString();
 	}
 
@@ -70,5 +73,36 @@ public class StructureType implements VariableType
 	public String getType()
 	{
 		return typeName;
+	}
+
+	@Override
+	public boolean hasInclude()
+	{
+		return false;
+	}
+
+	@Override
+	public boolean hasDeclaration()
+	{
+		return true;
+	}
+
+	@Override
+	public List<Include> getInclude()
+	{
+		return null;
+	}
+
+	@Override
+	public String getSource()
+	{
+		StringBuilder builder = new StringBuilder();
+		builder.append("typedef struct _").append(typeName).append("{\n");
+		for (CLVariable var : fields) {
+			builder.append(var.getSource());
+			builder.append("\n");
+		}
+		builder.append("} ").append(typeName).append(";\n");
+		return builder.toString();
 	}
 }

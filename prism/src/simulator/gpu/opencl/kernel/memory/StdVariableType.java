@@ -72,12 +72,6 @@ public class StdVariableType implements VariableType
 	}
 
 	@Override
-	public String getDeclaration()
-	{
-		return null;
-	}
-
-	@Override
 	public String getType()
 	{
 		return varType.toString().toLowerCase();

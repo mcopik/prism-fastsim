@@ -35,12 +35,6 @@ public class PointerType implements VariableType
 	}
 
 	@Override
-	public String getDeclaration()
-	{
-		return internalType.getType() + "*" + internalType;
-	}
-
-	@Override
 	public String getType()
 	{
 		return internalType.getType() + "*";

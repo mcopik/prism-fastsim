@@ -83,4 +83,9 @@ public class CommandBuilder
 		commands.addAll(synchronizedCommands.values());
 		return commands;
 	}
+
+	public int synchCmdsNumber()
+	{
+		return synchronizedCommands.size();
+	}
 }
