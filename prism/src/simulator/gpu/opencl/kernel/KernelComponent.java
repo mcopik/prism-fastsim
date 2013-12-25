@@ -27,6 +27,8 @@ package simulator.gpu.opencl.kernel;
 
 import java.util.List;
 
+import simulator.gpu.opencl.kernel.expression.Expression;
+
 /**
  * Main interface for kernel components.
  * Specifies methods to access includes, type/method etc. declarations and created source code.
@@ -61,5 +63,5 @@ public interface KernelComponent
 	 * 
 	 * @return component source code
 	 */
-	public String getSource();
+	public Expression getSource();
 }

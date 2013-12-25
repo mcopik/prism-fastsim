@@ -27,6 +27,8 @@ package simulator.gpu.opencl.kernel;
 
 import java.util.List;
 
+import simulator.gpu.opencl.kernel.expression.Expression;
+
 /**
  * @author mcopik
  *
@@ -82,7 +84,7 @@ public class Include implements KernelComponent
 	 * @see simulator.gpu.opencl.kernel.KernelComponent#getSource()
 	 */
 	@Override
-	public String getSource()
+	public Expression getSource()
 	{
 		StringBuilder builder = new StringBuilder("#include ");
 		if (isLocal) {
@@ -96,6 +98,6 @@ public class Include implements KernelComponent
 		} else {
 			builder.append(">");
 		}
-		return builder.toString();
+		return new Expression(builder.toString());
 	}
 }

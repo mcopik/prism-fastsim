@@ -26,9 +26,49 @@
 package simulator.gpu.opencl.kernel.memory;
 
 import simulator.gpu.automaton.PrismVariable;
+import simulator.gpu.opencl.kernel.expression.Expression;
 
 public class StdVariableType implements VariableType
 {
+	private static class StdVariableValue<T extends Number> implements CLValue
+	{
+		private T value;
+
+		public StdVariableValue(T value)
+		{
+			this.value = value;
+		}
+
+		@Override
+		public boolean validateAssignmentTo(VariableType type)
+		{
+			if (!(type instanceof StdVariableType)) {
+				return false;
+			}
+			StdVariableType other = (StdVariableType) type;
+			if (other.varType.equals(StdType.BOOL)) {
+				return true;
+			} else if (other.varType.equals(StdType.DOUBLE)) {
+				return true;
+			} else if (other.varType.equals(StdType.FLOAT) && !(value instanceof Double)) {
+				return true;
+			} else if (other.varType.equals(StdType.VOID)) {
+				return false;
+			}
+			//integers
+			else {
+				//risk losing information, in C it's only warning
+				return true;
+			}
+		}
+
+		@Override
+		public Expression getSource()
+		{
+			return new Expression(value.toString());
+		}
+	}
+
 	public enum StdType {
 		VOID, BOOL, INT8, UINT8, INT16, UINT16, INT32, UINT32, FLOAT, DOUBLE, INT64, UINT64
 	}
@@ -69,6 +109,11 @@ public class StdVariableType implements VariableType
 				varType = StdType.UINT64;
 			}
 		}
+	}
+
+	static public <T extends Number> CLValue initialize(T value)
+	{
+		return new StdVariableValue<T>(value);
 	}
 
 	@Override

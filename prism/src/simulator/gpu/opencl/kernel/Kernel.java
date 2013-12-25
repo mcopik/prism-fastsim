@@ -82,13 +82,15 @@ public class Kernel
 		for (PrismVariable var : sv.getVars()) {
 			stateVector.addVariable(new CLVariable(new StdVariableType(var), var.name));
 		}
-		globalDeclarations.add(new Expression(stateVector.getSource()));
+		globalDeclarations.add(stateVector.getSource());
 	}
 
 	private void createMainMethod() throws KernelException
 	{
 		mainMethod = new KernelMethod();
-		mainMethod.addLocalVar(new CLVariable(new StdVariableType(StdType.INT16), "stateVector2"));
+		CLVariable var = new CLVariable(new StdVariableType(StdType.INT16), "stateVector2");
+		var.setInitValue(StdVariableType.initialize(new Integer(15)));
+		mainMethod.addLocalVar(var);
 	}
 
 	private void generateSource()

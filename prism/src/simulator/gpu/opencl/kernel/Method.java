@@ -29,6 +29,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import simulator.gpu.opencl.kernel.expression.Expression;
 import simulator.gpu.opencl.kernel.memory.CLVariable;
 import simulator.gpu.opencl.kernel.memory.VariableType;
 
@@ -114,7 +115,7 @@ public class Method implements KernelComponent
 	}
 
 	@Override
-	public String getSource()
+	public Expression getSource()
 	{
 		StringBuilder builder = new StringBuilder();
 		builder.append(getDeclaration());
@@ -124,6 +125,6 @@ public class Method implements KernelComponent
 		//create method body
 		declareVariables(builder);
 		builder.append("\n").append("}");
-		return builder.toString();
+		return new Expression(builder.toString());
 	}
 }

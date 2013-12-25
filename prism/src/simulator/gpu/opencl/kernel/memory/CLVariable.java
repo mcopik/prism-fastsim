@@ -29,6 +29,7 @@ import java.util.List;
 
 import simulator.gpu.opencl.kernel.Include;
 import simulator.gpu.opencl.kernel.KernelComponent;
+import simulator.gpu.opencl.kernel.expression.Expression;
 
 public class CLVariable implements KernelComponent
 {
@@ -38,6 +39,7 @@ public class CLVariable implements KernelComponent
 
 	public final String varName;
 	public final VariableType varType;
+	private CLValue initValue = null;
 	public Location memLocation = Location.REGISTER;
 
 	public CLVariable(VariableType varType, String varName)
@@ -49,6 +51,11 @@ public class CLVariable implements KernelComponent
 	public void setMemoryLocation(Location loc)
 	{
 		memLocation = loc;
+	}
+
+	public void setInitValue(CLValue value)
+	{
+		initValue = value;
 	}
 
 	public VariableType getPointer()
@@ -81,8 +88,14 @@ public class CLVariable implements KernelComponent
 	}
 
 	@Override
-	public String getSource()
+	public Expression getSource()
 	{
-		return varType.getType() + " " + varName + ";";
+		StringBuilder builder = new StringBuilder();
+		builder.append(varType.getType()).append(" ").append(varName);
+		if (initValue != null) {
+			builder.append(" = ").append(initValue.getSource());
+		}
+		builder.append(";");
+		return new Expression(builder.toString());
 	}
 }

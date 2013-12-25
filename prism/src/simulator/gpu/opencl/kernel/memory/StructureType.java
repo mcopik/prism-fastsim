@@ -30,6 +30,7 @@ import java.util.List;
 
 import simulator.gpu.opencl.kernel.Include;
 import simulator.gpu.opencl.kernel.KernelComponent;
+import simulator.gpu.opencl.kernel.expression.Expression;
 
 /**
  * 
@@ -37,8 +38,22 @@ import simulator.gpu.opencl.kernel.KernelComponent;
  */
 public class StructureType implements VariableType, KernelComponent
 {
-	private static class StructureValue extends CLValue
+	private static class StructureValue implements CLValue
 	{
+
+		@Override
+		public boolean validateAssignmentTo(VariableType type)
+		{
+			// TODO Auto-generated method stub
+			return false;
+		}
+
+		@Override
+		public Expression getSource()
+		{
+			// TODO Auto-generated method stub
+			return null;
+		}
 
 	}
 
@@ -94,7 +109,7 @@ public class StructureType implements VariableType, KernelComponent
 	}
 
 	@Override
-	public String getSource()
+	public Expression getSource()
 	{
 		StringBuilder builder = new StringBuilder();
 		builder.append("typedef struct _").append(typeName).append("{\n");
@@ -103,6 +118,6 @@ public class StructureType implements VariableType, KernelComponent
 			builder.append("\n");
 		}
 		builder.append("} ").append(typeName).append(";\n");
-		return builder.toString();
+		return new Expression(builder.toString());
 	}
 }

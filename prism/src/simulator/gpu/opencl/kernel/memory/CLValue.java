@@ -3,11 +3,11 @@
  */
 package simulator.gpu.opencl.kernel.memory;
 
-/**
- * @author mcopik
- *
- */
-public class CLValue
-{
+import simulator.gpu.opencl.kernel.expression.Expression;
 
+public interface CLValue
+{
+	boolean validateAssignmentTo(VariableType type);
+
+	Expression getSource();
 }

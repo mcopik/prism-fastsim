@@ -20,4 +20,9 @@ public class Expression
 	{
 		return expr;
 	}
+
+	public String toString()
+	{
+		return expr;
+	}
 }
