@@ -23,26 +23,29 @@
 //	Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 //	
 //==============================================================================
-package simulator.gpu.opencl.kernel;
+package simulator.gpu.opencl.kernel.expression;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import simulator.gpu.opencl.kernel.expression.Expression;
+import simulator.gpu.opencl.kernel.KernelException;
 import simulator.gpu.opencl.kernel.memory.CLVariable;
-import simulator.gpu.opencl.kernel.memory.VariableType;
+import simulator.gpu.opencl.kernel.memory.VariableInterface;
 
 public class Method implements KernelComponent
 {
 	public final String methodName;
-	public final VariableType methodType;
+	public final VariableInterface methodType;
 	protected Map<String, CLVariable> localVars = new HashMap<>();
 	protected Map<String, CLVariable> args = new HashMap<>();
+	List<Expression> source = new ArrayList<>();
+	boolean sourceHasChanged = false;
 
 	//protected CLVariable. returnType = new CLVariable(CLVariable.Type.VOID);
 
-	public Method(String name, VariableType type)
+	public Method(String name, VariableInterface type)
 	{
 		methodName = name;
 		methodType = type;
@@ -54,6 +57,7 @@ public class Method implements KernelComponent
 			throw new KernelException("Variable " + var.varName + " already exists in method " + methodName);
 		}
 		localVars.put(var.varName, var);
+		sourceHasChanged = true;
 	}
 
 	public void addArg(CLVariable var) throws KernelException
@@ -62,6 +66,7 @@ public class Method implements KernelComponent
 			throw new KernelException("Variable " + var.varName + " already exists in arg list of method " + methodName);
 		}
 		args.put(var.varName, var);
+		sourceHasChanged = true;
 	}
 
 	public int getVarsNum()
@@ -69,16 +74,14 @@ public class Method implements KernelComponent
 		return localVars.size();
 	}
 
-	protected void declareVariables(StringBuilder builder)
+	protected void declareVariables(List<Expression> source)
 	{
 		for (Map.Entry<String, CLVariable> decl : localVars.entrySet()) {
-			builder.append(decl.getValue().getSource());
-			builder.append("\n");
+			source.add(decl.getValue().getDefinition());
 		}
 	}
 
-	@Override
-	public String getDeclaration()
+	protected String createHeader()
 	{
 		StringBuilder builder = new StringBuilder(methodType.getType());
 		builder.append(" ").append(methodName).append("( ");
@@ -89,11 +92,17 @@ public class Method implements KernelComponent
 		}
 		if (args.size() != 0) {
 			int len = builder.length();
-			builder.replace(len - 2, len - 1, ");");
+			builder.replace(len - 2, len - 1, ")");
 		} else {
-			builder.append(");");
+			builder.append(")");
 		}
 		return builder.toString();
+	}
+
+	@Override
+	public Expression getDeclaration()
+	{
+		return new Expression(createHeader() + ";");
 	}
 
 	@Override
@@ -115,16 +124,33 @@ public class Method implements KernelComponent
 	}
 
 	@Override
-	public Expression getSource()
+	public String getSource()
 	{
+		generateSource();
 		StringBuilder builder = new StringBuilder();
-		builder.append(getDeclaration());
-		int len = builder.length();
-		builder.deleteCharAt(len - 1);
-		builder.append("{\n");
-		//create method body
-		declareVariables(builder);
-		builder.append("\n").append("}");
-		return new Expression(builder.toString());
+		for (Expression expr : source) {
+			builder.append(expr.getSource());
+			builder.append("\n");
+		}
+		return builder.toString();
+	}
+
+	@Override
+	public void accept(VisitorInterface v)
+	{
+		generateSource();
+		v.visit(this);
+	}
+
+	private void generateSource()
+	{
+		if (sourceHasChanged) {
+			source.clear();
+			source.add(new Expression(createHeader() + "{\n"));
+			//create method body
+			declareVariables(source);
+			source.add(new Expression("}"));
+			sourceHasChanged = false;
+		}
 	}
 }

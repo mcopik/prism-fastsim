@@ -23,11 +23,9 @@
 //	Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 //	
 //==============================================================================
-package simulator.gpu.opencl.kernel;
+package simulator.gpu.opencl.kernel.expression;
 
 import java.util.List;
-
-import simulator.gpu.opencl.kernel.expression.Expression;
 
 /**
  * @author mcopik
@@ -75,7 +73,7 @@ public class Include implements KernelComponent
 	 * @see simulator.gpu.opencl.kernel.KernelComponent#getDeclaration()
 	 */
 	@Override
-	public String getDeclaration()
+	public Expression getDeclaration()
 	{
 		return null;
 	}
@@ -84,7 +82,7 @@ public class Include implements KernelComponent
 	 * @see simulator.gpu.opencl.kernel.KernelComponent#getSource()
 	 */
 	@Override
-	public Expression getSource()
+	public String getSource()
 	{
 		StringBuilder builder = new StringBuilder("#include ");
 		if (isLocal) {
@@ -98,6 +96,12 @@ public class Include implements KernelComponent
 		} else {
 			builder.append(">");
 		}
-		return new Expression(builder.toString());
+		return builder.toString();
+	}
+
+	@Override
+	public void accept(VisitorInterface v)
+	{
+		//do nothing
 	}
 }

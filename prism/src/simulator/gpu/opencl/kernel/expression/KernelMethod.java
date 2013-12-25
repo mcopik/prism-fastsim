@@ -23,9 +23,21 @@
 //	Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 //	
 //==============================================================================
-package simulator.gpu.opencl.kernel.memory;
+package simulator.gpu.opencl.kernel.expression;
 
-public interface VariableType
+import simulator.gpu.opencl.kernel.memory.StdVariableType;
+import simulator.gpu.opencl.kernel.memory.StdVariableType.StdType;
+
+public class KernelMethod extends Method
 {
-	String getType();
+	public KernelMethod()
+	{
+		super("main", new StdVariableType(StdType.VOID));
+	}
+
+	@Override
+	protected String createHeader()
+	{
+		return "__kernel " + super.createHeader();
+	}
 }

@@ -7,7 +7,7 @@ import simulator.gpu.opencl.kernel.expression.Expression;
 
 public interface CLValue
 {
-	boolean validateAssignmentTo(VariableType type);
+	boolean validateAssignmentTo(VariableInterface type);
 
 	Expression getSource();
 }

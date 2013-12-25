@@ -23,21 +23,49 @@
 //	Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 //	
 //==============================================================================
-package simulator.gpu.opencl.kernel;
+package simulator.gpu.opencl.kernel.expression;
 
-import simulator.gpu.opencl.kernel.memory.StdVariableType;
-import simulator.gpu.opencl.kernel.memory.StdVariableType.StdType;
+import java.util.List;
 
-public class KernelMethod extends Method
+/**
+ * Main interface for kernel components.
+ * Specifies methods to access includes, type/method etc. declarations and created source code.
+ *
+ */
+public interface KernelComponent
 {
-	public KernelMethod()
-	{
-		super("main", new StdVariableType(StdType.VOID));
-	}
+	/**
+	 * 
+	 * @return true if component has additional include
+	 */
+	boolean hasInclude();
 
-	@Override
-	public String getDeclaration()
-	{
-		return "__kernel " + super.getDeclaration();
-	}
+	/**
+	 * 
+	 * @return true if component has global declaration
+	 */
+	boolean hasDeclaration();
+
+	/**
+	 * 
+	 * @return list of additional includes
+	 */
+	List<Include> getInclude();
+
+	/**
+	 * @return declaration source code (type definition, method definition)
+	 */
+	Expression getDeclaration();
+
+	/**
+	 * Accepts visitor to change internal state.
+	 * @param visitor object
+	 */
+	void accept(VisitorInterface v);
+
+	/**
+	 * 
+	 * @return component source code
+	 */
+	String getSource();
 }

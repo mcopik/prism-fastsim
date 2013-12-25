@@ -33,6 +33,7 @@ import simulator.gpu.automaton.AbstractAutomaton.StateVector;
 import simulator.gpu.automaton.PrismVariable;
 import simulator.gpu.opencl.CLDeviceWrapper;
 import simulator.gpu.opencl.kernel.expression.Expression;
+import simulator.gpu.opencl.kernel.expression.KernelMethod;
 import simulator.gpu.opencl.kernel.memory.CLValue;
 import simulator.gpu.opencl.kernel.memory.CLVariable;
 import simulator.gpu.opencl.kernel.memory.StdVariableType;
@@ -89,7 +90,7 @@ public class Kernel
 			init[i] = new Integer(vars[i].initValue);
 		}
 		stateVectorInit = stateVector.initializeStdStructure(init);
-		globalDeclarations.add(stateVector.getSource());
+		globalDeclarations.add(stateVector.getDefinition());
 	}
 
 	private void createMainMethod() throws KernelException

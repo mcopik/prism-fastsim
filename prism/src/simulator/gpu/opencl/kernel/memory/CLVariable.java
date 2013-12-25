@@ -25,24 +25,20 @@
 //==============================================================================
 package simulator.gpu.opencl.kernel.memory;
 
-import java.util.List;
-
-import simulator.gpu.opencl.kernel.Include;
-import simulator.gpu.opencl.kernel.KernelComponent;
 import simulator.gpu.opencl.kernel.expression.Expression;
 
-public class CLVariable implements KernelComponent
+public class CLVariable implements VariableInterface
 {
 	public enum Location {
 		REGISTER, LOCAL, GLOBAL
 	}
 
 	public final String varName;
-	public final VariableType varType;
+	public final VariableInterface varType;
 	private CLValue initValue = null;
 	public Location memLocation = Location.REGISTER;
 
-	public CLVariable(VariableType varType, String varName)
+	public CLVariable(VariableInterface varType, String varName)
 	{
 		this.varName = varName;
 		this.varType = varType;
@@ -58,37 +54,22 @@ public class CLVariable implements KernelComponent
 		initValue = value;
 	}
 
-	public VariableType getPointer()
+	public VariableInterface getPointer()
 	{
 		return new PointerType(varType);
 	}
 
 	@Override
-	public String getDeclaration()
+	public Expression getDeclaration()
 	{
-		return null;
+		StringBuilder builder = new StringBuilder();
+		builder.append(varType.getType()).append(" ").append(varName);
+		builder.append(";");
+		return new Expression(builder.toString());
 	}
 
 	@Override
-	public boolean hasInclude()
-	{
-		return false;
-	}
-
-	@Override
-	public boolean hasDeclaration()
-	{
-		return false;
-	}
-
-	@Override
-	public List<Include> getInclude()
-	{
-		return null;
-	}
-
-	@Override
-	public Expression getSource()
+	public Expression getDefinition()
 	{
 		StringBuilder builder = new StringBuilder();
 		builder.append(varType.getType()).append(" ").append(varName);
@@ -97,5 +78,11 @@ public class CLVariable implements KernelComponent
 		}
 		builder.append(";");
 		return new Expression(builder.toString());
+	}
+
+	@Override
+	public String getType()
+	{
+		return varType.getType();
 	}
 }

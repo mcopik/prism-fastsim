@@ -23,45 +23,15 @@
 //	Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 //	
 //==============================================================================
-package simulator.gpu.opencl.kernel;
-
-import java.util.List;
+package simulator.gpu.opencl.kernel.memory;
 
 import simulator.gpu.opencl.kernel.expression.Expression;
 
-/**
- * Main interface for kernel components.
- * Specifies methods to access includes, type/method etc. declarations and created source code.
- *
- */
-public interface KernelComponent
+public interface VariableInterface
 {
-	/**
-	 * 
-	 * @return true if component has additional include
-	 */
-	public boolean hasInclude();
+	Expression getDeclaration();
 
-	/**
-	 * 
-	 * @return true if component has global declaration
-	 */
-	public boolean hasDeclaration();
+	Expression getDefinition();
 
-	/**
-	 * 
-	 * @return list of additional includes
-	 */
-	public List<Include> getInclude();
-
-	/**
-	 * @return declaration source code (type definition, method definition)
-	 */
-	public String getDeclaration();
-
-	/**
-	 * 
-	 * @return component source code
-	 */
-	public Expression getSource();
+	String getType();
 }

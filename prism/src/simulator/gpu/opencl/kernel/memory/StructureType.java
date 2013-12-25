@@ -28,15 +28,13 @@ package simulator.gpu.opencl.kernel.memory;
 import java.util.ArrayList;
 import java.util.List;
 
-import simulator.gpu.opencl.kernel.Include;
-import simulator.gpu.opencl.kernel.KernelComponent;
 import simulator.gpu.opencl.kernel.expression.Expression;
 
 /**
  * 
  *
  */
-public class StructureType implements VariableType, KernelComponent
+public class StructureType implements VariableInterface
 {
 	private static class StructureValue implements CLValue
 	{
@@ -50,7 +48,7 @@ public class StructureType implements VariableType, KernelComponent
 		}
 
 		@Override
-		public boolean validateAssignmentTo(VariableType type)
+		public boolean validateAssignmentTo(VariableInterface type)
 		{
 			if (type instanceof StructureType) {
 				StructureType structure = (StructureType) type;
@@ -93,13 +91,12 @@ public class StructureType implements VariableType, KernelComponent
 		return fields;
 	}
 
-	@Override
-	public String getDeclaration()
+	public Expression getDeclaration()
 	{
 		StringBuilder builder = new StringBuilder();
 		builder.append("typedef struct _").append(typeName).append(" ");
 		builder.append(typeName).append(";");
-		return builder.toString();
+		return new Expression(builder.toString());
 	}
 
 	public boolean compatibleWithStructure(StructureType type)
@@ -130,31 +127,12 @@ public class StructureType implements VariableType, KernelComponent
 		return typeName;
 	}
 
-	@Override
-	public boolean hasInclude()
-	{
-		return false;
-	}
-
-	@Override
-	public boolean hasDeclaration()
-	{
-		return true;
-	}
-
-	@Override
-	public List<Include> getInclude()
-	{
-		return null;
-	}
-
-	@Override
-	public Expression getSource()
+	public Expression getDefinition()
 	{
 		StringBuilder builder = new StringBuilder();
 		builder.append("typedef struct _").append(typeName).append("{\n");
 		for (CLVariable var : fields) {
-			builder.append(var.getSource());
+			builder.append(var.getDeclaration());
 			builder.append("\n");
 		}
 		builder.append("} ").append(typeName).append(";\n");

@@ -25,10 +25,11 @@
 //==============================================================================
 package simulator.gpu.opencl.kernel.memory;
 
+import simulator.gpu.opencl.kernel.expression.Expression;
 
-public class ArrayType implements VariableType
+public class ArrayType implements VariableInterface
 {
-	private final CLVariable varType;
+	private final VariableInterface varType;
 
 	public ArrayType(CLVariable type)
 	{
@@ -38,7 +39,19 @@ public class ArrayType implements VariableType
 	@Override
 	public String getType()
 	{
-		return varType.getSource() + "[]";
+		return varType.getType() + "[]";
+	}
+
+	@Override
+	public Expression getDeclaration()
+	{
+		return null;
+	}
+
+	@Override
+	public Expression getDefinition()
+	{
+		return null;
 	}
 
 }

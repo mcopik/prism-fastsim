@@ -41,7 +41,8 @@ public class ExpressionGenerator
 
 	public static String declareVariable(CLVariable var)
 	{
-		return var.getDeclaration();
+		//return var.getDeclaration();
+		return null;
 	}
 
 	public static String defineVariable(CLVariable var)

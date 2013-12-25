@@ -28,7 +28,7 @@ package simulator.gpu.opencl.kernel.memory;
 import simulator.gpu.automaton.PrismVariable;
 import simulator.gpu.opencl.kernel.expression.Expression;
 
-public class StdVariableType implements VariableType
+public class StdVariableType implements VariableInterface
 {
 	private static class StdVariableValue<T extends Number> implements CLValue
 	{
@@ -40,7 +40,7 @@ public class StdVariableType implements VariableType
 		}
 
 		@Override
-		public boolean validateAssignmentTo(VariableType type)
+		public boolean validateAssignmentTo(VariableInterface type)
 		{
 			if (!(type instanceof StdVariableType)) {
 				return false;
@@ -120,5 +120,17 @@ public class StdVariableType implements VariableType
 	public String getType()
 	{
 		return varType.toString().toLowerCase();
+	}
+
+	@Override
+	public Expression getDeclaration()
+	{
+		return null;
+	}
+
+	@Override
+	public Expression getDefinition()
+	{
+		return null;
 	}
 }
