@@ -40,21 +40,39 @@ public class StructureType implements VariableType, KernelComponent
 {
 	private static class StructureValue implements CLValue
 	{
+		private StructureType type;
+		private CLValue[] fieldsValue = null;
+
+		public StructureValue(StructureType type, CLValue[] values)
+		{
+			this.type = type;
+			fieldsValue = values;
+		}
 
 		@Override
 		public boolean validateAssignmentTo(VariableType type)
 		{
-			// TODO Auto-generated method stub
-			return false;
+			if (type instanceof StructureType) {
+				StructureType structure = (StructureType) type;
+				return structure.compatibleWithStructure(this.type);
+			} else {
+				return false;
+			}
 		}
 
 		@Override
 		public Expression getSource()
 		{
-			// TODO Auto-generated method stub
-			return null;
+			StringBuilder builder = new StringBuilder("{\n");
+			for (CLValue value : fieldsValue) {
+				builder.append(value.getSource().toString());
+				builder.append(",\n");
+			}
+			int len = builder.length();
+			builder.delete(len - 2, len - 1);
+			builder.append("}");
+			return new Expression(builder.toString());
 		}
-
 	}
 
 	private List<CLVariable> fields = new ArrayList<>();
@@ -82,6 +100,28 @@ public class StructureType implements VariableType, KernelComponent
 		builder.append("typedef struct _").append(typeName).append(" ");
 		builder.append(typeName).append(";");
 		return builder.toString();
+	}
+
+	public boolean compatibleWithStructure(StructureType type)
+	{
+		if (fields.size() != type.fields.size()) {
+			return false;
+		}
+		for (int i = 0; i < fields.size(); ++i) {
+			if (!fields.get(i).varType.equals(type.fields.get(i).varType)) {
+				return false;
+			}
+		}
+		return true;
+	}
+
+	public CLValue initializeStdStructure(Number[] values)
+	{
+		CLValue[] init = new CLValue[values.length];
+		for (int i = 0; i < values.length; ++i) {
+			init[i] = StdVariableType.initialize(values[i]);
+		}
+		return new StructureValue(this, init);
 	}
 
 	@Override

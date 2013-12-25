@@ -33,6 +33,7 @@ import simulator.gpu.automaton.AbstractAutomaton.StateVector;
 import simulator.gpu.automaton.PrismVariable;
 import simulator.gpu.opencl.CLDeviceWrapper;
 import simulator.gpu.opencl.kernel.expression.Expression;
+import simulator.gpu.opencl.kernel.memory.CLValue;
 import simulator.gpu.opencl.kernel.memory.CLVariable;
 import simulator.gpu.opencl.kernel.memory.StdVariableType;
 import simulator.gpu.opencl.kernel.memory.StdVariableType.StdType;
@@ -50,6 +51,7 @@ public class Kernel
 	private String kernelSource = null;
 	private KernelMethod mainMethod;
 	private StructureType stateVector;
+	private CLValue stateVectorInit;
 
 	private List<Expression> globalDeclarations = new ArrayList<>();
 
@@ -79,9 +81,14 @@ public class Kernel
 	private void importStateVector(StateVector sv)
 	{
 		stateVector = new StructureType("StateVector");
-		for (PrismVariable var : sv.getVars()) {
-			stateVector.addVariable(new CLVariable(new StdVariableType(var), var.name));
+		Integer[] init = new Integer[sv.size()];
+		PrismVariable[] vars = sv.getVars();
+		for (int i = 0; i < vars.length; ++i) {
+			CLVariable var = new CLVariable(new StdVariableType(vars[i]), vars[i].name);
+			stateVector.addVariable(var);
+			init[i] = new Integer(vars[i].initValue);
 		}
+		stateVectorInit = stateVector.initializeStdStructure(init);
 		globalDeclarations.add(stateVector.getSource());
 	}
 
@@ -91,6 +98,9 @@ public class Kernel
 		CLVariable var = new CLVariable(new StdVariableType(StdType.INT16), "stateVector2");
 		var.setInitValue(StdVariableType.initialize(new Integer(15)));
 		mainMethod.addLocalVar(var);
+		CLVariable sv = new CLVariable(stateVector, "stateVector");
+		sv.setInitValue(stateVectorInit);
+		mainMethod.addLocalVar(sv);
 	}
 
 	private void generateSource()

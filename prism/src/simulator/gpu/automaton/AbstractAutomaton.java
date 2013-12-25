@@ -69,9 +69,15 @@ public abstract class AbstractAutomaton
 			return variables.get(name);
 		}
 
-		public Collection<PrismVariable> getVars()
+		public PrismVariable[] getVars()
 		{
-			return variables.values();
+			Collection<PrismVariable> vars = variables.values();
+			return vars.toArray(new PrismVariable[vars.size()]);
+		}
+
+		public int size()
+		{
+			return variables.size();
 		}
 
 		public String toString()
