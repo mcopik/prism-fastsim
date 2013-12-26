@@ -33,7 +33,9 @@ import simulator.gpu.automaton.AbstractAutomaton.StateVector;
 import simulator.gpu.automaton.PrismVariable;
 import simulator.gpu.opencl.CLDeviceWrapper;
 import simulator.gpu.opencl.kernel.expression.Expression;
+import simulator.gpu.opencl.kernel.expression.ForLoop;
 import simulator.gpu.opencl.kernel.expression.KernelMethod;
+import simulator.gpu.opencl.kernel.expression.Method;
 import simulator.gpu.opencl.kernel.memory.CLValue;
 import simulator.gpu.opencl.kernel.memory.CLVariable;
 import simulator.gpu.opencl.kernel.memory.StdVariableType;
@@ -49,8 +51,13 @@ public class Kernel
 	public final static String TEST_KERNEL = "__kernel void main() { \n" + "uint globalID = get_global_id(0); \n" + "uint groupID = get_group_id(0);  \n"
 			+ "uint localID = get_local_id(0); \n" + "printf(\"the global ID of this thread is : %d\\n\",globalID); \n" + "}";
 
+	public final static String KERNEL_TYPEDEFS = "typedef char int8_t;\n" + "typedef unsigned char uint8_t;\n" + "typedef unsigned short uint16_t;\n"
+			+ "typedef short int16_t;\n" + "typedef unsigned int uint32_t;\n" + "typedef int int32_t;\n" + "typedef long int64_t;\n"
+			+ "typedef unsigned long uint64_t;\n";
+
 	private String kernelSource = null;
 	private KernelMethod mainMethod;
+	private List<Method> otherMethods = new ArrayList<>();
 	private StructureType stateVector;
 	private CLValue stateVectorInit;
 
@@ -102,11 +109,14 @@ public class Kernel
 		CLVariable sv = new CLVariable(stateVector, "stateVector");
 		sv.setInitValue(stateVectorInit);
 		mainMethod.addLocalVar(sv);
+		ForLoop loop = new ForLoop("i", 0, 1000);
+		mainMethod.addExpression(loop);
 	}
 
 	private void generateSource()
 	{
 		StringBuilder builder = new StringBuilder();
+		builder.append(KERNEL_TYPEDEFS).append("\n");
 		builder.append(mainMethod.getDeclaration()).append("\n");
 		for (Expression expr : globalDeclarations) {
 			builder.append(expr.getSource()).append("\n");

@@ -73,6 +73,10 @@ public class RuntimeContext
 			queue.finish();
 		} catch (CLBuildException exc) {
 			mainLog.println("Program build error: " + exc.getMessage());
+		} catch (Exception exc) {
+			mainLog.println(exc.getMessage());
+		} catch (Error exc) {
+			mainLog.println(exc.getMessage());
 		}
 	}
 
@@ -88,6 +92,7 @@ public class RuntimeContext
 		} catch (CLBuildException exc) {
 			mainLog.println("Program build error: " + exc.getMessage());
 		}
+
 	}
 
 	public String toString()

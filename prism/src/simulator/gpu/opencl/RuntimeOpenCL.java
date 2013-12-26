@@ -28,9 +28,9 @@ package simulator.gpu.opencl;
 import java.util.ArrayList;
 import java.util.List;
 
+import prism.Preconditions;
 import prism.PrismException;
 import prism.PrismLog;
-import simulator.gpu.Preconditions;
 import simulator.gpu.RuntimeDeviceInterface;
 import simulator.gpu.RuntimeFrameworkInterface;
 import simulator.gpu.automaton.AbstractAutomaton;
@@ -105,7 +105,7 @@ public class RuntimeOpenCL implements RuntimeFrameworkInterface
 	@Override
 	public String getPlatformInfo(int platformNumber)
 	{
-		Preconditions.checkArgument(platformNumber < platforms.length && 0 <= platformNumber);
+		Preconditions.checkIndex(platformNumber, platforms.length, String.format("%d is not valid platform number", platformNumber));
 		return currentPlatform.getName() + " " + currentPlatform.getVendor();
 	}
 
@@ -114,7 +114,6 @@ public class RuntimeOpenCL implements RuntimeFrameworkInterface
 	 */
 	public String[] getPlatformNames()
 	{
-		Preconditions.checkNotNull(platforms);
 		String[] names = new String[platforms.length];
 		for (int i = 0; i < platforms.length; ++i) {
 			names[i] = platforms[i].getName();
@@ -159,7 +158,7 @@ public class RuntimeOpenCL implements RuntimeFrameworkInterface
 	@Override
 	public void selectDevice(RuntimeDeviceInterface device)
 	{
-		Preconditions.checkArgument(device instanceof CLDeviceWrapper);
+		Preconditions.checkCondition(device instanceof CLDeviceWrapper, "RuntimeOpenCL can't select non-opencl device");
 		currentDevices.add((CLDeviceWrapper) device);
 	}
 

@@ -23,29 +23,28 @@
 //	Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 //	
 //==============================================================================
-package simulator.gpu.opencl.kernel.expression;
+package prism;
 
-import prism.Preconditions;
-import simulator.gpu.opencl.kernel.memory.CLVariable;
-import simulator.gpu.opencl.kernel.memory.StructureType;
-
-/**
- * @author mcopik
- *
- */
-public class ExpressionGenerator
+public final class Preconditions
 {
-	static public CLVariable accessStructureField(CLVariable structure, String fieldName)
+	static public <T> void checkNotNull(T object, String msg)
 	{
-		Preconditions.checkCondition(structure.varType instanceof StructureType, "Can access field only in structure variable");
-		StructureType type = (StructureType) structure.varType;
-		CLVariable field = null;
-		for (CLVariable var : type.getFields()) {
-			if (var.varName.equals(fieldName)) {
-				field = var;
-				break;
-			}
+		if (object == null) {
+			throw new NullPointerException(msg);
 		}
-		return field != null ? new CLVariable(field.varType, structure.varName + "." + field.varName) : null;
 	}
-}
+
+	static public void checkCondition(boolean condition, String msg)
+	{
+		if (!condition) {
+			throw new IllegalArgumentException(msg);
+		}
+	}
+
+	static public void checkIndex(int index, int size, String msg)
+	{
+		if (index < 0 || index >= size) {
+			throw new IllegalArgumentException(msg);
+		}
+	}
+};

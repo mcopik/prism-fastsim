@@ -3,10 +3,8 @@
  */
 package simulator.gpu.opencl.kernel.expression;
 
-import java.util.HashMap;
-import java.util.Map;
-
 import simulator.gpu.opencl.kernel.memory.CLVariable;
+import simulator.gpu.opencl.kernel.memory.StructureType;
 
 /**
  * @author mcopik
@@ -14,24 +12,31 @@ import simulator.gpu.opencl.kernel.memory.CLVariable;
  */
 public class MemoryTranslatorVisitor implements VisitorInterface
 {
-	private Map<String, CLVariable> translations = new HashMap<>();
+	private CLVariable stateVector = null;
+
+	public MemoryTranslatorVisitor(CLVariable sv)
+	{
+		stateVector = sv;
+	}
 
 	private String translateString(String str)
 	{
 		StringBuilder builder = new StringBuilder(str);
-		for (Map.Entry<String, CLVariable> entry : translations.entrySet()) {
-			int pos = builder.indexOf(entry.getKey());
+		StructureType structure = (StructureType) stateVector.varType;
+		for (CLVariable var : structure.getFields()) {
+			int pos = builder.indexOf(var.varName);
+			CLVariable newVar = ExpressionGenerator.accessStructureField(stateVector, var.varName);
 			while (pos >= 0) {
-				builder.replace(pos, pos + entry.getKey().length() - 1, entry.getValue().varName);
-				pos = builder.indexOf(entry.getKey());
+				builder.replace(pos, pos + var.varName.length() - 1, newVar.varName);
+				pos = builder.indexOf(var.varName);
 			}
 		}
 		return builder.toString();
 	}
 
-	public void addTranslation(String prismVariable, CLVariable clVariable)
+	public void setStateVector(CLVariable var)
 	{
-		translations.put(prismVariable, clVariable);
+		stateVector = var;
 	}
 
 	@Override
@@ -50,7 +55,6 @@ public class MemoryTranslatorVisitor implements VisitorInterface
 	@Override
 	public void visit(Method method)
 	{
-		// TODO Auto-generated method stub
 
 	}
 

@@ -25,7 +25,6 @@
 //==============================================================================
 package simulator.gpu.opencl.kernel.expression;
 
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -34,30 +33,18 @@ import simulator.gpu.opencl.kernel.KernelException;
 import simulator.gpu.opencl.kernel.memory.CLVariable;
 import simulator.gpu.opencl.kernel.memory.VariableInterface;
 
-public class Method implements KernelComponent
+public class Method extends ComplexKernelComponent
 {
 	public final String methodName;
 	public final VariableInterface methodType;
-	protected Map<String, CLVariable> localVars = new HashMap<>();
 	protected Map<String, CLVariable> args = new HashMap<>();
-	List<Expression> source = new ArrayList<>();
-	boolean sourceHasChanged = false;
 
 	//protected CLVariable. returnType = new CLVariable(CLVariable.Type.VOID);
 
-	public Method(String name, VariableInterface type)
+	public Method(String name, VariableInterface returnType)
 	{
 		methodName = name;
-		methodType = type;
-	}
-
-	public void addLocalVar(CLVariable var) throws KernelException
-	{
-		if (localVars.containsKey(var.varName)) {
-			throw new KernelException("Variable " + var.varName + " already exists in method " + methodName);
-		}
-		localVars.put(var.varName, var);
-		sourceHasChanged = true;
+		methodType = returnType;
 	}
 
 	public void addArg(CLVariable var) throws KernelException
@@ -74,13 +61,7 @@ public class Method implements KernelComponent
 		return localVars.size();
 	}
 
-	protected void declareVariables(List<Expression> source)
-	{
-		for (Map.Entry<String, CLVariable> decl : localVars.entrySet()) {
-			source.add(decl.getValue().getDefinition());
-		}
-	}
-
+	@Override
 	protected String createHeader()
 	{
 		StringBuilder builder = new StringBuilder(methodType.getType());
@@ -124,33 +105,8 @@ public class Method implements KernelComponent
 	}
 
 	@Override
-	public String getSource()
-	{
-		generateSource();
-		StringBuilder builder = new StringBuilder();
-		for (Expression expr : source) {
-			builder.append(expr.getSource());
-			builder.append("\n");
-		}
-		return builder.toString();
-	}
-
-	@Override
 	public void accept(VisitorInterface v)
 	{
-		generateSource();
 		v.visit(this);
-	}
-
-	private void generateSource()
-	{
-		if (sourceHasChanged) {
-			source.clear();
-			source.add(new Expression(createHeader() + "{\n"));
-			//create method body
-			declareVariables(source);
-			source.add(new Expression("}"));
-			sourceHasChanged = false;
-		}
 	}
 }

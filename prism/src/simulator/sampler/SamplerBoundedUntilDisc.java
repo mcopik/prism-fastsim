@@ -26,10 +26,13 @@
 
 package simulator.sampler;
 
-import simulator.*;
-import prism.*;
-import parser.*;
-import parser.ast.*;
+import parser.State;
+import parser.ast.Expression;
+import parser.ast.ExpressionTemporal;
+import prism.PrismException;
+import prism.PrismLangException;
+import simulator.Path;
+import simulator.TransitionList;
 
 public class SamplerBoundedUntilDisc extends SamplerBoolean
 {
@@ -64,7 +67,7 @@ public class SamplerBoundedUntilDisc extends SamplerBoolean
 		// If the answer is already known we should do nothing
 		if (valueKnown)
 			return true;
-		
+
 		int pathSize = path.size();
 		// Upper bound exceeded
 		if (pathSize > ub) {
@@ -94,10 +97,10 @@ public class SamplerBoundedUntilDisc extends SamplerBoolean
 			}
 			// Otherwise, don't know
 		}
-		
+
 		return valueKnown;
 	}
-	
+
 	@Override
 	public boolean needsBoundedNumSteps()
 	{

@@ -25,6 +25,7 @@
 //==============================================================================
 package simulator.gpu.opencl.kernel.memory;
 
+import prism.Preconditions;
 import simulator.gpu.automaton.PrismVariable;
 import simulator.gpu.opencl.kernel.expression.Expression;
 
@@ -82,31 +83,43 @@ public class StdVariableType implements VariableInterface
 
 	public StdVariableType(PrismVariable var)
 	{
-		if (var.bitsNumber == 1) {
-			varType = StdType.BOOL;
-		} else if (var.bitsNumber <= 8) {
-			if (var.signFlag) {
-				varType = StdType.INT8;
+		varType = getIntType(var.bitsNumber, var.signFlag);
+	}
+
+	public StdVariableType(int minimal, int maximal)
+	{
+		Preconditions.checkCondition(minimal <= maximal, "Minimal > maximal!");
+		int length = maximal - minimal;
+		varType = getIntType(Integer.SIZE - Integer.numberOfLeadingZeros(length), minimal < 0);
+	}
+
+	private StdType getIntType(long bitsNumber, boolean signFlag)
+	{
+		if (bitsNumber == 1) {
+			return StdType.BOOL;
+		} else if (bitsNumber <= 8) {
+			if (signFlag) {
+				return StdType.INT8;
 			} else {
-				varType = StdType.UINT8;
+				return StdType.UINT8;
 			}
-		} else if (var.bitsNumber <= 16) {
-			if (var.signFlag) {
-				varType = StdType.INT16;
+		} else if (bitsNumber <= 16) {
+			if (signFlag) {
+				return StdType.INT16;
 			} else {
-				varType = StdType.UINT16;
+				return StdType.UINT16;
 			}
-		} else if (var.bitsNumber <= 32) {
-			if (var.signFlag) {
-				varType = StdType.INT32;
+		} else if (bitsNumber <= 32) {
+			if (signFlag) {
+				return StdType.INT32;
 			} else {
-				varType = StdType.UINT32;
+				return StdType.UINT32;
 			}
 		} else {
-			if (var.signFlag) {
-				varType = StdType.INT64;
+			if (signFlag) {
+				return StdType.INT64;
 			} else {
-				varType = StdType.UINT64;
+				return StdType.UINT64;
 			}
 		}
 	}
@@ -119,7 +132,11 @@ public class StdVariableType implements VariableInterface
 	@Override
 	public String getType()
 	{
-		return varType.toString().toLowerCase();
+		if (varType == StdType.BOOL || varType == StdType.VOID || varType == StdType.FLOAT || varType == StdType.DOUBLE) {
+			return varType.toString().toLowerCase();
+		} else {
+			return varType.toString().toLowerCase() + "_t";
+		}
 	}
 
 	@Override
