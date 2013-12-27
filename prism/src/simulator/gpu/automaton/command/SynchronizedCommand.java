@@ -90,7 +90,7 @@ public class SynchronizedCommand implements CommandInterface
 			getModule(moduleName).addCommand(cmd, sum);
 
 		} catch (PrismException e) {
-			// TODO:synchronized command as part of the command - shouldn't happen
+			throw new IllegalStateException("CTMC: synchronized command as part of the command - shouldn't happen");
 		}
 	}
 

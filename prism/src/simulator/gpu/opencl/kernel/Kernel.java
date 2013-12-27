@@ -36,8 +36,8 @@ import simulator.gpu.opencl.kernel.expression.Expression;
 import simulator.gpu.opencl.kernel.expression.ForLoop;
 import simulator.gpu.opencl.kernel.expression.KernelMethod;
 import simulator.gpu.opencl.kernel.expression.Method;
-import simulator.gpu.opencl.kernel.memory.CLValue;
 import simulator.gpu.opencl.kernel.memory.CLVariable;
+import simulator.gpu.opencl.kernel.memory.RNGType;
 import simulator.gpu.opencl.kernel.memory.StdVariableType;
 import simulator.gpu.opencl.kernel.memory.StdVariableType.StdType;
 import simulator.gpu.opencl.kernel.memory.StructureType;
@@ -56,10 +56,78 @@ public class Kernel
 			+ "typedef unsigned long uint64_t;\n";
 
 	private String kernelSource = null;
+	/**
+	 * #define NUMBER_OF_ITERATIONS
+	 * #define NUMBER_OF_PROPERTIES
+	 */
+	private List<Expression> defines = new ArrayList<>();
+	/**
+	 * struct StateVector {
+	 * 	each_variable;
+	 * }
+	 */
+	private StructureType stateVectorType;
+	/**
+	 * struct PropertyState {
+	 *  bool value;
+	 *  bool valueKnown;
+	 * }
+	 */
+	private StructureType propertyType;
+	/**
+	 * DTMC:
+	 * struct SynCmdState {
+	 * 	uint8_t numberOfTransitions;
+	 *  bool[] flags;
+	 *  }
+	 */
+	private StructureType synCmdState;
 	private KernelMethod mainMethod;
-	private List<Method> otherMethods = new ArrayList<>();
-	private StructureType stateVector;
-	private CLValue stateVectorInit;
+	/**
+	 * DTMC:
+	 * Return value is number of concurrent transitions.
+	 * int checkGuards(StateVector * sv, bool * guardsTab);
+	 * CTMC:
+	 * Return value is rates sum of transitions in race condition.
+	 * float checkGuards(StateVector * sv, bool * guardsTab);
+	 */
+	private Method checkGuards;
+	/**
+	 * DTMC:
+	 * Return value is number of concurrent transitions.
+	 * int checkGuardsSyn(StateVector * sv, SynCmdState * tab);
+	 * CTMC:
+	 * Return value is rates sum of transitions in race condition.
+	 * float checkGuardsSyn(StateVector * sv, SynCmdState * tab);
+	 */
+	private Method checkGuardsSyn;
+	/**
+	 * DTMC:
+	 * void performUpdate(StateVector * sv, int updateSelection);
+	 * CTMC:
+	 * void performUpdate(StateVector * sv, float sumSelection,bool * guardsTab);
+	 */
+	private Method performUpdate;
+	/**
+	 * DTMC:
+	 * void performUpdateSyn(StateVector * sv, int updateSelection,SynCmdState * tab);
+	 * CTMC:
+	 * void performUpdateSyn(StateVector * sv, float sumSelection,SynCmdState * tab);
+	 */
+	private Method performUpdateSyn;
+	/**
+	 * Return value determines is we can stop simulation(we know all values).
+	 * DTMC:
+	 * bool updateProperties(StateVector * sv,PropertyState * prop,int time);
+	 * CTMC:
+	 * bool updateProperties(StateVector * sv,PropertyState * prop,float time);
+	 */
+	private Method updateProperties;
+	private CLVariable stateVector;
+	/**
+	 * For CTMC - float. For DTMC - depends on MAX_ITERATIONS.
+	 */
+	private CLVariable time;
 
 	private List<Expression> globalDeclarations = new ArrayList<>();
 
@@ -88,34 +156,47 @@ public class Kernel
 
 	private void importStateVector(StateVector sv)
 	{
-		stateVector = new StructureType("StateVector");
+		stateVectorType = new StructureType("StateVector");
 		Integer[] init = new Integer[sv.size()];
 		PrismVariable[] vars = sv.getVars();
 		for (int i = 0; i < vars.length; ++i) {
 			CLVariable var = new CLVariable(new StdVariableType(vars[i]), vars[i].name);
-			stateVector.addVariable(var);
+			stateVectorType.addVariable(var);
 			init[i] = new Integer(vars[i].initValue);
 		}
-		stateVectorInit = stateVector.initializeStdStructure(init);
-		globalDeclarations.add(stateVector.getDefinition());
+		stateVector = new CLVariable(stateVectorType, "stateVector");
+		stateVector.setInitValue(stateVectorType.initializeStdStructure(init));
+		globalDeclarations.add(stateVectorType.getDefinition());
 	}
 
 	private void createMainMethod() throws KernelException
 	{
 		mainMethod = new KernelMethod();
-		CLVariable var = new CLVariable(new StdVariableType(StdType.INT16), "stateVector2");
-		var.setInitValue(StdVariableType.initialize(new Integer(15)));
-		mainMethod.addLocalVar(var);
-		CLVariable sv = new CLVariable(stateVector, "stateVector");
-		sv.setInitValue(stateVectorInit);
-		mainMethod.addLocalVar(sv);
+		mainMethod.addLocalVar(stateVector);
 		ForLoop loop = new ForLoop("i", 0, 1000);
 		mainMethod.addExpression(loop);
+		CLVariable rng = new CLVariable(new RNGType(), "rng");
+		mainMethod.addLocalVar(rng);
+		CLVariable temp = new CLVariable(new StdVariableType(StdType.INT8), "temp");
+		mainMethod.addLocalVar(temp);
+		temp.setInitValue(StdVariableType.initialize(0));
+		CLVariable temp2 = new CLVariable(new StdVariableType(StdType.FLOAT), "temp2");
+		mainMethod.addLocalVar(temp2);
+		mainMethod.addExpression(RNGType.initializeGenerator(rng, temp, "1099511627776L"));
+		mainMethod.addExpression(RNGType.assignRandomFloat(rng, temp2));
+		mainMethod.addExpression(RNGType.assignRandomInt(rng, temp, 17));
+		mainMethod.addExpression(new Expression("printf(\"%d\\n\",temp);"));
+	}
+
+	private void createMethods(AbstractAutomaton automaton)
+	{
+
 	}
 
 	private void generateSource()
 	{
 		StringBuilder builder = new StringBuilder();
+		builder.append("#include \"mwc64x_rng.cl\"").append("\n");
 		builder.append(KERNEL_TYPEDEFS).append("\n");
 		builder.append(mainMethod.getDeclaration()).append("\n");
 		for (Expression expr : globalDeclarations) {

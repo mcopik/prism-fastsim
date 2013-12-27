@@ -29,6 +29,7 @@ import java.util.List;
 
 import parser.State;
 import parser.ast.Expression;
+import parser.ast.LabelList;
 import parser.ast.ModulesFile;
 import parser.ast.PropertiesFile;
 import prism.ModelType;
@@ -41,6 +42,7 @@ import simulator.gpu.automaton.AbstractAutomaton;
 import simulator.gpu.automaton.CTMC;
 import simulator.gpu.automaton.DTMC;
 import simulator.method.SimulationMethod;
+import simulator.sampler.Sampler;
 
 public class GPUSimulatorEngine implements ModelCheckInterface
 {
@@ -57,6 +59,7 @@ public class GPUSimulatorEngine implements ModelCheckInterface
 	 * Current automaton structure for GPU.
 	 */
 	private AbstractAutomaton automaton;
+	private Sampler[] properties;
 	private RuntimeFrameworkInterface simFramework;
 
 	/**
@@ -80,6 +83,26 @@ public class GPUSimulatorEngine implements ModelCheckInterface
 			automaton = new DTMC(modulesFile);
 		} else if (modulesFile.getModelType() == ModelType.CTMC) {
 			automaton = new CTMC(modulesFile);
+		}
+	}
+
+	private void createSamplers(List<Expression> properties, PropertiesFile pf) throws PrismException
+	{
+		/**
+		 * Code taken from SimulatorEngine.java
+		 */
+		for (Expression prop : properties) {
+			// Take a copy
+			Expression propNew = prop.deepCopy();
+			// Combine label lists from model/property file, then expand property refs/labels in property 
+			LabelList combinedLabelList = (pf == null) ? modulesFile.getLabelList() : pf.getCombinedLabelList();
+			propNew = (Expression) propNew.expandPropRefsAndLabels(pf, combinedLabelList);
+			// Then get rid of any constants and simplify
+			propNew = (Expression) propNew.replaceConstants(modulesFile.getConstantValues());
+			if (pf != null) {
+				propNew = (Expression) propNew.replaceConstants(pf.getConstantValues());
+			}
+			propNew = (Expression) propNew.simplify();
 		}
 	}
 
@@ -113,7 +136,11 @@ public class GPUSimulatorEngine implements ModelCheckInterface
 	public Object modelCheckSingleProperty(ModulesFile modulesFile, PropertiesFile propertiesFile, Expression expr, State initialState, int maxPathLength,
 			SimulationMethod simMethod) throws PrismException
 	{
+
+		//return 
+		//	modelCheckMultipleProperties(modulesFile,propertiesFile,new ArrayList<Expression> {{add(expr);}},initialState,ma
 		loadModel(modulesFile);
+		//createSamplers(new ArrayList, pf);
 		mainLog.println(automaton);
 		simFramework.simulateProperty(automaton, null, mainLog);
 		throw new PrismException("Not implemented yet!");

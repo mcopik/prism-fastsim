@@ -48,4 +48,9 @@ public class ExpressionGenerator
 		}
 		return field != null ? new CLVariable(field.varType, structure.varName + "." + field.varName) : null;
 	}
+
+	static public Expression assignValue(CLVariable dest, String expr)
+	{
+		return new Expression(String.format("%s = %s;", dest.varName, expr));
+	}
 }

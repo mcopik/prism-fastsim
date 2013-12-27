@@ -69,6 +69,11 @@ public class CLDeviceWrapper implements RuntimeDeviceInterface
 		return device.getPlatform();
 	}
 
+	public CLDevice getDevice()
+	{
+		return device;
+	}
+
 	public String toString()
 	{
 		return device.toString();

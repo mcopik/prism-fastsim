@@ -34,14 +34,11 @@ import java.util.Map;
 import parser.VarList;
 import parser.ast.Module;
 import parser.ast.ModulesFile;
+import prism.Preconditions;
 import prism.PrismException;
 import simulator.gpu.automaton.command.CommandBuilder;
 import simulator.gpu.automaton.command.CommandInterface;
 
-/**
- * @author mcopik
- *
- */
 public abstract class AbstractAutomaton
 {
 	public enum AutomatonType {
@@ -103,6 +100,12 @@ public abstract class AbstractAutomaton
 	public int synchCmdsNumber()
 	{
 		return numOfSyncCommands;
+	}
+
+	public CommandInterface getCommand(int number)
+	{
+		Preconditions.checkIndex(number, commands.size(), String.format("Command number %d pis bigger than commands size", number));
+		return commands.get(number);
 	}
 
 	protected void extractVariables()

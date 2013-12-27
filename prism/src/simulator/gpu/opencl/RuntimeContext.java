@@ -66,7 +66,10 @@ public class RuntimeContext
 	{
 		mainLog.println(kernel.getSource());
 		try {
-			CLProgram program = context.createProgram(kernel.getSource()).build();
+			CLProgram program = context.createProgram(kernel.getSource());
+			program.addInclude("include/");
+			program.addInclude("classes/include/");
+			program.build();
 			CLKernel programKernel = program.createKernel("main");
 			CLQueue queue = context.createDefaultQueue();
 			programKernel.enqueueNDRange(queue, new int[] { 100, 100 });
