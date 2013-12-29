@@ -29,12 +29,13 @@ import java.util.ArrayList;
 import java.util.List;
 
 import simulator.gpu.opencl.kernel.expression.Expression;
+import simulator.gpu.opencl.kernel.expression.Include;
 
 /**
  * 
  *
  */
-public class StructureType implements VariableInterface
+public class StructureType implements VariableInterface, UDType
 {
 	private static class StructureValue implements CLValue
 	{
@@ -137,5 +138,11 @@ public class StructureType implements VariableInterface
 		}
 		builder.append("} ").append(typeName).append(";\n");
 		return new Expression(builder.toString());
+	}
+
+	@Override
+	public List<Include> getIncludes()
+	{
+		return null;
 	}
 }

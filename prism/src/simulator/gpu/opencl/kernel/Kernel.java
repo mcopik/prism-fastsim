@@ -31,9 +31,9 @@ import java.util.List;
 import simulator.gpu.automaton.AbstractAutomaton;
 import simulator.gpu.automaton.AbstractAutomaton.StateVector;
 import simulator.gpu.automaton.PrismVariable;
-import simulator.gpu.opencl.CLDeviceWrapper;
 import simulator.gpu.opencl.kernel.expression.Expression;
 import simulator.gpu.opencl.kernel.expression.ForLoop;
+import simulator.gpu.opencl.kernel.expression.Include;
 import simulator.gpu.opencl.kernel.expression.KernelMethod;
 import simulator.gpu.opencl.kernel.expression.Method;
 import simulator.gpu.opencl.kernel.memory.CLVariable;
@@ -51,29 +51,30 @@ public class Kernel
 	public final static String TEST_KERNEL = "__kernel void main() { \n" + "uint globalID = get_global_id(0); \n" + "uint groupID = get_group_id(0);  \n"
 			+ "uint localID = get_local_id(0); \n" + "printf(\"the global ID of this thread is : %d\\n\",globalID); \n" + "}";
 
-	public final static String KERNEL_TYPEDEFS = "typedef char int8_t;\n" + "typedef unsigned char uint8_t;\n" + "typedef unsigned short uint16_t;\n"
-			+ "typedef short int16_t;\n" + "typedef unsigned int uint32_t;\n" + "typedef int int32_t;\n" + "typedef long int64_t;\n"
-			+ "typedef unsigned long uint64_t;\n";
-
-	private String kernelSource = null;
 	/**
-	 * #define NUMBER_OF_ITERATIONS
-	 * #define NUMBER_OF_PROPERTIES
+	 * Input - three objects which determine kernel's source.
 	 */
-	private List<Expression> defines = new ArrayList<>();
+	private KernelConfig config = null;
+	private AbstractAutomaton model = null;
+	private Property[] properties = null;
+	/**
+	 * Source components.
+	 */
+	private String kernelSource = null;
+	private List<Include> includes = new ArrayList<>();
 	/**
 	 * struct StateVector {
 	 * 	each_variable;
 	 * }
 	 */
-	private StructureType stateVectorType;
+	private StructureType stateVectorType = null;
 	/**
 	 * struct PropertyState {
 	 *  bool value;
 	 *  bool valueKnown;
 	 * }
 	 */
-	private StructureType propertyType;
+	private StructureType propertyType = null;
 	/**
 	 * DTMC:
 	 * struct SynCmdState {
@@ -81,60 +82,88 @@ public class Kernel
 	 *  bool[] flags;
 	 *  }
 	 */
-	private StructureType synCmdState;
-	private KernelMethod mainMethod;
+	private StructureType synCmdState = null;
 	/**
-	 * DTMC:
-	 * Return value is number of concurrent transitions.
-	 * int checkGuards(StateVector * sv, bool * guardsTab);
-	 * CTMC:
-	 * Return value is rates sum of transitions in race condition.
-	 * float checkGuards(StateVector * sv, bool * guardsTab);
+	 * Main kernel method.
+	 * INPUT:
+	 * RNG offset
+	 * number of samples
+	 * OUTPUT:
+	 * global array of properties values
 	 */
-	private Method checkGuards;
-	/**
-	 * DTMC:
-	 * Return value is number of concurrent transitions.
-	 * int checkGuardsSyn(StateVector * sv, SynCmdState * tab);
-	 * CTMC:
-	 * Return value is rates sum of transitions in race condition.
-	 * float checkGuardsSyn(StateVector * sv, SynCmdState * tab);
-	 */
-	private Method checkGuardsSyn;
-	/**
-	 * DTMC:
-	 * void performUpdate(StateVector * sv, int updateSelection);
-	 * CTMC:
-	 * void performUpdate(StateVector * sv, float sumSelection,bool * guardsTab);
-	 */
-	private Method performUpdate;
-	/**
-	 * DTMC:
-	 * void performUpdateSyn(StateVector * sv, int updateSelection,SynCmdState * tab);
-	 * CTMC:
-	 * void performUpdateSyn(StateVector * sv, float sumSelection,SynCmdState * tab);
-	 */
-	private Method performUpdateSyn;
-	/**
-	 * Return value determines is we can stop simulation(we know all values).
-	 * DTMC:
-	 * bool updateProperties(StateVector * sv,PropertyState * prop,int time);
-	 * CTMC:
-	 * bool updateProperties(StateVector * sv,PropertyState * prop,float time);
-	 */
-	private Method updateProperties;
-	private CLVariable stateVector;
+	private KernelMethod mainMethod = null;
+
+	private enum MethodIndices {
+		/**
+		 * DTMC:
+		 * Return value is number of concurrent transitions.
+		 * int checkGuards(StateVector * sv, bool * guardsTab);
+		 * CTMC:
+		 * Return value is rates sum of transitions in race condition.
+		 * float checkGuards(StateVector * sv, bool * guardsTab);
+		 */
+		CHECK_GUARDS(0),
+		/**
+		 * DTMC:
+		 * Return value is number of concurrent transitions.
+		 * int checkGuardsSyn(StateVector * sv, SynCmdState * tab);
+		 * CTMC:
+		 * Return value is rates sum of transitions in race condition.
+		 * float checkGuardsSyn(StateVector * sv, SynCmdState * tab);
+		 */
+		CHECK_GUARDS_SYN(1),
+		/**
+		 * DTMC:
+		 * void performUpdate(StateVector * sv, int updateSelection);
+		 * CTMC:
+		 * void performUpdate(StateVector * sv, float sumSelection,bool * guardsTab);
+		 */
+		PERFORM_UPDATE(2),
+		/**
+		 * DTMC:
+		 * void performUpdateSyn(StateVector * sv, int updateSelection,SynCmdState * tab);
+		 * CTMC:
+		 * void performUpdateSyn(StateVector * sv, float sumSelection,SynCmdState * tab);
+		 */
+		PERFORM_UPDATE_SYN(3),
+		/**
+		 * Return value determines is we can stop simulation(we know all values).
+		 * DTMC:
+		 * bool updateProperties(StateVector * sv,PropertyState * prop,int time);
+		 * CTMC:
+		 * bool updateProperties(StateVector * sv,PropertyState * prop,float time);
+		 */
+		UPDATE_PROPERTIES(4);
+		public final int indice;
+
+		private MethodIndices(int indice)
+		{
+			this.indice = indice;
+		}
+
+		public final static int SIZE = MethodIndices.values().length;
+	}
+
+	private Method helperMethods[] = new Method[MethodIndices.SIZE];
+	private CLVariable stateVector = null;
 	/**
 	 * For CTMC - float. For DTMC - depends on MAX_ITERATIONS.
 	 */
-	private CLVariable time;
+	private CLVariable timeCounter = null;
 
 	private List<Expression> globalDeclarations = new ArrayList<>();
 
-	public Kernel(CLDeviceWrapper wrapper, AbstractAutomaton model, Property[] properties)
+	public final static String KERNEL_TYPEDEFS = "typedef char int8_t;\n" + "typedef unsigned char uint8_t;\n" + "typedef unsigned short uint16_t;\n"
+			+ "typedef short int16_t;\n" + "typedef unsigned int uint32_t;\n" + "typedef int int32_t;\n" + "typedef long int64_t;\n"
+			+ "typedef unsigned long uint64_t;\n";
+
+	public Kernel(KernelConfig config, AbstractAutomaton model, Property[] properties)
 	{
-		importStateVector(model.getStateVector());
+		this.config = config;
+		this.model = model;
+		this.properties = properties;
 		try {
+			importStateVector();
 			createMainMethod();
 		} catch (KernelException e) {
 			// TODO Auto-generated catch block
@@ -154,8 +183,9 @@ public class Kernel
 		return new Kernel(TEST_KERNEL);
 	}
 
-	private void importStateVector(StateVector sv)
+	private void importStateVector()
 	{
+		StateVector sv = model.getStateVector();
 		stateVectorType = new StructureType("StateVector");
 		Integer[] init = new Integer[sv.size()];
 		PrismVariable[] vars = sv.getVars();
@@ -173,7 +203,7 @@ public class Kernel
 	{
 		mainMethod = new KernelMethod();
 		mainMethod.addLocalVar(stateVector);
-		ForLoop loop = new ForLoop("i", 0, 1000);
+		ForLoop loop = new ForLoop("i", 0, config.maxPathLength);
 		mainMethod.addExpression(loop);
 		CLVariable rng = new CLVariable(new RNGType(), "rng");
 		mainMethod.addLocalVar(rng);
@@ -193,10 +223,29 @@ public class Kernel
 
 	}
 
+	private void updateIncludes()
+	{
+		List<Include> addIncludes = mainMethod.getIncludes();
+		if (addIncludes != null) {
+			includes.addAll(addIncludes);
+		}
+		for (Method method : helperMethods) {
+			if (method == null)
+				break;
+			addIncludes = method.getIncludes();
+			if (addIncludes != null) {
+				includes.addAll(addIncludes);
+			}
+		}
+	}
+
 	private void generateSource()
 	{
 		StringBuilder builder = new StringBuilder();
-		builder.append("#include \"mwc64x_rng.cl\"").append("\n");
+		updateIncludes();
+		for (Include include : includes) {
+			builder.append(include.getSource()).append("\n");
+		}
 		builder.append(KERNEL_TYPEDEFS).append("\n");
 		builder.append(mainMethod.getDeclaration()).append("\n");
 		for (Expression expr : globalDeclarations) {

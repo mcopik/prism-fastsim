@@ -25,6 +25,9 @@
 //==============================================================================
 package simulator.gpu.opencl.kernel.expression;
 
+import java.util.HashMap;
+import java.util.Map;
+
 import prism.Preconditions;
 import simulator.gpu.opencl.kernel.memory.CLVariable;
 import simulator.gpu.opencl.kernel.memory.StructureType;
@@ -51,6 +54,27 @@ public class ExpressionGenerator
 
 	static public Expression assignValue(CLVariable dest, String expr)
 	{
-		return new Expression(String.format("%s = %s;", dest.varName, expr));
+		return createBasicExpression(dest, Operator.AS, expr);
+	}
+
+	public enum Operator {
+		GT, LT, GE, LE, EQ, NE, AS
+	};
+
+	private static final Map<Operator, String> operatorsSource;
+	static {
+		operatorsSource = new HashMap<>();
+		operatorsSource.put(Operator.GT, ">");
+		operatorsSource.put(Operator.LT, "<");
+		operatorsSource.put(Operator.GE, ">=");
+		operatorsSource.put(Operator.LE, "<=");
+		operatorsSource.put(Operator.EQ, "==");
+		operatorsSource.put(Operator.NE, "!=");
+		operatorsSource.put(Operator.AS, "=");
+	}
+
+	static public Expression createBasicExpression(CLVariable var, Operator operator, String expr)
+	{
+		return new Expression(String.format("%s %s %s;", var.varName, operatorsSource.get(operator), expr));
 	}
 }

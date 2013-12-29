@@ -25,13 +25,8 @@
 //==============================================================================
 package simulator.gpu.opencl.kernel.memory;
 
-import simulator.gpu.opencl.kernel.expression.Expression;
 
 public interface VariableInterface
 {
-	Expression getDeclaration();
-
-	Expression getDefinition();
-
 	String getType();
 }

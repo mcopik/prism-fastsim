@@ -10,13 +10,16 @@ import java.util.Map;
 
 import simulator.gpu.opencl.kernel.KernelException;
 import simulator.gpu.opencl.kernel.memory.CLVariable;
+import simulator.gpu.opencl.kernel.memory.UDType;
 
 public abstract class ComplexKernelComponent implements KernelComponent
 {
 	protected Map<String, CLVariable> localVars = new HashMap<>();
 	protected List<KernelComponent> body = new ArrayList<>();
 	protected List<Expression> variableDefinitions = new ArrayList<>();
-	protected boolean sourceHasChanged = false;
+	protected List<Include> necessaryIncludes = new ArrayList<>();
+
+	//protected boolean sourceHasChanged = false;
 
 	protected abstract String createHeader();
 
@@ -32,6 +35,7 @@ public abstract class ComplexKernelComponent implements KernelComponent
 		}
 		localVars.put(var.varName, var);
 		variableDefinitions.add(var.getDefinition());
+		updateIncludes(var);
 	}
 
 	/**
@@ -43,11 +47,24 @@ public abstract class ComplexKernelComponent implements KernelComponent
 		body.add(expr);
 	}
 
+	protected final void updateIncludes(CLVariable var)
+	{
+		if (var.varType instanceof UDType) {
+			List<Include> list = ((UDType) var.varType).getIncludes();
+			if (list != null) {
+				necessaryIncludes.addAll(list);
+			}
+		}
+	}
+
 	/* (non-Javadoc)
 	 * @see simulator.gpu.opencl.kernel.expression.KernelComponent#hasInclude()
 	 */
 	@Override
-	public abstract boolean hasInclude();
+	public final boolean hasIncludes()
+	{
+		return necessaryIncludes.size() != 0;
+	}
 
 	/* (non-Javadoc)
 	 * @see simulator.gpu.opencl.kernel.expression.KernelComponent#hasDeclaration()
@@ -59,7 +76,10 @@ public abstract class ComplexKernelComponent implements KernelComponent
 	 * @see simulator.gpu.opencl.kernel.expression.KernelComponent#getInclude()
 	 */
 	@Override
-	public abstract List<Include> getInclude();
+	public final List<Include> getIncludes()
+	{
+		return necessaryIncludes.size() != 0 ? necessaryIncludes : null;
+	}
 
 	/* (non-Javadoc)
 	 * @see simulator.gpu.opencl.kernel.expression.KernelComponent#getDeclaration()

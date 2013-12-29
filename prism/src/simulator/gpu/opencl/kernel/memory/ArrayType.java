@@ -25,7 +25,6 @@
 //==============================================================================
 package simulator.gpu.opencl.kernel.memory;
 
-import simulator.gpu.opencl.kernel.expression.Expression;
 
 public class ArrayType implements VariableInterface
 {
@@ -40,18 +39,6 @@ public class ArrayType implements VariableInterface
 	public String getType()
 	{
 		return varType.getType() + "[]";
-	}
-
-	@Override
-	public Expression getDeclaration()
-	{
-		return null;
-	}
-
-	@Override
-	public Expression getDefinition()
-	{
-		return null;
 	}
 
 }

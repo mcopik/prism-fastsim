@@ -26,7 +26,6 @@
 package simulator.gpu.opencl.kernel.expression;
 
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 import simulator.gpu.opencl.kernel.KernelException;
@@ -53,7 +52,7 @@ public class Method extends ComplexKernelComponent
 			throw new KernelException("Variable " + var.varName + " already exists in arg list of method " + methodName);
 		}
 		args.put(var.varName, var);
-		sourceHasChanged = true;
+		updateIncludes(var);
 	}
 
 	public int getVarsNum()
@@ -87,21 +86,9 @@ public class Method extends ComplexKernelComponent
 	}
 
 	@Override
-	public boolean hasInclude()
-	{
-		return false;
-	}
-
-	@Override
 	public boolean hasDeclaration()
 	{
 		return true;
-	}
-
-	@Override
-	public List<Include> getInclude()
-	{
-		return null;
 	}
 
 	@Override

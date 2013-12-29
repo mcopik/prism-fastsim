@@ -1,21 +1,20 @@
 package simulator.gpu.opencl.kernel.expression;
 
-import java.util.List;
-
+import simulator.gpu.opencl.kernel.expression.ExpressionGenerator.Operator;
 import simulator.gpu.opencl.kernel.memory.CLVariable;
 import simulator.gpu.opencl.kernel.memory.StdVariableType;
 
 public class ForLoop extends ComplexKernelComponent
 {
 	private CLVariable counter;
-	private int endValue;
+	private String endValue;
 	boolean decreasing = false;
 
 	public ForLoop(String counterName, int startValue, int endValue)
 	{
 		counter = new CLVariable(new StdVariableType(startValue, endValue), counterName);
 		counter.setInitValue(StdVariableType.initialize(startValue));
-		this.endValue = endValue;
+		this.endValue = Integer.toString(endValue);
 	}
 
 	public ForLoop(String counterName, int startValue, int endValue, boolean decreasing)
@@ -23,31 +22,19 @@ public class ForLoop extends ComplexKernelComponent
 		if (decreasing) {
 			counter = new CLVariable(new StdVariableType(endValue, startValue), counterName);
 			counter.setInitValue(StdVariableType.initialize(endValue));
-			this.endValue = startValue;
+			this.endValue = Integer.toString(endValue);
 			decreasing = true;
 		} else {
 			counter = new CLVariable(new StdVariableType(startValue, endValue), counterName);
 			counter.setInitValue(StdVariableType.initialize(startValue));
-			this.endValue = endValue;
+			this.endValue = Integer.toString(endValue);
 		}
-	}
-
-	@Override
-	public boolean hasInclude()
-	{
-		return false;
 	}
 
 	@Override
 	public boolean hasDeclaration()
 	{
 		return false;
-	}
-
-	@Override
-	public List<Include> getInclude()
-	{
-		return null;
 	}
 
 	@Override
@@ -67,13 +54,11 @@ public class ForLoop extends ComplexKernelComponent
 	{
 		StringBuilder builder = new StringBuilder("for(");
 		builder.append(counter.getDefinition());
-		builder.append(counter.varName);
 		if (decreasing) {
-			builder.append(" > ");
+			builder.append(ExpressionGenerator.createBasicExpression(counter, Operator.GT, endValue));
 		} else {
-			builder.append(" < ");
+			builder.append(ExpressionGenerator.createBasicExpression(counter, Operator.LT, endValue));
 		}
-		builder.append(endValue).append(";");
 		if (decreasing) {
 			builder.append("--");
 		} else {

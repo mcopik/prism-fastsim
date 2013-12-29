@@ -10,7 +10,8 @@ import com.nativelibs4java.opencl.CLDevice.Type;
 
 public class KernelConfig
 {
-	public int maxPathLength = 0;
+	static public final int MAX_PATH_LENGTH = 1000;
+	public int maxPathLength = MAX_PATH_LENGTH;
 	public State initialState = null;
 	public Type deviceType = Type.CPU;
 	public int registerCount = 0;

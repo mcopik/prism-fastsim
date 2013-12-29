@@ -59,7 +59,6 @@ public class CLVariable implements VariableInterface
 		return new PointerType(varType);
 	}
 
-	@Override
 	public Expression getDeclaration()
 	{
 		StringBuilder builder = new StringBuilder();
@@ -68,7 +67,6 @@ public class CLVariable implements VariableInterface
 		return new Expression(builder.toString());
 	}
 
-	@Override
 	public Expression getDefinition()
 	{
 		StringBuilder builder = new StringBuilder();

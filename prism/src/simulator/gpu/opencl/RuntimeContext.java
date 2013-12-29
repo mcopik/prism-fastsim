@@ -28,6 +28,8 @@ package simulator.gpu.opencl;
 import prism.PrismLog;
 import simulator.gpu.automaton.AbstractAutomaton;
 import simulator.gpu.opencl.kernel.Kernel;
+import simulator.gpu.opencl.kernel.KernelConfig;
+import simulator.gpu.opencl.kernel.KernelException;
 import simulator.gpu.property.Property;
 
 import com.nativelibs4java.opencl.CLBuildException;
@@ -52,9 +54,11 @@ public class RuntimeContext
 		context = currentDevice.createDeviceContext();
 	}
 
-	public void createKernel(AbstractAutomaton automaton, Property[] properties)
+	public void createKernel(AbstractAutomaton automaton, Property[] properties) throws KernelException
 	{
-		kernel = new Kernel(currentDevice, automaton, properties);
+		KernelConfig config = new KernelConfig();
+		config.configDevice(currentDevice);
+		kernel = new Kernel(config, automaton, properties);
 	}
 
 	public void createTestKernel()

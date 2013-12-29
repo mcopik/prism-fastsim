@@ -51,7 +51,7 @@ public class Expression implements KernelComponent
 	}
 
 	@Override
-	public boolean hasInclude()
+	public boolean hasIncludes()
 	{
 		return false;
 	}
@@ -63,7 +63,7 @@ public class Expression implements KernelComponent
 	}
 
 	@Override
-	public List<Include> getInclude()
+	public List<Include> getIncludes()
 	{
 		return null;
 	}

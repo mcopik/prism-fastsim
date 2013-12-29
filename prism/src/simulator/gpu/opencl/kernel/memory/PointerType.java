@@ -25,7 +25,6 @@
 //==============================================================================
 package simulator.gpu.opencl.kernel.memory;
 
-import simulator.gpu.opencl.kernel.expression.Expression;
 
 public class PointerType implements VariableInterface
 {
@@ -41,17 +40,4 @@ public class PointerType implements VariableInterface
 	{
 		return internalType.getType() + "*";
 	}
-
-	@Override
-	public Expression getDeclaration()
-	{
-		return null;
-	}
-
-	@Override
-	public Expression getDefinition()
-	{
-		return null;
-	}
-
 }

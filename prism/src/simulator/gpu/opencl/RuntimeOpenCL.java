@@ -34,6 +34,7 @@ import prism.PrismLog;
 import simulator.gpu.RuntimeDeviceInterface;
 import simulator.gpu.RuntimeFrameworkInterface;
 import simulator.gpu.automaton.AbstractAutomaton;
+import simulator.gpu.opencl.kernel.KernelException;
 import simulator.gpu.property.Property;
 import simulator.gpu.property.PropertyResult;
 
@@ -175,18 +176,22 @@ public class RuntimeOpenCL implements RuntimeFrameworkInterface
 	 * @see simulator.gpu.RuntimeFrameworkInterface#simulateProperty()
 	 */
 	@Override
-	public PropertyResult[] simulateProperty(AbstractAutomaton model, Property[] properties, PrismLog mainLog)
+	public PropertyResult[] simulateProperty(AbstractAutomaton model, Property[] properties, PrismLog mainLog) throws PrismException
 	{
-		currentContexts = createContexts();
-		mainLog.println("Using " + currentContexts.size() + " OpenCL devices.");
-		for (RuntimeContext context : currentContexts) {
-			mainLog.println(context);
-		}
-		for (RuntimeContext context : currentContexts) {
-			context.createKernel(model, null);
-		}
-		for (RuntimeContext context : currentContexts) {
-			context.runSimulation(mainLog);
+		try {
+			currentContexts = createContexts();
+			mainLog.println("Using " + currentContexts.size() + " OpenCL devices.");
+			for (RuntimeContext context : currentContexts) {
+				mainLog.println(context);
+			}
+			for (RuntimeContext context : currentContexts) {
+				context.createKernel(model, null);
+			}
+			for (RuntimeContext context : currentContexts) {
+				context.runSimulation(mainLog);
+			}
+		} catch (KernelException e) {
+			throw new PrismException(e.getMessage());
 		}
 		return null;
 	}

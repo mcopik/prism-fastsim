@@ -25,6 +25,7 @@
 //==============================================================================
 package simulator.gpu;
 
+import prism.PrismException;
 import prism.PrismLog;
 import simulator.gpu.automaton.AbstractAutomaton;
 import simulator.gpu.property.Property;
@@ -61,7 +62,7 @@ public interface RuntimeFrameworkInterface
 
 	//MODEL
 
-	PropertyResult[] simulateProperty(AbstractAutomaton model, Property[] properties, PrismLog mainLog);
+	PropertyResult[] simulateProperty(AbstractAutomaton model, Property[] properties, PrismLog mainLog) throws PrismException;
 
 	void simulateTest(PrismLog mainLog);
 }

@@ -38,7 +38,7 @@ public interface KernelComponent
 	 * 
 	 * @return true if component has additional include
 	 */
-	boolean hasInclude();
+	boolean hasIncludes();
 
 	/**
 	 * 
@@ -50,7 +50,7 @@ public interface KernelComponent
 	 * 
 	 * @return list of additional includes
 	 */
-	List<Include> getInclude();
+	List<Include> getIncludes();
 
 	/**
 	 * @return declaration source code (type definition, method definition)

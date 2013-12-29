@@ -46,7 +46,7 @@ public class Include implements KernelComponent
 	 * @see simulator.gpu.opencl.kernel.KernelComponent#hasInclude()
 	 */
 	@Override
-	public boolean hasInclude()
+	public boolean hasIncludes()
 	{
 		return false;
 	}
@@ -64,7 +64,7 @@ public class Include implements KernelComponent
 	 * @see simulator.gpu.opencl.kernel.KernelComponent#getInclude()
 	 */
 	@Override
-	public List<Include> getInclude()
+	public List<Include> getIncludes()
 	{
 		return null;
 	}

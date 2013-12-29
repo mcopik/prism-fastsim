@@ -138,16 +138,4 @@ public class StdVariableType implements VariableInterface
 			return varType.toString().toLowerCase() + "_t";
 		}
 	}
-
-	@Override
-	public Expression getDeclaration()
-	{
-		return null;
-	}
-
-	@Override
-	public Expression getDefinition()
-	{
-		return null;
-	}
 }
