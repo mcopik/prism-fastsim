@@ -102,6 +102,11 @@ public abstract class AbstractAutomaton
 		return numOfSyncCommands;
 	}
 
+	public int commandsNumber()
+	{
+		return commands.size();
+	}
+
 	public CommandInterface getCommand(int number)
 	{
 		Preconditions.checkIndex(number, commands.size(), String.format("Command number %d pis bigger than commands size", number));

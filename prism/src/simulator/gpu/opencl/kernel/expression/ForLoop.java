@@ -46,7 +46,12 @@ public class ForLoop extends ComplexKernelComponent
 	@Override
 	public void accept(VisitorInterface v)
 	{
-		v.visit(this);
+		for (Expression expr : variableDefinitions) {
+			expr.accept(v);
+		}
+		for (KernelComponent component : body) {
+			component.accept(v);
+		}
 	}
 
 	@Override

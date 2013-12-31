@@ -28,15 +28,22 @@ package simulator.gpu.opencl.kernel;
 import java.util.ArrayList;
 import java.util.List;
 
+import prism.Preconditions;
 import simulator.gpu.automaton.AbstractAutomaton;
 import simulator.gpu.automaton.AbstractAutomaton.StateVector;
 import simulator.gpu.automaton.PrismVariable;
+import simulator.gpu.automaton.command.Command;
+import simulator.gpu.automaton.command.CommandInterface;
+import simulator.gpu.automaton.command.SynchronizedCommand;
 import simulator.gpu.opencl.kernel.expression.Expression;
+import simulator.gpu.opencl.kernel.expression.ExpressionGenerator;
 import simulator.gpu.opencl.kernel.expression.ForLoop;
 import simulator.gpu.opencl.kernel.expression.Include;
 import simulator.gpu.opencl.kernel.expression.KernelMethod;
+import simulator.gpu.opencl.kernel.expression.MemoryTranslatorVisitor;
 import simulator.gpu.opencl.kernel.expression.Method;
 import simulator.gpu.opencl.kernel.memory.CLVariable;
+import simulator.gpu.opencl.kernel.memory.PointerType;
 import simulator.gpu.opencl.kernel.memory.RNGType;
 import simulator.gpu.opencl.kernel.memory.StdVariableType;
 import simulator.gpu.opencl.kernel.memory.StdVariableType.StdType;
@@ -56,6 +63,8 @@ public class Kernel
 	 */
 	private KernelConfig config = null;
 	private AbstractAutomaton model = null;
+	private Command commands[] = null;
+	private SynchronizedCommand synCommands[] = null;
 	private Property[] properties = null;
 	/**
 	 * Source components.
@@ -157,13 +166,15 @@ public class Kernel
 			+ "typedef short int16_t;\n" + "typedef unsigned int uint32_t;\n" + "typedef int int32_t;\n" + "typedef long int64_t;\n"
 			+ "typedef unsigned long uint64_t;\n";
 
-	public Kernel(KernelConfig config, AbstractAutomaton model, Property[] properties)
+	public Kernel(KernelConfig config, AbstractAutomaton model, Property[] properties) throws KernelException
 	{
 		this.config = config;
 		this.model = model;
 		this.properties = properties;
+		processInput();
 		try {
 			importStateVector();
+			createGuardsMethod();
 			createMainMethod();
 		} catch (KernelException e) {
 			// TODO Auto-generated catch block
@@ -181,6 +192,51 @@ public class Kernel
 	public static Kernel createTestKernel()
 	{
 		return new Kernel(TEST_KERNEL);
+	}
+
+	private void processInput()
+	{
+		int synSize = model.synchCmdsNumber();
+		int size = model.commandsNumber();
+		if (synSize != 0) {
+			synCommands = new SynchronizedCommand[synSize];
+		}
+		commands = new Command[size - synSize];
+		int normalCounter = 0, synCounter = 0;
+		for (int i = 0; i < size; ++i) {
+			CommandInterface cmd = model.getCommand(i);
+			if (!cmd.isSynchronized()) {
+				commands[normalCounter++] = (Command) cmd;
+			} else {
+				synCommands[synCounter++] = (SynchronizedCommand) cmd;
+			}
+		}
+	}
+
+	private void createGuardsMethod() throws KernelException
+	{
+		Preconditions.checkCondition(commands != null || synCommands != null, "Can not create helper methods before processing input data!");
+		//no non-synchronized commands
+		if (commands == null) {
+			return;
+		}
+		Method method = new Method("checkGuards", new StdVariableType(0, commands.length - 1));
+		//StateVector * sv
+		CLVariable sv = new CLVariable(stateVector.getPointer(), "sv");
+		method.addArg(sv);
+		method.registerStateVector(sv);
+		//bool * guardsTab
+		CLVariable guards = new CLVariable(new PointerType(new StdVariableType(StdType.BOOL)), "guardsTab");
+		method.addArg(guards);
+		for (int i = 0; i < commands.length; ++i) {
+			method.addExpression(ExpressionGenerator.createConditionalAssignment(
+			//i-th element in array
+					ExpressionGenerator.accessArrayElement(guards, i),
+					//guard - Prism uses '=' as comparison operator
+					commands[i].getGuard().toString().replace("=", "=="), "true", "false"));
+
+		}
+		helperMethods[MethodIndices.CHECK_GUARDS.indice] = method;
 	}
 
 	private void importStateVector()
@@ -212,15 +268,10 @@ public class Kernel
 		temp.setInitValue(StdVariableType.initialize(0));
 		CLVariable temp2 = new CLVariable(new StdVariableType(StdType.FLOAT), "temp2");
 		mainMethod.addLocalVar(temp2);
-		mainMethod.addExpression(RNGType.initializeGenerator(rng, temp, "1099511627776L"));
+		mainMethod.addExpression(RNGType.initializeGenerator(rng, temp, Long.toString(config.rngOffset)));
 		mainMethod.addExpression(RNGType.assignRandomFloat(rng, temp2));
 		mainMethod.addExpression(RNGType.assignRandomInt(rng, temp, 17));
 		mainMethod.addExpression(new Expression("printf(\"%d\\n\",temp);"));
-	}
-
-	private void createMethods(AbstractAutomaton automaton)
-	{
-
 	}
 
 	private void updateIncludes()
@@ -239,7 +290,51 @@ public class Kernel
 		}
 	}
 
-	private void generateSource()
+	private MemoryTranslatorVisitor createTranslatorVisitor()
+	{
+		MemoryTranslatorVisitor visitor = new MemoryTranslatorVisitor(stateVectorType);
+		for (PrismVariable var : model.getStateVector().getVars()) {
+			visitor.addTranslation(var.name, var.name);
+		}
+		return visitor;
+	}
+
+	private void visitMethodsTranslator(MemoryTranslatorVisitor visitor) throws KernelException
+	{
+		visitor.setStateVector(stateVector);
+		mainMethod.accept(visitor);
+		for (Method method : helperMethods) {
+			if (method == null)
+				break;
+			if (!method.hasDefinedSVAccess()) {
+				throw new KernelException("Method " + method.methodName + " has not StateVector access!");
+			}
+			visitor.setStateVector(method.accessStateVector());
+			method.accept(visitor);
+		}
+	}
+
+	private void declareMethods(StringBuilder builder)
+	{
+		builder.append(mainMethod.getDeclaration()).append("\n");
+		for (Method method : helperMethods) {
+			if (method == null)
+				break;
+			builder.append(method.getDeclaration()).append("\n");
+		}
+	}
+
+	private void defineMethods(StringBuilder builder)
+	{
+		builder.append(mainMethod.getSource()).append("\n");
+		for (Method method : helperMethods) {
+			if (method == null)
+				break;
+			builder.append(method.getSource()).append("\n");
+		}
+	}
+
+	private void generateSource() throws KernelException
 	{
 		StringBuilder builder = new StringBuilder();
 		updateIncludes();
@@ -247,11 +342,12 @@ public class Kernel
 			builder.append(include.getSource()).append("\n");
 		}
 		builder.append(KERNEL_TYPEDEFS).append("\n");
-		builder.append(mainMethod.getDeclaration()).append("\n");
 		for (Expression expr : globalDeclarations) {
 			builder.append(expr.getSource()).append("\n");
 		}
-		builder.append(mainMethod.getSource());
+		visitMethodsTranslator(createTranslatorVisitor());
+		declareMethods(builder);
+		defineMethods(builder);
 		kernelSource = builder.toString();
 	}
 

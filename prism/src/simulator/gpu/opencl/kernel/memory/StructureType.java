@@ -25,9 +25,12 @@
 //==============================================================================
 package simulator.gpu.opencl.kernel.memory;
 
-import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
+import prism.Preconditions;
 import simulator.gpu.opencl.kernel.expression.Expression;
 import simulator.gpu.opencl.kernel.expression.Include;
 
@@ -74,7 +77,7 @@ public class StructureType implements VariableInterface, UDType
 		}
 	}
 
-	private List<CLVariable> fields = new ArrayList<>();
+	private Map<String, CLVariable> fields = new HashMap<>();
 	public final String typeName;
 
 	public StructureType(String typeName)
@@ -84,12 +87,12 @@ public class StructureType implements VariableInterface, UDType
 
 	public void addVariable(CLVariable var)
 	{
-		fields.add(var);
+		fields.put(var.varName, var);
 	}
 
-	public List<CLVariable> getFields()
+	public Collection<CLVariable> getFields()
 	{
-		return fields;
+		return fields.values();
 	}
 
 	public Expression getDeclaration()
@@ -113,6 +116,11 @@ public class StructureType implements VariableInterface, UDType
 		return true;
 	}
 
+	public boolean containsField(String fieldName)
+	{
+		return fields.containsKey(fieldName);
+	}
+
 	public CLValue initializeStdStructure(Number[] values)
 	{
 		CLValue[] init = new CLValue[values.length];
@@ -132,7 +140,7 @@ public class StructureType implements VariableInterface, UDType
 	{
 		StringBuilder builder = new StringBuilder();
 		builder.append("typedef struct _").append(typeName).append("{\n");
-		for (CLVariable var : fields) {
+		for (CLVariable var : fields.values()) {
 			builder.append(var.getDeclaration());
 			builder.append("\n");
 		}
@@ -144,5 +152,31 @@ public class StructureType implements VariableInterface, UDType
 	public List<Include> getIncludes()
 	{
 		return null;
+	}
+
+	@Override
+	public boolean isStructure()
+	{
+		return true;
+	}
+
+	@Override
+	public boolean isArray()
+	{
+		return false;
+	}
+
+	@Override
+	public CLVariable accessElement(String varName, int index)
+	{
+		return null;
+	}
+
+	@Override
+	public CLVariable accessField(String varName, String fieldName)
+	{
+		Preconditions.checkCondition(containsField(fieldName), String.format("StructureType %s does not contain field %s", typeName, fieldName));
+		CLVariable var = fields.get(fieldName);
+		return new CLVariable(var.varType, varName + "." + fieldName);
 	}
 }

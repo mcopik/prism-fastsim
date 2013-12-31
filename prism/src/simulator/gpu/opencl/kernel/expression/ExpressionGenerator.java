@@ -29,7 +29,10 @@ import java.util.HashMap;
 import java.util.Map;
 
 import prism.Preconditions;
+import simulator.gpu.opencl.kernel.KernelException;
+import simulator.gpu.opencl.kernel.memory.ArrayType;
 import simulator.gpu.opencl.kernel.memory.CLVariable;
+import simulator.gpu.opencl.kernel.memory.PointerType;
 import simulator.gpu.opencl.kernel.memory.StructureType;
 
 /**
@@ -76,5 +79,19 @@ public class ExpressionGenerator
 	static public Expression createBasicExpression(CLVariable var, Operator operator, String expr)
 	{
 		return new Expression(String.format("%s %s %s;", var.varName, operatorsSource.get(operator), expr));
+	}
+
+	static public Expression createConditionalAssignment(String dest, String condition, String first, String second)
+	{
+		return new Expression(String.format("%s = %s ? %s : %s;", dest, condition, first, second));
+	}
+
+	static public String accessArrayElement(CLVariable var, int indice) throws KernelException
+	{
+		if (var.varType instanceof ArrayType || var.varType instanceof PointerType) {
+			return String.format("%s[%d]", var.varName, indice);
+		} else {
+			throw new KernelException(String.format("Trying to access %d-ith position in variable %s which is not an array or a pointer!", indice, var.varName));
+		}
 	}
 }

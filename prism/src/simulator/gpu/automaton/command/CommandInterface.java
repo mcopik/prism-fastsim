@@ -25,15 +25,14 @@
 //==============================================================================
 package simulator.gpu.automaton.command;
 
-import prism.PrismException;
 import simulator.gpu.automaton.Guard;
 import simulator.gpu.automaton.update.Update;
 
 public interface CommandInterface
 {
-	Guard getGuard() throws PrismException;
+	Guard getGuard();
 
-	Update getUpdate() throws PrismException;
+	Update getUpdate();
 
 	/*
 	Rate getRateSumUpdate(int i) throws PrismException;

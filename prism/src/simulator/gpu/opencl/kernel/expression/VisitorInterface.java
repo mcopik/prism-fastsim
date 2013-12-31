@@ -9,8 +9,6 @@ package simulator.gpu.opencl.kernel.expression;
  */
 public interface VisitorInterface
 {
-	void visit(Include include);
-
 	void visit(Expression expr);
 
 	void visit(Method method);

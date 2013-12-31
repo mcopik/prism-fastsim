@@ -25,8 +25,15 @@
 //==============================================================================
 package simulator.gpu.opencl.kernel.memory;
 
-
 public interface VariableInterface
 {
+	boolean isStructure();
+
+	public CLVariable accessField(String varName, String fieldName);
+
+	boolean isArray();
+
+	public CLVariable accessElement(String varName, int index);
+
 	String getType();
 }

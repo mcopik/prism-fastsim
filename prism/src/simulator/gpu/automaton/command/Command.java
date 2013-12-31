@@ -25,7 +25,6 @@
 //==============================================================================
 package simulator.gpu.automaton.command;
 
-import prism.PrismException;
 import simulator.gpu.automaton.Guard;
 import simulator.gpu.automaton.update.Update;
 
@@ -41,13 +40,13 @@ public class Command implements CommandInterface
 	}
 
 	@Override
-	public Guard getGuard() throws PrismException
+	public Guard getGuard()
 	{
 		return guard;
 	}
 
 	@Override
-	public Update getUpdate() throws PrismException
+	public Update getUpdate()
 	{
 		return update;
 	}

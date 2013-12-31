@@ -89,7 +89,7 @@ public class SynchronizedCommand implements CommandInterface
 			}
 			getModule(moduleName).addCommand(cmd, sum);
 
-		} catch (PrismException e) {
+		} catch (IllegalStateException e) {
 			throw new IllegalStateException("CTMC: synchronized command as part of the command - shouldn't happen");
 		}
 	}
@@ -117,15 +117,15 @@ public class SynchronizedCommand implements CommandInterface
 	}
 
 	@Override
-	public Guard getGuard() throws PrismException
+	public Guard getGuard()
 	{
-		throw new PrismException("Method getGuard is not " + "defined for type SynchronizedCommand");
+		throw new IllegalAccessError("Method getGuard is not " + "defined for type SynchronizedCommand");
 	}
 
 	@Override
-	public Update getUpdate() throws PrismException
+	public Update getUpdate()
 	{
-		throw new PrismException("Method getUpdate is not " + "defined for type SynchronizedCommand");
+		throw new IllegalAccessError("Method getUpdate is not " + "defined for type SynchronizedCommand");
 	}
 
 	@Override

@@ -138,4 +138,28 @@ public class StdVariableType implements VariableInterface
 			return varType.toString().toLowerCase() + "_t";
 		}
 	}
+
+	@Override
+	public boolean isStructure()
+	{
+		return false;
+	}
+
+	@Override
+	public CLVariable accessField(String varName, String fieldName)
+	{
+		return null;
+	}
+
+	@Override
+	public boolean isArray()
+	{
+		return false;
+	}
+
+	@Override
+	public CLVariable accessElement(String varName, int index)
+	{
+		return null;
+	}
 }

@@ -28,6 +28,7 @@ package simulator.gpu.opencl.kernel.expression;
 import java.util.HashMap;
 import java.util.Map;
 
+import prism.Preconditions;
 import simulator.gpu.opencl.kernel.KernelException;
 import simulator.gpu.opencl.kernel.memory.CLVariable;
 import simulator.gpu.opencl.kernel.memory.VariableInterface;
@@ -37,6 +38,7 @@ public class Method extends ComplexKernelComponent
 	public final String methodName;
 	public final VariableInterface methodType;
 	protected Map<String, CLVariable> args = new HashMap<>();
+	protected CLVariable stateVectorAccess = null;
 
 	//protected CLVariable. returnType = new CLVariable(CLVariable.Type.VOID);
 
@@ -58,6 +60,14 @@ public class Method extends ComplexKernelComponent
 	public int getVarsNum()
 	{
 		return localVars.size();
+	}
+
+	public void registerStateVector(CLVariable var)
+	{
+		Preconditions.checkCondition(args.containsValue(var) || localVars.containsValue(var),
+		//global variables do not exist in OpenCL - it has to be arg/local var
+				"StateVector reference has to be a local variable or function argument!");
+		stateVectorAccess = var;
 	}
 
 	@Override
@@ -94,6 +104,21 @@ public class Method extends ComplexKernelComponent
 	@Override
 	public void accept(VisitorInterface v)
 	{
-		v.visit(this);
+		for (Expression expr : variableDefinitions) {
+			expr.accept(v);
+		}
+		for (KernelComponent component : body) {
+			component.accept(v);
+		}
+	}
+
+	public boolean hasDefinedSVAccess()
+	{
+		return stateVectorAccess != null;
+	}
+
+	public CLVariable accessStateVector()
+	{
+		return stateVectorAccess;
 	}
 }

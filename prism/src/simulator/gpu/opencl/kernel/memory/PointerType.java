@@ -25,7 +25,6 @@
 //==============================================================================
 package simulator.gpu.opencl.kernel.memory;
 
-
 public class PointerType implements VariableInterface
 {
 	private final VariableInterface internalType;
@@ -39,5 +38,37 @@ public class PointerType implements VariableInterface
 	public String getType()
 	{
 		return internalType.getType() + "*";
+	}
+
+	@Override
+	public boolean isStructure()
+	{
+		return internalType.isStructure();
+	}
+
+	@Override
+	public CLVariable accessField(String varName, String fieldName)
+	{
+		if (!internalType.isStructure()) {
+			return null;
+		} else {
+			return internalType.accessField(String.format("(*%s)", varName), fieldName);
+		}
+	}
+
+	@Override
+	public boolean isArray()
+	{
+		return internalType.isArray();
+	}
+
+	@Override
+	public CLVariable accessElement(String varName, int index)
+	{
+		if (internalType.isArray()) {
+			return null;
+		} else {
+			return internalType.accessElement(String.format("(*%s)", varName), index);
+		}
 	}
 }

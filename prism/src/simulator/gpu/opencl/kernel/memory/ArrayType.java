@@ -25,14 +25,17 @@
 //==============================================================================
 package simulator.gpu.opencl.kernel.memory;
 
+import prism.Preconditions;
 
 public class ArrayType implements VariableInterface
 {
 	private final VariableInterface varType;
+	public final int length;
 
-	public ArrayType(CLVariable type)
+	public ArrayType(VariableInterface type, int length)
 	{
 		this.varType = type;
+		this.length = length;
 	}
 
 	@Override
@@ -41,4 +44,28 @@ public class ArrayType implements VariableInterface
 		return varType.getType() + "[]";
 	}
 
+	@Override
+	public boolean isStructure()
+	{
+		return false;
+	}
+
+	@Override
+	public CLVariable accessField(String varName, String fieldName)
+	{
+		return null;
+	}
+
+	@Override
+	public boolean isArray()
+	{
+		return true;
+	}
+
+	@Override
+	public CLVariable accessElement(String varName, int index)
+	{
+		Preconditions.checkIndex(index, length, String.format("Array %s - index %d >= array length %d", varName, index, length));
+		return new CLVariable(varType, String.format("%s[%d]", varName, index));
+	}
 }

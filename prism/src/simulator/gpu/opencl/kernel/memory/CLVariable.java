@@ -27,7 +27,7 @@ package simulator.gpu.opencl.kernel.memory;
 
 import simulator.gpu.opencl.kernel.expression.Expression;
 
-public class CLVariable implements VariableInterface
+public class CLVariable
 {
 	public enum Location {
 		REGISTER, LOCAL, GLOBAL
@@ -76,11 +76,5 @@ public class CLVariable implements VariableInterface
 		}
 		builder.append(";");
 		return new Expression(builder.toString());
-	}
-
-	@Override
-	public String getType()
-	{
-		return varType.getType();
 	}
 }
