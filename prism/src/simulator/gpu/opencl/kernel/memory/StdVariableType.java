@@ -158,7 +158,7 @@ public class StdVariableType implements VariableInterface
 	}
 
 	@Override
-	public CLVariable accessElement(String varName, int index)
+	public CLVariable accessElement(String varName, Expression index)
 	{
 		return null;
 	}

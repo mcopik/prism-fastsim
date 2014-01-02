@@ -112,6 +112,11 @@ public class Method extends ComplexKernelComponent
 		}
 	}
 
+	public void addReturn(CLVariable var)
+	{
+		body.add(new Expression(String.format("return %s;", var.varName)));
+	}
+
 	public boolean hasDefinedSVAccess()
 	{
 		return stateVectorAccess != null;

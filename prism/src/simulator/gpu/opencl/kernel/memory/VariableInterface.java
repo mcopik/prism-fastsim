@@ -25,6 +25,8 @@
 //==============================================================================
 package simulator.gpu.opencl.kernel.memory;
 
+import simulator.gpu.opencl.kernel.expression.Expression;
+
 public interface VariableInterface
 {
 	boolean isStructure();
@@ -33,7 +35,7 @@ public interface VariableInterface
 
 	boolean isArray();
 
-	public CLVariable accessElement(String varName, int index);
+	public CLVariable accessElement(String varName, Expression index);
 
 	String getType();
 }

@@ -25,6 +25,8 @@
 //==============================================================================
 package simulator.gpu.opencl.kernel.memory;
 
+import simulator.gpu.opencl.kernel.expression.Expression;
+
 public class PointerType implements VariableInterface
 {
 	private final VariableInterface internalType;
@@ -63,12 +65,8 @@ public class PointerType implements VariableInterface
 	}
 
 	@Override
-	public CLVariable accessElement(String varName, int index)
+	public CLVariable accessElement(String varName, Expression index)
 	{
-		if (internalType.isArray()) {
-			return null;
-		} else {
-			return internalType.accessElement(String.format("(*%s)", varName), index);
-		}
+		return new CLVariable(internalType, String.format("%s[%s]", varName, index.getSource()));
 	}
 }

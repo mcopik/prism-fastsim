@@ -27,10 +27,6 @@ package simulator.gpu.opencl.kernel.expression;
 
 import java.util.List;
 
-/**
- * @author mcopik
- *
- */
 public class Include implements KernelComponent
 {
 	public final String includePath;

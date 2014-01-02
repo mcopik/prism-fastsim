@@ -167,7 +167,7 @@ public class StructureType implements VariableInterface, UDType
 	}
 
 	@Override
-	public CLVariable accessElement(String varName, int index)
+	public CLVariable accessElement(String varName, Expression index)
 	{
 		return null;
 	}

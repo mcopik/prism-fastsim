@@ -55,7 +55,7 @@ public class ExpressionGenerator
 		return field != null ? new CLVariable(field.varType, structure.varName + "." + field.varName) : null;
 	}
 
-	static public Expression assignValue(CLVariable dest, String expr)
+	static public Expression createAssignment(CLVariable dest, String expr)
 	{
 		return createBasicExpression(dest, Operator.AS, expr);
 	}
@@ -93,5 +93,10 @@ public class ExpressionGenerator
 		} else {
 			throw new KernelException(String.format("Trying to access %d-ith position in variable %s which is not an array or a pointer!", indice, var.varName));
 		}
+	}
+
+	static public Expression postIncrement(CLVariable var)
+	{
+		return new Expression(var.varName + "++");
 	}
 }

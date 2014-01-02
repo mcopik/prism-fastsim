@@ -49,12 +49,12 @@ public class RNGType implements VariableInterface, UDType
 
 	static public Expression assignRandomInt(CLVariable rng, CLVariable dest, int max)
 	{
-		return ExpressionGenerator.assignValue(dest, String.format("floor(((float)MWC64X_NextUint(&%s))*%d/%s)", rng.varName, max, RNG_MAX));
+		return ExpressionGenerator.createAssignment(dest, String.format("floor(((float)MWC64X_NextUint(&%s))*%d/%s)", rng.varName, max, RNG_MAX));
 	}
 
 	static public Expression assignRandomFloat(CLVariable rng, CLVariable dest)
 	{
-		return ExpressionGenerator.assignValue(dest, String.format("((float)MWC64X_NextUint(&%s))/%s", rng.varName, RNG_MAX));
+		return ExpressionGenerator.createAssignment(dest, String.format("((float)MWC64X_NextUint(&%s))/%s", rng.varName, RNG_MAX));
 	}
 
 	/* (non-Javadoc)
@@ -111,7 +111,7 @@ public class RNGType implements VariableInterface, UDType
 	}
 
 	@Override
-	public CLVariable accessElement(String varName, int index)
+	public CLVariable accessElement(String varName, Expression index)
 	{
 		return null;
 	}

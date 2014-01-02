@@ -38,6 +38,7 @@ import simulator.gpu.automaton.command.SynchronizedCommand;
 import simulator.gpu.opencl.kernel.expression.Expression;
 import simulator.gpu.opencl.kernel.expression.ExpressionGenerator;
 import simulator.gpu.opencl.kernel.expression.ForLoop;
+import simulator.gpu.opencl.kernel.expression.IfElse;
 import simulator.gpu.opencl.kernel.expression.Include;
 import simulator.gpu.opencl.kernel.expression.KernelMethod;
 import simulator.gpu.opencl.kernel.expression.MemoryTranslatorVisitor;
@@ -115,7 +116,7 @@ public class Kernel
 		/**
 		 * DTMC:
 		 * Return value is number of concurrent transitions.
-		 * int checkGuardsSyn(StateVector * sv, SynCmdState * tab);
+		 * int checkGuardsSyn(StateVector * sv, SynCmdState ** tab);
 		 * CTMC:
 		 * Return value is rates sum of transitions in race condition.
 		 * float checkGuardsSyn(StateVector * sv, SynCmdState * tab);
@@ -174,7 +175,7 @@ public class Kernel
 		processInput();
 		try {
 			importStateVector();
-			createGuardsMethod();
+			helperMethods[MethodIndices.CHECK_GUARDS.indice] = createGuardsMethodWithCounting();
 			createMainMethod();
 		} catch (KernelException e) {
 			// TODO Auto-generated catch block
@@ -213,7 +214,42 @@ public class Kernel
 		}
 	}
 
-	private void createGuardsMethod() throws KernelException
+	private Method createGuardsMethodWithCounting() throws KernelException
+	{
+		Preconditions.checkCondition(commands != null || synCommands != null, "Can not create helper methods before processing input data!");
+		//no non-synchronized commands
+		if (commands == null) {
+			return null;
+		}
+		Method method = new Method("checkGuards", new StdVariableType(0, commands.length - 1));
+		//StateVector * sv
+		CLVariable sv = new CLVariable(stateVector.getPointer(), "sv");
+		method.addArg(sv);
+		method.registerStateVector(sv);
+		//bool * guardsTab
+		CLVariable guards = new CLVariable(new PointerType(new StdVariableType(StdType.BOOL)), "guardsTab");
+		method.addArg(guards);
+		//counter
+		CLVariable counter = new CLVariable(new StdVariableType(0, commands.length - 1), "counter");
+		counter.setInitValue(StdVariableType.initialize(0));
+		method.addLocalVar(counter);
+		for (int i = 0; i < commands.length; ++i) {
+			CLVariable position = guards.varType.accessElement(guards.varName, ExpressionGenerator.postIncrement(counter));
+			IfElse ifElse = new IfElse(new Expression(commands[i].getGuard().toString().replace("=", "==")));
+			ifElse.addCommand(0, ExpressionGenerator.createAssignment(position, "true"));
+			method.addExpression(ifElse);
+			/*method.addExpression(ExpressionGenerator.createConditionalAssignment(
+			//i-th element in array
+					ExpressionGenerator.accessArrayElement(guards, i),
+					//guard - Prism uses '=' as comparison operator
+					commands[i].getGuard().toString().replace("=", "=="), "true", "false"));
+			*/
+		}
+		method.addReturn(counter);
+		return method;
+	}
+
+	private void createUpdateMethod() throws KernelException
 	{
 		Preconditions.checkCondition(commands != null || synCommands != null, "Can not create helper methods before processing input data!");
 		//no non-synchronized commands
@@ -225,8 +261,9 @@ public class Kernel
 		CLVariable sv = new CLVariable(stateVector.getPointer(), "sv");
 		method.addArg(sv);
 		method.registerStateVector(sv);
-		//bool * guardsTab
+		//selection
 		CLVariable guards = new CLVariable(new PointerType(new StdVariableType(StdType.BOOL)), "guardsTab");
+		//bool * guardsTab
 		method.addArg(guards);
 		for (int i = 0; i < commands.length; ++i) {
 			method.addExpression(ExpressionGenerator.createConditionalAssignment(
