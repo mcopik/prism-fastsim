@@ -33,6 +33,7 @@ import simulator.gpu.opencl.kernel.expression.ExpressionGenerator.Operator;
 import simulator.gpu.opencl.kernel.expression.IfElse;
 import simulator.gpu.opencl.kernel.expression.Method;
 import simulator.gpu.opencl.kernel.memory.CLVariable;
+import simulator.gpu.opencl.kernel.memory.PointerType;
 import simulator.gpu.opencl.kernel.memory.StdVariableType;
 import simulator.gpu.opencl.kernel.memory.StdVariableType.StdType;
 
@@ -55,7 +56,7 @@ public class KernelGeneratorCTMC extends KernelGenerator
 	@Override
 	protected void guardsMethodCreateSignature()
 	{
-		currentMethod = new Method("checkGuards", new StdVariableType(StdType.FLOAT));
+		currentMethod = new Method("checkNonsynGuards", new StdVariableType(StdType.FLOAT));
 	}
 
 	@Override
@@ -70,7 +71,7 @@ public class KernelGeneratorCTMC extends KernelGenerator
 		CLVariable tabPos = guardsTab.varType.accessElement(guardsTab.varName, ExpressionGenerator.postIncrement(counter));
 		IfElse ifElse = new IfElse(new Expression(guard));
 		ifElse.addCommand(0, ExpressionGenerator.createAssignment(tabPos, Integer.toString(position)));
-		Expression sumExpr = ExpressionGenerator.createBasicExpression(sum, Operator.ADD, commands[position].getRateSum().toString());
+		Expression sumExpr = ExpressionGenerator.createBasicExpression(sum, Operator.ADD_AUGM, commands[position].getRateSum().toString());
 		sumExpr.add(";");
 		ifElse.addCommand(0, sumExpr);
 		currentMethod.addExpression(ifElse);
@@ -82,5 +83,32 @@ public class KernelGeneratorCTMC extends KernelGenerator
 		CLVariable sum = currentMethod.getLocalVar("sum");
 		Preconditions.checkNotNull(sum, "");
 		currentMethod.addReturn(sum);
+	}
+
+	@Override
+	protected void updateMethodPerformSelection()
+	{
+		// TODO Auto-generated method stub
+
+	}
+
+	@Override
+	protected void updateMethodAdditionalArgs() throws KernelException
+	{
+		//bool * guardsTab
+		CLVariable guards = new CLVariable(new PointerType(new StdVariableType(0, commands.length)), "guardsTab");
+		currentMethod.addArg(guards);
+	}
+
+	@Override
+	protected void updateMethodLocalVars() throws KernelException
+	{
+		//float newSum
+		CLVariable newSum = new CLVariable(new StdVariableType(StdType.FLOAT), "newSum");
+		newSum.setInitValue(StdVariableType.initialize(0.0f));
+		currentMethod.addLocalVar(newSum);
+		//selection
+		CLVariable selection = currentMethod.getLocalVar("selection");
+		selection.setInitValue(StdVariableType.initialize(0));
 	}
 }

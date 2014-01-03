@@ -32,8 +32,14 @@ import simulator.gpu.opencl.kernel.memory.StdVariableType;
 public class ForLoop extends ComplexKernelComponent
 {
 	private CLVariable counter;
-	private String endValue;
+	private String endValue = null;
 	boolean decreasing = false;
+
+	public ForLoop(CLVariable counter, boolean decreasing)
+	{
+		this.counter = counter;
+		this.decreasing = decreasing;
+	}
 
 	public ForLoop(String counterName, int startValue, int endValue)
 	{
@@ -83,11 +89,15 @@ public class ForLoop extends ComplexKernelComponent
 	protected String createHeader()
 	{
 		StringBuilder builder = new StringBuilder("for(");
-		builder.append(counter.getDefinition());
-		if (decreasing) {
-			builder.append(ExpressionGenerator.createBasicExpression(counter, Operator.GT, endValue));
+		if (endValue != null) {
+			builder.append(counter.getDefinition());
+			if (decreasing) {
+				builder.append(ExpressionGenerator.createBasicExpression(counter, Operator.GT, endValue));
+			} else {
+				builder.append(ExpressionGenerator.createBasicExpression(counter, Operator.LT, endValue));
+			}
 		} else {
-			builder.append(ExpressionGenerator.createBasicExpression(counter, Operator.LT, endValue));
+			builder.append(";");
 		}
 		builder.append(";");
 		if (decreasing) {

@@ -62,8 +62,13 @@ public class ExpressionGenerator
 		return ret;
 	}
 
+	static public Expression createAssignment(CLVariable dest, Expression expr)
+	{
+		return createAssignment(dest, expr.getSource());
+	}
+
 	public enum Operator {
-		GT, LT, GE, LE, EQ, NE, AS, ADD, SUB, MUL
+		GT, LT, GE, LE, EQ, NE, AS, ADD, SUB, MUL, DIV, ADD_AUGM, SUB_AUGM, MUL_AUGM, DIV_AUGM
 	};
 
 	private static final Map<Operator, String> operatorsSource;
@@ -76,14 +81,29 @@ public class ExpressionGenerator
 		operatorsSource.put(Operator.EQ, "==");
 		operatorsSource.put(Operator.NE, "!=");
 		operatorsSource.put(Operator.AS, "=");
-		operatorsSource.put(Operator.ADD, "+=");
-		operatorsSource.put(Operator.SUB, "-=");
-		operatorsSource.put(Operator.MUL, "*=");
+		operatorsSource.put(Operator.ADD, "+");
+		operatorsSource.put(Operator.SUB, "-");
+		operatorsSource.put(Operator.MUL, "*");
+		operatorsSource.put(Operator.DIV, "/");
+		operatorsSource.put(Operator.ADD_AUGM, "+=");
+		operatorsSource.put(Operator.SUB_AUGM, "-=");
+		operatorsSource.put(Operator.MUL_AUGM, "*=");
+		operatorsSource.put(Operator.MUL_AUGM, "/=");
+	}
+
+	static public Expression createBasicExpression(CLVariable var, Operator operator, CLVariable var2)
+	{
+		return ExpressionGenerator.createBasicExpression(var, operator, var2.varName);
 	}
 
 	static public Expression createBasicExpression(CLVariable var, Operator operator, String expr)
 	{
 		return new Expression(String.format("%s %s %s", var.varName, operatorsSource.get(operator), expr));
+	}
+
+	static public Expression createBasicExpression(CLVariable var, Operator operator, Expression expr)
+	{
+		return ExpressionGenerator.createBasicExpression(var, operator, expr.getSource());
 	}
 
 	static public Expression createConditionalAssignment(String dest, String condition, String first, String second)
@@ -98,6 +118,11 @@ public class ExpressionGenerator
 		} else {
 			throw new KernelException(String.format("Trying to access %d-ith position in variable %s which is not an array or a pointer!", indice, var.varName));
 		}
+	}
+
+	static public void addParentheses(Expression expr)
+	{
+		expr.exprString = String.format("(%s)", expr.exprString);
 	}
 
 	static public Expression postIncrement(CLVariable var)

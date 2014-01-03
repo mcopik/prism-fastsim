@@ -35,7 +35,7 @@ public class CLVariable
 
 	public final String varName;
 	public final VariableInterface varType;
-	private CLValue initValue = null;
+	private Expression initValue = null;
 	public Location memLocation = Location.REGISTER;
 
 	public CLVariable(VariableInterface varType, String varName)
@@ -50,6 +50,11 @@ public class CLVariable
 	}
 
 	public void setInitValue(CLValue value)
+	{
+		initValue = value.getSource();
+	}
+
+	public void setInitValue(Expression value)
 	{
 		initValue = value;
 	}

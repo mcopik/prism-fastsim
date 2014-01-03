@@ -174,6 +174,7 @@ public class Kernel
 		}
 		try {
 			helperMethods[MethodIndices.CHECK_GUARDS.indice] = methodsGenerator.createNonsynGuardsMethod();
+			helperMethods[MethodIndices.PERFORM_UPDATE.indice] = methodsGenerator.createNonsynUpdate();
 			createMainMethod();
 		} catch (KernelException e) {
 			// TODO Auto-generated catch block
@@ -263,7 +264,7 @@ public class Kernel
 		mainMethod.accept(visitor);
 		for (Method method : helperMethods) {
 			if (method == null)
-				break;
+				continue;
 			if (!method.hasDefinedSVAccess()) {
 				throw new KernelException("Method " + method.methodName + " has not StateVector access!");
 			}
@@ -277,7 +278,7 @@ public class Kernel
 		builder.append(mainMethod.getDeclaration()).append("\n");
 		for (Method method : helperMethods) {
 			if (method == null)
-				break;
+				continue;
 			builder.append(method.getDeclaration()).append("\n");
 		}
 	}
@@ -287,7 +288,7 @@ public class Kernel
 		builder.append(mainMethod.getSource()).append("\n");
 		for (Method method : helperMethods) {
 			if (method == null)
-				break;
+				continue;
 			builder.append(method.getSource()).append("\n");
 		}
 	}

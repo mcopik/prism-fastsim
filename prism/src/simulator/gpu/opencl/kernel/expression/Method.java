@@ -25,7 +25,7 @@
 //==============================================================================
 package simulator.gpu.opencl.kernel.expression;
 
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 import prism.Preconditions;
@@ -37,7 +37,7 @@ public class Method extends ComplexKernelComponent
 {
 	public final String methodName;
 	public final VariableInterface methodType;
-	protected Map<String, CLVariable> args = new HashMap<>();
+	protected Map<String, CLVariable> args = new LinkedHashMap<>();
 	protected CLVariable stateVectorAccess = null;
 
 	//protected CLVariable. returnType = new CLVariable(CLVariable.Type.VOID);

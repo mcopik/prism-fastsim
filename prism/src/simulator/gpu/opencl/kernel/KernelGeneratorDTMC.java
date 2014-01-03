@@ -29,6 +29,7 @@ import prism.Preconditions;
 import simulator.gpu.automaton.AbstractAutomaton;
 import simulator.gpu.opencl.kernel.expression.Expression;
 import simulator.gpu.opencl.kernel.expression.ExpressionGenerator;
+import simulator.gpu.opencl.kernel.expression.ExpressionGenerator.Operator;
 import simulator.gpu.opencl.kernel.expression.IfElse;
 import simulator.gpu.opencl.kernel.expression.Method;
 import simulator.gpu.opencl.kernel.memory.CLVariable;
@@ -50,7 +51,7 @@ public class KernelGeneratorDTMC extends KernelGenerator
 	@Override
 	protected void guardsMethodCreateSignature()
 	{
-		currentMethod = new Method("checkGuards", new StdVariableType(0, commands.length - 1));
+		currentMethod = new Method("checkNonsynGuards", new StdVariableType(0, commands.length - 1));
 	}
 
 	@Override
@@ -74,4 +75,35 @@ public class KernelGeneratorDTMC extends KernelGenerator
 		currentMethod.addReturn(counter);
 	}
 
+	@Override
+	protected void updateMethodPerformSelection()
+	{
+		CLVariable sum = currentMethod.getArg("selectionSum");
+		CLVariable number = currentMethod.getArg("numberOfCommands");
+		CLVariable selection = currentMethod.getLocalVar("selection");
+		Expression divideSum = ExpressionGenerator.createBasicExpression(selection, Operator.DIV, number);
+		Expression reduceSum = ExpressionGenerator.createBasicExpression(sum, Operator.SUB, divideSum);
+		ExpressionGenerator.addParentheses(reduceSum);
+		reduceSum = ExpressionGenerator.createBasicExpression(number, Operator.MUL, reduceSum);
+		currentMethod.addExpression(ExpressionGenerator.createAssignment(sum, reduceSum));
+	}
+
+	@Override
+	protected void updateMethodAdditionalArgs() throws KernelException
+	{
+		//uint numberOfCommands
+		CLVariable numberOfCommands = new CLVariable(new StdVariableType(0, commands.length - 1), "numberOfCommands");
+		currentMethod.addArg(numberOfCommands);
+	}
+
+	@Override
+	protected void updateMethodLocalVars() throws KernelException
+	{
+		//selection
+		CLVariable sum = currentMethod.getArg("selectionSum");
+		CLVariable number = currentMethod.getArg("numberOfCommands");
+		CLVariable selection = currentMethod.getLocalVar("selection");
+		String selectionExpression = String.format("floor(%s)", ExpressionGenerator.createBasicExpression(sum, Operator.MUL, number).getSource());
+		selection.setInitValue(new Expression(selectionExpression));
+	}
 }

@@ -30,28 +30,21 @@ import java.util.List;
 
 import prism.Preconditions;
 
-public class IfElse extends ComplexKernelComponent
+public class Switch extends ComplexKernelComponent
 {
-	private static class Condition implements KernelComponent
+	private static class Case implements KernelComponent
 	{
-		public enum Type {
-			IF, ELIF, ELSE
-		}
-
-		public final Type type;
-		public final Expression condition;
+		public final Expression value;
 		public List<KernelComponent> commands = new ArrayList<>();
 
-		public Condition(Type type, Expression expr)
+		public Case()
 		{
-			this.type = type;
-			this.condition = expr;
+			value = null;
 		}
 
-		public Condition()
+		public Case(Expression value)
 		{
-			this.type = Type.ELSE;
-			this.condition = null;
+			this.value = value;
 		}
 
 		@Override
@@ -81,7 +74,7 @@ public class IfElse extends ComplexKernelComponent
 		@Override
 		public void accept(VisitorInterface v)
 		{
-			condition.accept(v);
+			value.accept(v);
 			for (KernelComponent command : commands) {
 				command.accept(v);
 			}
@@ -91,51 +84,45 @@ public class IfElse extends ComplexKernelComponent
 		public String getSource()
 		{
 			StringBuilder builder = new StringBuilder();
-			switch (type) {
-			case IF:
-				builder.append("if(").append(condition.getSource()).append("){\n");
-				break;
-			case ELSE:
-				builder.append("else if(").append(condition.getSource()).append("){\n");
-				break;
-			default:
-				builder.append("else {\n");
-				break;
+			if (value != null) {
+				builder.append("case ").append(value.getSource()).append(":\n");
+			} else {
+				builder.append("default:\n ");
 			}
 			for (KernelComponent command : commands) {
 				builder.append(command.getSource()).append("\n");
 			}
-			builder.append("}");
+			builder.append("break;");
 			return builder.toString();
 		}
 	}
 
-	private boolean hasElse = false;
+	private boolean hasDefault = false;
+	private Expression switchCondition = null;
 
-	public IfElse(Expression ifCondition)
+	public Switch(Expression switchCondition)
 	{
-		body.add(new Condition(Condition.Type.IF, ifCondition));
+		this.switchCondition = switchCondition;
 	}
 
-	public void addElif(Expression condition)
+	public void addCase(Expression condition)
 	{
-		if (hasElse) {
-			body.add(body.size() - 1, new Condition(Condition.Type.ELIF, condition));
+		if (hasDefault) {
+			body.add(body.size() - 1, new Case(condition));
 		} else {
-			body.add(new Condition(Condition.Type.ELIF, condition));
+			body.add(new Case(condition));
 		}
+	}
+
+	public void addDefault()
+	{
+		hasDefault = true;
 	}
 
 	public void addCommand(int conditionNumber, KernelComponent command)
 	{
-		Preconditions.checkIndex(conditionNumber, body.size(), "Non-valid index of condition in IfElse!");
-		((Condition) body.get(conditionNumber)).commands.add(command);
-	}
-
-	public void addElse()
-	{
-		hasElse = true;
-		body.add(new Condition());
+		Preconditions.checkIndex(conditionNumber, body.size(), "Non-valid index of condition in Switch!");
+		((Case) body.get(conditionNumber)).commands.add(command);
 	}
 
 	/* (non-Javadoc)
@@ -179,10 +166,12 @@ public class IfElse extends ComplexKernelComponent
 	@Override
 	public String getSource()
 	{
-		StringBuilder source = new StringBuilder();
+		StringBuilder source = new StringBuilder("switch(");
+		source.append(switchCondition).append("){\n");
 		for (KernelComponent e : body) {
 			source.append(e.getSource()).append("\n");
 		}
+		source.append("}\n");
 		return source.toString();
 	}
 }
