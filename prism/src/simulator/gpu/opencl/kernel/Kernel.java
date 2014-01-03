@@ -28,23 +28,17 @@ package simulator.gpu.opencl.kernel;
 import java.util.ArrayList;
 import java.util.List;
 
-import prism.Preconditions;
 import simulator.gpu.automaton.AbstractAutomaton;
+import simulator.gpu.automaton.AbstractAutomaton.AutomatonType;
 import simulator.gpu.automaton.AbstractAutomaton.StateVector;
 import simulator.gpu.automaton.PrismVariable;
-import simulator.gpu.automaton.command.Command;
-import simulator.gpu.automaton.command.CommandInterface;
-import simulator.gpu.automaton.command.SynchronizedCommand;
 import simulator.gpu.opencl.kernel.expression.Expression;
-import simulator.gpu.opencl.kernel.expression.ExpressionGenerator;
 import simulator.gpu.opencl.kernel.expression.ForLoop;
-import simulator.gpu.opencl.kernel.expression.IfElse;
 import simulator.gpu.opencl.kernel.expression.Include;
 import simulator.gpu.opencl.kernel.expression.KernelMethod;
 import simulator.gpu.opencl.kernel.expression.MemoryTranslatorVisitor;
 import simulator.gpu.opencl.kernel.expression.Method;
 import simulator.gpu.opencl.kernel.memory.CLVariable;
-import simulator.gpu.opencl.kernel.memory.PointerType;
 import simulator.gpu.opencl.kernel.memory.RNGType;
 import simulator.gpu.opencl.kernel.memory.StdVariableType;
 import simulator.gpu.opencl.kernel.memory.StdVariableType.StdType;
@@ -64,8 +58,6 @@ public class Kernel
 	 */
 	private KernelConfig config = null;
 	private AbstractAutomaton model = null;
-	private Command commands[] = null;
-	private SynchronizedCommand synCommands[] = null;
 	private Property[] properties = null;
 	/**
 	 * Source components.
@@ -154,6 +146,7 @@ public class Kernel
 		public final static int SIZE = MethodIndices.values().length;
 	}
 
+	private KernelGenerator methodsGenerator = null;
 	private Method helperMethods[] = new Method[MethodIndices.SIZE];
 	private CLVariable stateVector = null;
 	/**
@@ -173,9 +166,14 @@ public class Kernel
 		this.model = model;
 		this.properties = properties;
 		processInput();
+		importStateVector();
+		if (model.getType() == AutomatonType.DTMC) {
+			this.methodsGenerator = new KernelGeneratorDTMC(model, stateVector);
+		} else {
+			this.methodsGenerator = new KernelGeneratorCTMC(model, stateVector);
+		}
 		try {
-			importStateVector();
-			helperMethods[MethodIndices.CHECK_GUARDS.indice] = createGuardsMethodWithCounting();
+			helperMethods[MethodIndices.CHECK_GUARDS.indice] = methodsGenerator.createNonsynGuardsMethod();
 			createMainMethod();
 		} catch (KernelException e) {
 			// TODO Auto-generated catch block
@@ -197,83 +195,6 @@ public class Kernel
 
 	private void processInput()
 	{
-		int synSize = model.synchCmdsNumber();
-		int size = model.commandsNumber();
-		if (synSize != 0) {
-			synCommands = new SynchronizedCommand[synSize];
-		}
-		commands = new Command[size - synSize];
-		int normalCounter = 0, synCounter = 0;
-		for (int i = 0; i < size; ++i) {
-			CommandInterface cmd = model.getCommand(i);
-			if (!cmd.isSynchronized()) {
-				commands[normalCounter++] = (Command) cmd;
-			} else {
-				synCommands[synCounter++] = (SynchronizedCommand) cmd;
-			}
-		}
-	}
-
-	private Method createGuardsMethodWithCounting() throws KernelException
-	{
-		Preconditions.checkCondition(commands != null || synCommands != null, "Can not create helper methods before processing input data!");
-		//no non-synchronized commands
-		if (commands == null) {
-			return null;
-		}
-		Method method = new Method("checkGuards", new StdVariableType(0, commands.length - 1));
-		//StateVector * sv
-		CLVariable sv = new CLVariable(stateVector.getPointer(), "sv");
-		method.addArg(sv);
-		method.registerStateVector(sv);
-		//bool * guardsTab
-		CLVariable guards = new CLVariable(new PointerType(new StdVariableType(StdType.BOOL)), "guardsTab");
-		method.addArg(guards);
-		//counter
-		CLVariable counter = new CLVariable(new StdVariableType(0, commands.length - 1), "counter");
-		counter.setInitValue(StdVariableType.initialize(0));
-		method.addLocalVar(counter);
-		for (int i = 0; i < commands.length; ++i) {
-			CLVariable position = guards.varType.accessElement(guards.varName, ExpressionGenerator.postIncrement(counter));
-			IfElse ifElse = new IfElse(new Expression(commands[i].getGuard().toString().replace("=", "==")));
-			ifElse.addCommand(0, ExpressionGenerator.createAssignment(position, "true"));
-			method.addExpression(ifElse);
-			/*method.addExpression(ExpressionGenerator.createConditionalAssignment(
-			//i-th element in array
-					ExpressionGenerator.accessArrayElement(guards, i),
-					//guard - Prism uses '=' as comparison operator
-					commands[i].getGuard().toString().replace("=", "=="), "true", "false"));
-			*/
-		}
-		method.addReturn(counter);
-		return method;
-	}
-
-	private void createUpdateMethod() throws KernelException
-	{
-		Preconditions.checkCondition(commands != null || synCommands != null, "Can not create helper methods before processing input data!");
-		//no non-synchronized commands
-		if (commands == null) {
-			return;
-		}
-		Method method = new Method("checkGuards", new StdVariableType(0, commands.length - 1));
-		//StateVector * sv
-		CLVariable sv = new CLVariable(stateVector.getPointer(), "sv");
-		method.addArg(sv);
-		method.registerStateVector(sv);
-		//selection
-		CLVariable guards = new CLVariable(new PointerType(new StdVariableType(StdType.BOOL)), "guardsTab");
-		//bool * guardsTab
-		method.addArg(guards);
-		for (int i = 0; i < commands.length; ++i) {
-			method.addExpression(ExpressionGenerator.createConditionalAssignment(
-			//i-th element in array
-					ExpressionGenerator.accessArrayElement(guards, i),
-					//guard - Prism uses '=' as comparison operator
-					commands[i].getGuard().toString().replace("=", "=="), "true", "false"));
-
-		}
-		helperMethods[MethodIndices.CHECK_GUARDS.indice] = method;
 	}
 
 	private void importStateVector()

@@ -30,7 +30,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 
-import prism.Pair;
 import prism.PrismException;
 import simulator.gpu.automaton.Guard;
 import simulator.gpu.automaton.update.Rate;
@@ -42,17 +41,17 @@ public class SynchronizedCommand implements CommandInterface
 	{
 		public final String moduleName;
 		Rate rate = new Rate();
-		private List<Pair<Command, Rate>> cmds = new ArrayList<>();
+		private List<Command> cmds = new ArrayList<>();
 
 		public ModuleGroup(String name)
 		{
 			moduleName = name;
 		}
 
-		public void addCommand(Command cmd, Rate sum)
+		public void addCommand(Command cmd)
 		{
-			cmds.add(new Pair<>(cmd, sum));
-			rate.addRate(sum);
+			cmds.add(cmd);
+			rate.addRate(cmd.getRateSum());
 		}
 
 		public int getCommandsNum()
@@ -74,24 +73,9 @@ public class SynchronizedCommand implements CommandInterface
 		return synchronizedCommands.size();
 	}
 
-	public void addCommandDTMC(String moduleName, Command cmd)
+	public void addCommand(String moduleName, Command cmd)
 	{
-		getModule(moduleName).addCommand(cmd, new Rate(1));
-	}
-
-	public void addCommandCTMC(String moduleName, Command cmd)
-	{
-		try {
-			Update update = cmd.getUpdate();
-			Rate sum = new Rate();
-			for (int i = 0; i < update.getActionsNumber(); ++i) {
-				sum.addRate(update.getRate(i));
-			}
-			getModule(moduleName).addCommand(cmd, sum);
-
-		} catch (IllegalStateException e) {
-			throw new IllegalStateException("CTMC: synchronized command as part of the command - shouldn't happen");
-		}
+		getModule(moduleName).addCommand(cmd);
 	}
 
 	private ModuleGroup getModule(String moduleName)
@@ -108,7 +92,7 @@ public class SynchronizedCommand implements CommandInterface
 
 	public Command getCommand(int module, int command) throws PrismException
 	{
-		return synchronizedCommands.get(module).cmds.get(command).first;
+		return synchronizedCommands.get(module).cmds.get(command);
 	}
 
 	public int getCommandNumber(int module) throws PrismException
@@ -136,7 +120,7 @@ public class SynchronizedCommand implements CommandInterface
 
 	public Rate getRateSumUpdate(int module, int update) throws PrismException
 	{
-		return synchronizedCommands.get(module).cmds.get(update).second;
+		return synchronizedCommands.get(module).cmds.get(update).getRateSum();
 	}
 
 	public Rate getRateSumModule(int i) throws PrismException
@@ -155,10 +139,20 @@ public class SynchronizedCommand implements CommandInterface
 		builder.append("SYNCHRONIZED COMMAND: ").append(synchLabel).append("\n");
 		for (Map.Entry<String, ModuleGroup> group : synchronizedCommands.entrySet()) {
 			builder.append(group.getKey()).append(" - sum: ").append(group.getValue().rate).append("\n");
-			for (Pair<Command, Rate> cmd : group.getValue().cmds) {
-				builder.append("Update sum: ").append(cmd.second).append("; ").append(cmd.first).append("\n");
+			for (Command cmd : group.getValue().cmds) {
+				builder.append("Update sum: ").append(cmd.getRateSum()).append("; ").append(cmd).append("\n");
 			}
 		}
 		return builder.toString();
+	}
+
+	@Override
+	public Rate getRateSum()
+	{
+		Rate sum = new Rate(0);
+		for (Map.Entry<String, ModuleGroup> group : synchronizedCommands.entrySet()) {
+			sum.addRate(group.getValue().rate);
+		}
+		return sum;
 	}
 }

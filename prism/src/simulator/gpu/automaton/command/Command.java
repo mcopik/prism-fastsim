@@ -26,17 +26,34 @@
 package simulator.gpu.automaton.command;
 
 import simulator.gpu.automaton.Guard;
+import simulator.gpu.automaton.update.Rate;
 import simulator.gpu.automaton.update.Update;
 
 public class Command implements CommandInterface
 {
 	private final Guard guard;
 	private final Update update;
+	private final Rate rate;
 
-	public Command(Guard guard, Update update)
+	private Command(Guard guard, Update update, Rate rate)
 	{
 		this.guard = guard;
 		this.update = update;
+		this.rate = rate;
+	}
+
+	static public Command createCommandDTMC(Guard guard, Update update)
+	{
+		return new Command(guard, update, new Rate(1));
+	}
+
+	static public Command createCommandCTMC(Guard guard, Update update)
+	{
+		Rate rate = new Rate(0);
+		for (int i = 0; i < update.getActionsNumber(); ++i) {
+			rate.addRate(update.getRate(i));
+		}
+		return new Command(guard, update, rate);
 	}
 
 	@Override
@@ -63,5 +80,11 @@ public class Command implements CommandInterface
 		StringBuilder builder = new StringBuilder();
 		builder.append(guard).append(" -> ").append(update).append("\n");
 		return builder.toString();
+	}
+
+	@Override
+	public Rate getRateSum()
+	{
+		return rate;
 	}
 }

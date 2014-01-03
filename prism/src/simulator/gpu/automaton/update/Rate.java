@@ -65,7 +65,7 @@ public class Rate
 	public void addRate(Rate rate)
 	{
 		this.rate += rate.rate;
-		if (!isConst) {
+		if (!rate.isConst) {
 			if (isConst) {
 				expressions = new ArrayList<>();
 			}

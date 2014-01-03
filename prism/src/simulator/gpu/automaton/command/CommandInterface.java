@@ -26,6 +26,7 @@
 package simulator.gpu.automaton.command;
 
 import simulator.gpu.automaton.Guard;
+import simulator.gpu.automaton.update.Rate;
 import simulator.gpu.automaton.update.Update;
 
 public interface CommandInterface
@@ -39,6 +40,8 @@ public interface CommandInterface
 	Rate getRateSumModule(int i) throws PrismException;
 	int getUpdateNumberModule(int i) throws PrismException;
 	*/
+	Rate getRateSum();
+
 	boolean isSynchronized();
 
 	public String toString();

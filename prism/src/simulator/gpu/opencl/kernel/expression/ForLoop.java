@@ -89,6 +89,7 @@ public class ForLoop extends ComplexKernelComponent
 		} else {
 			builder.append(ExpressionGenerator.createBasicExpression(counter, Operator.LT, endValue));
 		}
+		builder.append(";");
 		if (decreasing) {
 			builder.append("--");
 		} else {

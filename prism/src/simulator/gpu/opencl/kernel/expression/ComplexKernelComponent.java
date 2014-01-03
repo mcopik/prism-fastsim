@@ -38,6 +38,11 @@ public abstract class ComplexKernelComponent implements KernelComponent
 		updateIncludes(var);
 	}
 
+	public CLVariable getLocalVar(String name)
+	{
+		return localVars.get(name);
+	}
+
 	/**
 	 * Add expression to component's body
 	 * @param expr

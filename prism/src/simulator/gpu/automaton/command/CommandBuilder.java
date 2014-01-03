@@ -54,7 +54,12 @@ public class CommandBuilder
 
 	public void addCommand(String synch, Expression expr, Updates updates)
 	{
-		Command cmd = new Command(new Guard(expr), new Update(updates, variables));
+		Command cmd = null;
+		if (type == AutomatonType.CTMC) {
+			cmd = Command.createCommandCTMC(new Guard(expr), new Update(updates, variables));
+		} else {
+			cmd = Command.createCommandDTMC(new Guard(expr), new Update(updates, variables));
+		}
 		if (synch.isEmpty()) {
 			commands.add(cmd);
 		} else {
@@ -65,11 +70,7 @@ public class CommandBuilder
 				synCmd = new SynchronizedCommand(currentModule);
 				synchronizedCommands.put(synch, synCmd);
 			}
-			if (type == AutomatonType.CTMC) {
-				synCmd.addCommandCTMC(currentModule, cmd);
-			} else {
-				synCmd.addCommandDTMC(currentModule, cmd);
-			}
+			synCmd.addCommand(currentModule, cmd);
 		}
 	}
 

@@ -57,11 +57,13 @@ public class ExpressionGenerator
 
 	static public Expression createAssignment(CLVariable dest, String expr)
 	{
-		return createBasicExpression(dest, Operator.AS, expr);
+		Expression ret = createBasicExpression(dest, Operator.AS, expr);
+		ret.exprString += ";";
+		return ret;
 	}
 
 	public enum Operator {
-		GT, LT, GE, LE, EQ, NE, AS
+		GT, LT, GE, LE, EQ, NE, AS, ADD, SUB, MUL
 	};
 
 	private static final Map<Operator, String> operatorsSource;
@@ -74,11 +76,14 @@ public class ExpressionGenerator
 		operatorsSource.put(Operator.EQ, "==");
 		operatorsSource.put(Operator.NE, "!=");
 		operatorsSource.put(Operator.AS, "=");
+		operatorsSource.put(Operator.ADD, "+=");
+		operatorsSource.put(Operator.SUB, "-=");
+		operatorsSource.put(Operator.MUL, "*=");
 	}
 
 	static public Expression createBasicExpression(CLVariable var, Operator operator, String expr)
 	{
-		return new Expression(String.format("%s %s %s;", var.varName, operatorsSource.get(operator), expr));
+		return new Expression(String.format("%s %s %s", var.varName, operatorsSource.get(operator), expr));
 	}
 
 	static public Expression createConditionalAssignment(String dest, String condition, String first, String second)
