@@ -107,16 +107,17 @@ public class RuntimeContext
 
 			while (samplesProcessed < numberOfSamples) {
 				int currentGWSize = (int) Math.min(globalWorkSize, numberOfSamples - samplesProcessed);
-				if (currentGWSize != globalWorkSize) {
-					currentGWSize = roundUp(localWorkSize, currentGWSize);
-				}
 				programKernel.setArg(0, offset);
 				programKernel.setArg(1, currentGWSize);
 				programKernel.setArg(2, samplesProcessed);
 				for (int i = 0; i < properties.size(); ++i) {
 					programKernel.setObjectArg(i + 3, resultBuffers.get(i));
 				}
-				programKernel.enqueueNDRange(queue, new int[] { currentGWSize }, new int[] { (int) localWorkSize });
+				programKernel.enqueueNDRange(queue,
+				//global work size
+						new int[] { roundUp(localWorkSize, currentGWSize) },
+						//local work size
+						new int[] { (int) localWorkSize });
 				queue.finish();
 				offset += config.rngOffset * currentGWSize;
 				samplesProcessed += currentGWSize;

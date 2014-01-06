@@ -95,7 +95,7 @@ public class IfElse extends ComplexKernelComponent
 			case IF:
 				builder.append("if(").append(condition.getSource()).append("){\n");
 				break;
-			case ELSE:
+			case ELIF:
 				builder.append("else if(").append(condition.getSource()).append("){\n");
 				break;
 			default:

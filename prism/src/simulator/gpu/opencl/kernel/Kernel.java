@@ -154,16 +154,12 @@ public class Kernel
 		} else {
 			this.methodsGenerator = new KernelGeneratorCTMC(model, properties, config);
 		}
-		try {
-			stateVectorType = methodsGenerator.getSVType();
-			helperMethods[MethodIndices.CHECK_GUARDS.indice] = methodsGenerator.createNonsynGuardsMethod();
-			helperMethods[MethodIndices.PERFORM_UPDATE.indice] = methodsGenerator.createNonsynUpdate();
-			mainMethod = methodsGenerator.createMainMethod();
-			globalDeclarations.addAll(methodsGenerator.getAdditionalDeclarations());
-		} catch (KernelException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
+		stateVectorType = methodsGenerator.getSVType();
+		helperMethods[MethodIndices.CHECK_GUARDS.indice] = methodsGenerator.createNonsynGuardsMethod();
+		helperMethods[MethodIndices.PERFORM_UPDATE.indice] = methodsGenerator.createNonsynUpdate();
+		helperMethods[MethodIndices.UPDATE_PROPERTIES.indice] = methodsGenerator.createPropertiesMethod();
+		mainMethod = methodsGenerator.createMainMethod();
+		globalDeclarations.addAll(methodsGenerator.getAdditionalDeclarations());
 		generateSource();
 	}
 

@@ -65,8 +65,8 @@ public class PointerType implements VariableInterface
 	}
 
 	@Override
-	public CLVariable accessElement(String varName, Expression index)
+	public CLVariable accessElement(CLVariable var, Expression index)
 	{
-		return new CLVariable(internalType, String.format("%s[%s]", varName, index.getSource()));
+		return new CLVariable(internalType, String.format("%s[%s]", var.varName, index.getSource()));
 	}
 }

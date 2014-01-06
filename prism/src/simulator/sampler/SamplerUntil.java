@@ -26,12 +26,13 @@
 
 package simulator.sampler;
 
-import simulator.*;
 import parser.State;
 import parser.ast.Expression;
 import parser.ast.ExpressionTemporal;
 import prism.PrismException;
 import prism.PrismLangException;
+import simulator.Path;
+import simulator.TransitionList;
 
 public class SamplerUntil extends SamplerBoolean
 {
@@ -56,6 +57,16 @@ public class SamplerUntil extends SamplerBoolean
 		resetStats();
 	}
 
+	public Expression getLeftSide()
+	{
+		return left.deepCopy();
+	}
+
+	public Expression getRightSide()
+	{
+		return right.deepCopy();
+	}
+
 	@Override
 	public boolean update(Path path, TransitionList transList) throws PrismLangException
 	{
@@ -76,7 +87,7 @@ public class SamplerUntil extends SamplerBoolean
 		}
 		// Or, if we are now at a deadlock/self-loop
 		else if (transList != null && (transList.isDeadlock() || path.isLooping())) {
-		//else if (transList != null && (transList.isDeadlock() || transList.isDeterministicSelfLoop(currentState))) {
+			//else if (transList != null && (transList.isDeadlock() || transList.isDeterministicSelfLoop(currentState))) {
 			valueKnown = true;
 			value = false;
 		}

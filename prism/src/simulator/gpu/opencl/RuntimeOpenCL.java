@@ -199,15 +199,17 @@ public class RuntimeOpenCL implements RuntimeFrameworkInterface
 			}
 			for (RuntimeContext context : currentContexts) {
 				KernelConfig newConfig = new KernelConfig(config);
-				config.sampleOffset = sampleOffset;
-				context.createKernel(model, properties, config);
+				newConfig.sampleOffset = sampleOffset;
+				context.createKernel(model, properties, newConfig);
 				sampleOffset += numberOfSamples;
 			}
-			for (RuntimeContext context : currentContexts) {
-				context.runSimulation(numberOfSamples, mainLog);
-			}
 		} catch (KernelException e) {
-			throw new PrismException(e.getMessage());
+			mainLog.println("Creating kernel on one of selected devices failed! Probably bug in program. Error log:");
+			mainLog.println(e.getMessage());
+			throw new PrismException("OpenCL simulator failed during kernel generation");
+		}
+		for (RuntimeContext context : currentContexts) {
+			context.runSimulation(numberOfSamples, mainLog);
 		}
 	}
 

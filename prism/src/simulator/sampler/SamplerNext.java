@@ -26,9 +26,12 @@
 
 package simulator.sampler;
 
-import simulator.*;
-import prism.*;
-import parser.ast.*;
+import parser.ast.Expression;
+import parser.ast.ExpressionTemporal;
+import prism.PrismException;
+import prism.PrismLangException;
+import simulator.Path;
+import simulator.TransitionList;
 
 public class SamplerNext extends SamplerBoolean
 {
@@ -57,7 +60,7 @@ public class SamplerNext extends SamplerBoolean
 		// If the answer is already known we should do nothing
 		if (valueKnown)
 			return true;
-		
+
 		// X "target" is true iff state 1 satisfies "target"
 		if (path.size() == 1) {
 			valueKnown = true;
@@ -65,14 +68,19 @@ public class SamplerNext extends SamplerBoolean
 		}
 		// Nothing else to do: if path size is 0, can't decide;
 		// if path size > 1 (should never happen), nothing changes
-		
+
 		return valueKnown;
 	}
-	
+
 	@Override
 	public boolean needsBoundedNumSteps()
 	{
 		// Always bounded
 		return true;
+	}
+
+	public Expression getExpression()
+	{
+		return target.deepCopy();
 	}
 }

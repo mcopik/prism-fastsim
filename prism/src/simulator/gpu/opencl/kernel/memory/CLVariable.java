@@ -64,6 +64,11 @@ public class CLVariable implements CLValue
 		return new PointerType(varType);
 	}
 
+	public Expression getName()
+	{
+		return new Expression(varName);
+	}
+
 	public Expression getDeclaration()
 	{
 		StringBuilder builder = new StringBuilder();

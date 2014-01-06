@@ -111,7 +111,7 @@ public class RNGType implements VariableInterface, UDType
 	}
 
 	@Override
-	public CLVariable accessElement(String varName, Expression index)
+	public CLVariable accessElement(CLVariable var, Expression index)
 	{
 		return null;
 	}

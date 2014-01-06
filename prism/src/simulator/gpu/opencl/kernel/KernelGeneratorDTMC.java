@@ -33,10 +33,13 @@ import simulator.gpu.opencl.kernel.expression.Expression;
 import simulator.gpu.opencl.kernel.expression.ExpressionGenerator;
 import simulator.gpu.opencl.kernel.expression.ExpressionGenerator.Operator;
 import simulator.gpu.opencl.kernel.expression.IfElse;
+import simulator.gpu.opencl.kernel.expression.KernelComponent;
 import simulator.gpu.opencl.kernel.expression.Method;
 import simulator.gpu.opencl.kernel.memory.CLVariable;
 import simulator.gpu.opencl.kernel.memory.StdVariableType;
 import simulator.sampler.Sampler;
+import simulator.sampler.SamplerBoolean;
+import simulator.sampler.SamplerBoundedUntilDisc;
 
 public class KernelGeneratorDTMC extends KernelGenerator
 {
@@ -77,7 +80,7 @@ public class KernelGeneratorDTMC extends KernelGenerator
 		Preconditions.checkNotNull(guardsTab, "");
 		CLVariable counter = currentMethod.getLocalVar("counter");
 		Preconditions.checkNotNull(counter, "");
-		CLVariable tabPos = guardsTab.varType.accessElement(guardsTab.varName, ExpressionGenerator.postIncrement(counter));
+		CLVariable tabPos = guardsTab.varType.accessElement(guardsTab, ExpressionGenerator.postIncrement(counter));
 		IfElse ifElse = new IfElse(new Expression(guard));
 		ifElse.addCommand(0, ExpressionGenerator.createAssignment(tabPos, Integer.toString(position)));
 		currentMethod.addExpression(ifElse);
@@ -121,5 +124,28 @@ public class KernelGeneratorDTMC extends KernelGenerator
 		CLVariable selection = currentMethod.getLocalVar("selection");
 		String selectionExpression = String.format("floor(%s)", ExpressionGenerator.createBasicExpression(sum, Operator.MUL, number).getSource());
 		selection.setInitValue(new Expression(selectionExpression));
+	}
+
+	@Override
+	protected void propertiesMethodTimeArg() throws KernelException
+	{
+		boolean necessaryFlag = false;
+		for (Sampler sampler : properties) {
+			if (sampler instanceof SamplerBoundedUntilDisc) {
+				necessaryFlag = true;
+				break;
+			}
+		}
+		if (necessaryFlag) {
+			CLVariable time = new CLVariable(new StdVariableType(0, config.maxPathLength), "time");
+			currentMethod.addArg(time);
+		}
+	}
+
+	@Override
+	protected KernelComponent propertiesMethodAddBoundedUntil(SamplerBoolean property, CLVariable propertyVar)
+	{
+		// TODO Auto-generated method stub
+		return null;
 	}
 }

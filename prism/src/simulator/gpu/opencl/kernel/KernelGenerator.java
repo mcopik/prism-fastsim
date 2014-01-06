@@ -53,6 +53,9 @@ import simulator.gpu.opencl.kernel.memory.StdVariableType;
 import simulator.gpu.opencl.kernel.memory.StdVariableType.StdType;
 import simulator.gpu.opencl.kernel.memory.StructureType;
 import simulator.sampler.Sampler;
+import simulator.sampler.SamplerBoolean;
+import simulator.sampler.SamplerNext;
+import simulator.sampler.SamplerUntil;
 
 public abstract class KernelGenerator
 {
@@ -106,6 +109,7 @@ public abstract class KernelGenerator
 				synCommands[synCounter++] = (SynchronizedCommand) cmd;
 			}
 		}
+		additionalDeclarations.add(PROPERTY_STATE_STRUCTURE.getDefinition());
 	}
 
 	public StructureType getSVType()
@@ -193,9 +197,9 @@ public abstract class KernelGenerator
 		 * }
 		 */
 		currentMethod.addExpression(loop);
-		CLVariable result = samplingResults[0].varType.accessElement("samplingResults0", new Expression(globalID.varName));
+		CLVariable result = samplingResults[0].varType.accessElement(samplingResults[0], new Expression(globalID.varName));
 		currentMethod.addExpression(ExpressionGenerator.createConditionalAssignment(result.varName, "globalID % 2 == 0", "true", "false"));
-		currentMethod.addExpression(new Expression("printf(\"%d\\n\",globalID);"));
+		//currentMethod.addExpression(new Expression("printf(\"%d\\n\",globalID);"));
 		return currentMethod;
 	}
 
@@ -223,7 +227,7 @@ public abstract class KernelGenerator
 			guardsMethodCreateCondition(i, commands[i].getGuard().toString().replace("=", "=="));
 		}
 		//signature last guard
-		CLVariable position = guards.varType.accessElement(guards.varName, new Expression(counter.varName));
+		CLVariable position = guards.varType.accessElement(guards, new Expression(counter.varName));
 		IfElse ifElse = new IfElse(ExpressionGenerator.createBasicExpression(counter, Operator.NE, Integer.toString(commands.length)));
 		ifElse.addCommand(0, ExpressionGenerator.createAssignment(position, Integer.toString(commands.length)));
 		currentMethod.addExpression(ifElse);
@@ -293,4 +297,85 @@ public abstract class KernelGenerator
 	protected abstract void updateMethodAdditionalArgs() throws KernelException;
 
 	protected abstract void updateMethodLocalVars() throws KernelException;
+
+	public Method createPropertiesMethod() throws KernelException
+	{
+		currentMethod = new Method("checkProperties", new StdVariableType(StdType.BOOL));
+		//StateVector * sv
+		CLVariable sv = new CLVariable(stateVector.getPointer(), "sv");
+		currentMethod.addArg(sv);
+		currentMethod.registerStateVector(sv);
+		//PropertyState * property
+		CLVariable propertyState = new CLVariable(new PointerType(PROPERTY_STATE_STRUCTURE), "propertyState");
+		currentMethod.addArg(propertyState);
+		propertiesMethodTimeArg();
+		CLVariable time = currentMethod.getArg("time");
+		//uint counter
+		CLVariable counter = new CLVariable(new StdVariableType(0, properties.size()), "counter");
+		currentMethod.addLocalVar(counter);
+		//bool allKnown
+		CLVariable allKnown = new CLVariable(new StdVariableType(StdType.BOOL), "allKnown");
+		currentMethod.addLocalVar(allKnown);
+		for (int i = 0; i < properties.size(); ++i) {
+			Sampler property = properties.get(i);
+			CLVariable currentProperty = propertyState.varType.accessElement(propertyState, counter.getName());
+			CLVariable valueKnown = currentProperty.varType.accessField(currentProperty.varName, "valueKnown");
+			if (!(property instanceof SamplerBoolean)) {
+				throw new KernelException("Currently rewards are not supported!");
+			}
+			IfElse ifElse = new IfElse(ExpressionGenerator.createNegation(valueKnown.getName()));
+			ifElse.addCommand(0, ExpressionGenerator.createAssignment(allKnown, "false"));
+			if (property instanceof SamplerNext) {
+				ifElse.addCommand(0, propertiesMethodAddNext((SamplerNext) property, currentProperty));
+			} else if (property instanceof SamplerUntil) {
+				ifElse.addCommand(0, propertiesMethodAddUntil((SamplerUntil) property, currentProperty));
+			} else {
+				ifElse.addCommand(0, propertiesMethodAddBoundedUntil((SamplerBoolean) property, currentProperty));
+			}
+			currentMethod.addExpression(ifElse);
+		}
+		currentMethod.addReturn(allKnown);
+		return currentMethod;
+	}
+
+	protected abstract void propertiesMethodTimeArg() throws KernelException;
+
+	protected KernelComponent propertiesMethodAddNext(SamplerNext property, CLVariable propertyVar)
+	{
+		CLVariable valueKnown = propertyVar.varType.accessField(propertyVar.varName, "valueKnown");
+		CLVariable propertyState = propertyVar.varType.accessField(propertyVar.varName, "propertyState");
+		IfElse ifElse = new IfElse(propertiesMethodCreateExpression(property.getExpression().toString()));
+		ifElse.addCommand(0, ExpressionGenerator.createAssignment(propertyState, "true"));
+		ifElse.addCommand(0, ExpressionGenerator.createAssignment(valueKnown, "true"));
+		ifElse.addElse();
+		ifElse.addCommand(1, ExpressionGenerator.createAssignment(propertyState, "false"));
+		ifElse.addCommand(1, ExpressionGenerator.createAssignment(valueKnown, "true"));
+		return ifElse;
+	}
+
+	protected KernelComponent propertiesMethodAddUntil(SamplerUntil property, CLVariable propertyVar)
+	{
+
+		CLVariable valueKnown = propertyVar.varType.accessField(propertyVar.varName, "valueKnown");
+		CLVariable propertyState = propertyVar.varType.accessField(propertyVar.varName, "propertyState");
+		IfElse ifElse = new IfElse(propertiesMethodCreateExpression(property.getRightSide().toString()));
+		ifElse.addCommand(0, ExpressionGenerator.createAssignment(propertyState, "true"));
+		ifElse.addCommand(0, ExpressionGenerator.createAssignment(valueKnown, "true"));
+		ifElse.addElif(ExpressionGenerator.createNegation(propertiesMethodCreateExpression(property.getLeftSide().toString())));
+		ifElse.addCommand(1, ExpressionGenerator.createAssignment(propertyState, "false"));
+		ifElse.addCommand(1, ExpressionGenerator.createAssignment(valueKnown, "true"));
+		return ifElse;
+	}
+
+	protected abstract KernelComponent propertiesMethodAddBoundedUntil(SamplerBoolean property, CLVariable propertyVar);
+
+	protected Expression propertiesMethodCreateExpression(String expr)
+	{
+		if (expr.charAt(0) == ('!')) {
+			return new Expression(String.format("!(%s)", expr.substring(1)));
+		} else {
+			return new Expression(expr);
+		}
+
+	}
 }

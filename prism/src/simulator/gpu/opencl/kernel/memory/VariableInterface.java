@@ -35,7 +35,7 @@ public interface VariableInterface
 
 	boolean isArray();
 
-	public CLVariable accessElement(String varName, Expression index);
+	public CLVariable accessElement(CLVariable var, Expression index);
 
 	String getType();
 }

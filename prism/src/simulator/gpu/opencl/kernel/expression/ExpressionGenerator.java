@@ -108,6 +108,12 @@ public class ExpressionGenerator
 		return ExpressionGenerator.createBasicExpression(var, operator, expr.getSource());
 	}
 
+	static public Expression createNegation(Expression var)
+	{
+		var.exprString = "!(" + var.exprString + ")";
+		return var;
+	}
+
 	static public Expression createConditionalAssignment(String dest, String condition, String first, String second)
 	{
 		return new Expression(String.format("%s = %s ? %s : %s;", dest, condition, first, second));

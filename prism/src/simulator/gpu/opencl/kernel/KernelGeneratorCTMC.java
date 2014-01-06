@@ -35,6 +35,7 @@ import simulator.gpu.opencl.kernel.expression.ExpressionGenerator;
 import simulator.gpu.opencl.kernel.expression.ExpressionGenerator.Operator;
 import simulator.gpu.opencl.kernel.expression.ForLoop;
 import simulator.gpu.opencl.kernel.expression.IfElse;
+import simulator.gpu.opencl.kernel.expression.KernelComponent;
 import simulator.gpu.opencl.kernel.expression.Method;
 import simulator.gpu.opencl.kernel.expression.Switch;
 import simulator.gpu.opencl.kernel.memory.CLVariable;
@@ -42,6 +43,8 @@ import simulator.gpu.opencl.kernel.memory.PointerType;
 import simulator.gpu.opencl.kernel.memory.StdVariableType;
 import simulator.gpu.opencl.kernel.memory.StdVariableType.StdType;
 import simulator.sampler.Sampler;
+import simulator.sampler.SamplerBoolean;
+import simulator.sampler.SamplerBoundedUntilCont;
 
 public class KernelGeneratorCTMC extends KernelGenerator
 {
@@ -85,7 +88,7 @@ public class KernelGeneratorCTMC extends KernelGenerator
 		Preconditions.checkNotNull(counter, "");
 		CLVariable sum = currentMethod.getLocalVar("sum");
 		Preconditions.checkNotNull(sum, "");
-		CLVariable tabPos = guardsTab.varType.accessElement(guardsTab.varName, ExpressionGenerator.postIncrement(counter));
+		CLVariable tabPos = guardsTab.varType.accessElement(guardsTab, ExpressionGenerator.postIncrement(counter));
 		IfElse ifElse = new IfElse(new Expression(guard));
 		ifElse.addCommand(0, ExpressionGenerator.createAssignment(tabPos, Integer.toString(position)));
 		Expression sumExpr = ExpressionGenerator.createBasicExpression(sum, Operator.ADD_AUGM, commands[position].getRateSum().toString());
@@ -153,5 +156,29 @@ public class KernelGeneratorCTMC extends KernelGenerator
 		//selection
 		CLVariable selection = currentMethod.getLocalVar("selection");
 		selection.setInitValue(StdVariableType.initialize(0));
+	}
+
+	@Override
+	protected void propertiesMethodTimeArg() throws KernelException
+	{
+		boolean necessaryFlag = false;
+		for (Sampler sampler : properties) {
+			if (sampler instanceof SamplerBoundedUntilCont) {
+				necessaryFlag = true;
+				break;
+			}
+		}
+		if (necessaryFlag) {
+			CLVariable time = new CLVariable(new StdVariableType(StdType.FLOAT), "time");
+			CLVariable updated_time = new CLVariable(new StdVariableType(StdType.FLOAT), "time");
+			currentMethod.addArg(time);
+			currentMethod.addArg(updated_time);
+		}
+	}
+
+	@Override
+	protected KernelComponent propertiesMethodAddBoundedUntil(SamplerBoolean property, CLVariable propertyVar)
+	{
+		return null;
 	}
 }

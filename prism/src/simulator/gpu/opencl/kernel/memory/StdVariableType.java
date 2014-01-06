@@ -84,6 +84,8 @@ public class StdVariableType implements VariableInterface
 		}
 	}
 
+	private static final EnumSet<StdType> typesWithDirectName = EnumSet.of(StdType.BOOL, StdType.CHAR, StdType.VOID, StdType.FLOAT, StdType.DOUBLE);
+
 	public final StdType varType;
 
 	public StdVariableType(StdType type)
@@ -142,8 +144,7 @@ public class StdVariableType implements VariableInterface
 	@Override
 	public String getType()
 	{
-		EnumSet<StdType> set = EnumSet.of(StdType.BOOL, StdType.CHAR, StdType.VOID, StdType.FLOAT, StdType.DOUBLE);
-		if (set.contains(varType)) {
+		if (typesWithDirectName.contains(varType)) {
 			return varType.toString().toLowerCase();
 		} else {
 			return varType.toString().toLowerCase() + "_t";
@@ -169,7 +170,7 @@ public class StdVariableType implements VariableInterface
 	}
 
 	@Override
-	public CLVariable accessElement(String varName, Expression index)
+	public CLVariable accessElement(CLVariable var, Expression index)
 	{
 		return null;
 	}
