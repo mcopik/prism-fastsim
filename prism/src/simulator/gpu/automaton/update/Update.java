@@ -29,9 +29,11 @@ import java.util.ArrayList;
 import java.util.List;
 
 import parser.ast.Expression;
+import parser.ast.ExpressionVar;
 import parser.ast.Updates;
 import prism.Pair;
 import simulator.gpu.automaton.AbstractAutomaton.StateVector;
+import simulator.gpu.automaton.PrismVariable;
 
 public class Update
 {
@@ -67,6 +69,29 @@ public class Update
 	public Action getAction(int updateNumber)
 	{
 		return updatesList.get(updateNumber).second;
+	}
+
+	/**
+	 * Find actions labeled "true" or e.g. "q=q"
+	 * @param updateNumber
+	 * @return true if action does not change state vector
+	 */
+	public boolean isActionTrue(int updateNumber)
+	{
+		Action action = updatesList.get(updateNumber).second;
+		if (action.expressions.size() == 0) {
+			return true;
+		} else if (action.expressions.size() == 1) {
+			Expression expr = action.expressions.get(0).second;
+			PrismVariable var = action.expressions.get(0).first;
+			if (expr instanceof ExpressionVar) {
+				ExpressionVar varExpr = (ExpressionVar) expr;
+				if (varExpr.getName().equals(var.name)) {
+					return true;
+				}
+			}
+		}
+		return false;
 	}
 
 	public String toString()

@@ -116,6 +116,12 @@ public final class ACIiterations extends CIMethod
 	}
 
 	@Override
+	public int getNumberOfSamples()
+	{
+		throw new RuntimeException("Accessing not-defined method in class ACIiterations");
+	}
+
+	@Override
 	public String getParametersString()
 	{
 		if (!missingParameterComputed)
@@ -164,7 +170,7 @@ public final class ACIiterations extends CIMethod
 			return 0;
 		return 10 * ((int) (100.0 * (double) (iters + 1) * width * width / (sampler.getVariance() * squaredQuantile)) / 10);
 	}
-	
+
 	@Override
 	public SimulationMethod clone()
 	{

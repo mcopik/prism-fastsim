@@ -27,11 +27,17 @@
 
 package simulator.sampler;
 
-import simulator.*;
-import simulator.method.SimulationMethod;
-import parser.ast.*;
+import parser.ast.Expression;
+import parser.ast.ExpressionProb;
+import parser.ast.ExpressionReward;
+import parser.ast.ExpressionTemporal;
+import parser.ast.ExpressionUnaryOp;
+import parser.ast.ModulesFile;
 import prism.PrismException;
 import prism.PrismLangException;
+import simulator.Path;
+import simulator.TransitionList;
+import simulator.method.SimulationMethod;
 
 /**
  * A Sampler determines values corresponding to a path property based on a sequence of simulation paths.
@@ -117,7 +123,7 @@ public abstract class Sampler
 	{
 		this.simulationMethod = simulationMethod;
 	}
-	
+
 	/**
 	 * Get the attached SimulationMethod object.
 	 */
@@ -125,7 +131,7 @@ public abstract class Sampler
 	{
 		return simulationMethod;
 	}
-	
+
 	/**
 	 * Get an explanation of the result for the attached SimulationMethod object.
 	 * @throws PrismException if we can't get a result for some reason.
@@ -134,7 +140,7 @@ public abstract class Sampler
 	{
 		return simulationMethod.getResultExplanation(this);
 	}
-	
+
 	// Static methods for sampler creation
 
 	/**

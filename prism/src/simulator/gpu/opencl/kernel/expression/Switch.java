@@ -29,6 +29,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import prism.Preconditions;
+import simulator.gpu.opencl.kernel.memory.CLVariable;
 
 public class Switch extends ComplexKernelComponent
 {
@@ -103,6 +104,11 @@ public class Switch extends ComplexKernelComponent
 	public Switch(Expression switchCondition)
 	{
 		this.switchCondition = switchCondition;
+	}
+
+	public Switch(CLVariable var)
+	{
+		this.switchCondition = new Expression(var.varName);
 	}
 
 	public void addCase(Expression condition)

@@ -40,9 +40,10 @@ public class Expression implements KernelComponent
 		this.exprString = expr;
 	}
 
-	public void add(String expr)
+	public Expression add(String expr)
 	{
 		this.exprString += expr;
+		return this;
 	}
 
 	public String getSource()

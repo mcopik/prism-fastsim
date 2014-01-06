@@ -31,7 +31,9 @@ import java.util.Map;
 import prism.Preconditions;
 import simulator.gpu.opencl.kernel.KernelException;
 import simulator.gpu.opencl.kernel.memory.ArrayType;
+import simulator.gpu.opencl.kernel.memory.CLValue;
 import simulator.gpu.opencl.kernel.memory.CLVariable;
+import simulator.gpu.opencl.kernel.memory.ExpressionValue;
 import simulator.gpu.opencl.kernel.memory.PointerType;
 import simulator.gpu.opencl.kernel.memory.StructureType;
 
@@ -91,9 +93,9 @@ public class ExpressionGenerator
 		operatorsSource.put(Operator.MUL_AUGM, "/=");
 	}
 
-	static public Expression createBasicExpression(CLVariable var, Operator operator, CLVariable var2)
+	static public Expression createBasicExpression(CLVariable var, Operator operator, CLValue var2)
 	{
-		return ExpressionGenerator.createBasicExpression(var, operator, var2.varName);
+		return ExpressionGenerator.createBasicExpression(var, operator, var2.getSource());
 	}
 
 	static public Expression createBasicExpression(CLVariable var, Operator operator, String expr)
@@ -128,5 +130,10 @@ public class ExpressionGenerator
 	static public Expression postIncrement(CLVariable var)
 	{
 		return new Expression(var.varName + "++");
+	}
+
+	static public CLValue assignGlobalID()
+	{
+		return new ExpressionValue(new Expression("get_global_id(0)"));
 	}
 }

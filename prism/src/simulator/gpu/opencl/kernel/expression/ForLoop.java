@@ -41,24 +41,24 @@ public class ForLoop extends ComplexKernelComponent
 		this.decreasing = decreasing;
 	}
 
-	public ForLoop(String counterName, int startValue, int endValue)
+	public ForLoop(String counterName, long startValue, long endValue)
 	{
 		counter = new CLVariable(new StdVariableType(startValue, endValue), counterName);
 		counter.setInitValue(StdVariableType.initialize(startValue));
-		this.endValue = Integer.toString(endValue);
+		this.endValue = Long.toString(endValue);
 	}
 
-	public ForLoop(String counterName, int startValue, int endValue, boolean decreasing)
+	public ForLoop(String counterName, long startValue, long endValue, boolean decreasing)
 	{
 		if (decreasing) {
 			counter = new CLVariable(new StdVariableType(endValue, startValue), counterName);
 			counter.setInitValue(StdVariableType.initialize(endValue));
-			this.endValue = Integer.toString(endValue);
+			this.endValue = Long.toString(endValue);
 			decreasing = true;
 		} else {
 			counter = new CLVariable(new StdVariableType(startValue, endValue), counterName);
 			counter.setInitValue(StdVariableType.initialize(startValue));
-			this.endValue = Integer.toString(endValue);
+			this.endValue = Long.toString(endValue);
 		}
 	}
 

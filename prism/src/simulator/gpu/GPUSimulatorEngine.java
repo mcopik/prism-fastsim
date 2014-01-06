@@ -25,6 +25,7 @@
 //==============================================================================
 package simulator.gpu;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import parser.State;
@@ -41,6 +42,11 @@ import simulator.ModelCheckInterface;
 import simulator.gpu.automaton.AbstractAutomaton;
 import simulator.gpu.automaton.CTMC;
 import simulator.gpu.automaton.DTMC;
+import simulator.method.ACIiterations;
+import simulator.method.APMCMethod;
+import simulator.method.CIMethod;
+import simulator.method.CIiterations;
+import simulator.method.SPRTMethod;
 import simulator.method.SimulationMethod;
 import simulator.sampler.Sampler;
 
@@ -59,7 +65,8 @@ public class GPUSimulatorEngine implements ModelCheckInterface
 	 * Current automaton structure for GPU.
 	 */
 	private AbstractAutomaton automaton;
-	private Sampler[] properties;
+	private Sampler[] samplers = null;
+	private Object[] results = null;
 	private RuntimeFrameworkInterface simFramework;
 
 	/**
@@ -84,16 +91,23 @@ public class GPUSimulatorEngine implements ModelCheckInterface
 		} else if (modulesFile.getModelType() == ModelType.CTMC) {
 			automaton = new CTMC(modulesFile);
 		}
+		this.modulesFile = modulesFile;
 	}
 
-	private void createSamplers(List<Expression> properties, PropertiesFile pf) throws PrismException
+	private void createSamplers(List<Expression> properties, PropertiesFile pf, SimulationMethod simMethod) throws PrismException
 	{
+		if (simMethod instanceof SPRTMethod || simMethod instanceof CIiterations || simMethod instanceof ACIiterations) {
+			throw new PrismException("SPRT/ACI iterations/CI iterations methods are currently not implemented!");
+		}
+		simMethod.computeMissingParameterBeforeSim();
+		samplers = new Sampler[properties.size()];
+		results = new Object[properties.size()];
 		/**
 		 * Code taken from SimulatorEngine.java
 		 */
-		for (Expression prop : properties) {
+		for (int i = 0; i < properties.size(); ++i) {
 			// Take a copy
-			Expression propNew = prop.deepCopy();
+			Expression propNew = properties.get(i).deepCopy();
 			// Combine label lists from model/property file, then expand property refs/labels in property 
 			LabelList combinedLabelList = (pf == null) ? modulesFile.getLabelList() : pf.getCombinedLabelList();
 			propNew = (Expression) propNew.expandPropRefsAndLabels(pf, combinedLabelList);
@@ -103,12 +117,40 @@ public class GPUSimulatorEngine implements ModelCheckInterface
 				propNew = (Expression) propNew.replaceConstants(pf.getConstantValues());
 			}
 			propNew = (Expression) propNew.simplify();
+			Sampler sampler = Sampler.createSampler(propNew, modulesFile);
+			SimulationMethod simMethodNew = simMethod.clone();
+			sampler.setSimulationMethod(simMethodNew);
+			// Pass property details to SimuationMethod
+			// (note that we use the copy stored in properties, which has been processed)
+			try {
+				simMethodNew.setExpression(properties.get(i));
+			} catch (PrismException e) {
+				results[i] = e;
+				samplers[i] = null;
+				continue;
+			}
+			results[i] = null;
+			samplers[i] = sampler;
 		}
 	}
 
 	public void setSimulatorFramework(RuntimeFrameworkInterface framework)
 	{
 		simFramework = framework;
+	}
+
+	private int findMinNumberOfSimulations(List<Sampler> samplers)
+	{
+		int samples = 0;
+		for (Sampler sampler : samplers) {
+			SimulationMethod sm = sampler.getSimulationMethod();
+			if (sm instanceof APMCMethod) {
+				samples = Math.max(samples, ((APMCMethod) sm).getNumberOfSamples());
+			} else if (sm instanceof CIMethod) {
+				samples = Math.max(samples, ((CIMethod) sm).getNumberOfSamples());
+			}
+		}
+		return samples;
 	}
 
 	@Override
@@ -136,21 +178,72 @@ public class GPUSimulatorEngine implements ModelCheckInterface
 	public Object modelCheckSingleProperty(ModulesFile modulesFile, PropertiesFile propertiesFile, Expression expr, State initialState, int maxPathLength,
 			SimulationMethod simMethod) throws PrismException
 	{
+		List<Expression> exprs = new ArrayList<>();
+		exprs.add(expr);
+		return modelCheckMultipleProperties(modulesFile, propertiesFile, exprs, initialState, maxPathLength, simMethod)[0];
 
-		//return 
-		//	modelCheckMultipleProperties(modulesFile,propertiesFile,new ArrayList<Expression> {{add(expr);}},initialState,ma
-		loadModel(modulesFile);
-		//createSamplers(new ArrayList, pf);
-		mainLog.println(automaton);
-		simFramework.simulateProperty(automaton, null, mainLog);
-		throw new PrismException("Not implemented yet!");
 	}
 
 	@Override
 	public Object[] modelCheckMultipleProperties(ModulesFile modulesFile, PropertiesFile propertiesFile, List<Expression> exprs, State initialState,
 			int maxPathLength, SimulationMethod simMethod) throws PrismException
 	{
-		throw new PrismException("Not implemented yet!");
+		loadModel(modulesFile);
+		createSamplers(exprs, propertiesFile, simMethod);
+		List<Sampler> validSamplers = new ArrayList<>();
+		for (Sampler sampler : samplers) {
+			if (sampler != null) {
+				validSamplers.add(sampler);
+			}
+		}
+		int numberOfSimulations = findMinNumberOfSimulations(validSamplers);
+		if (initialState != null) {
+			simFramework.setInitialState(initialState);
+		}
+		simFramework.setMaxPathLength(maxPathLength);
+		simFramework.setMainLog(mainLog);
+		simFramework.simulateProperty(automaton, validSamplers, numberOfSimulations);
+		for (int i = 0; i < samplers.length; i++) {
+			Sampler sampler = samplers[i];
+			if (sampler != null) {
+				SimulationMethod sm = sampler.getSimulationMethod();
+				sm.computeMissingParameterAfterSim();
+				try {
+					results[i] = sm.getResult(sampler);
+				} catch (PrismException e) {
+					results[i] = e;
+				}
+			}
+		}
+
+		/**
+		 * Code taken from SimulatorEngine.java
+		 */
+
+		// Display results to log
+		if (results.length == 1) {
+			mainLog.print("\nSimulation method parameters: ");
+			mainLog.println((samplers[0] == null) ? "no simulation" : samplers[0].getSimulationMethod().getParametersString());
+			mainLog.print("\nSimulation result details: ");
+			mainLog.println((samplers[0] == null) ? "no simulation" : samplers[0].getSimulationMethodResultExplanation());
+			if (!(results[0] instanceof PrismException))
+				mainLog.println("\nResult: " + results[0]);
+		} else {
+			mainLog.println("\nSimulation method parameters:");
+			for (int i = 0; i < results.length; i++) {
+				mainLog.print(exprs.get(i) + " : ");
+				mainLog.println((samplers[i] == null) ? "no simulation" : samplers[i].getSimulationMethod().getParametersString());
+			}
+			mainLog.println("\nSimulation result details:");
+			for (int i = 0; i < results.length; i++) {
+				mainLog.print(exprs.get(i) + " : ");
+				mainLog.println((samplers[i] == null) ? "no simulation" : samplers[i].getSimulationMethodResultExplanation());
+			}
+			mainLog.println("\nResults:");
+			for (int i = 0; i < results.length; i++)
+				mainLog.println(exprs.get(i) + " : " + results[i]);
+		}
+		return results;
 	}
 
 	@Override

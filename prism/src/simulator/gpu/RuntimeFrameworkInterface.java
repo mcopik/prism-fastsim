@@ -25,11 +25,13 @@
 //==============================================================================
 package simulator.gpu;
 
+import java.util.List;
+
+import parser.State;
 import prism.PrismException;
 import prism.PrismLog;
 import simulator.gpu.automaton.AbstractAutomaton;
-import simulator.gpu.property.Property;
-import simulator.gpu.property.PropertyResult;
+import simulator.sampler.Sampler;
 
 public interface RuntimeFrameworkInterface
 {
@@ -62,7 +64,13 @@ public interface RuntimeFrameworkInterface
 
 	//MODEL
 
-	PropertyResult[] simulateProperty(AbstractAutomaton model, Property[] properties, PrismLog mainLog) throws PrismException;
+	void simulateProperty(AbstractAutomaton model, List<Sampler> properties, int numberOfSamples) throws PrismException;
 
 	void simulateTest(PrismLog mainLog);
+
+	void setInitialState(State initialState);
+
+	void setMaxPathLength(long maxPathLength);
+
+	void setMainLog(PrismLog mainLog);
 }

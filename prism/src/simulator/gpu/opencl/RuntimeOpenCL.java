@@ -28,15 +28,16 @@ package simulator.gpu.opencl;
 import java.util.ArrayList;
 import java.util.List;
 
+import parser.State;
 import prism.Preconditions;
 import prism.PrismException;
 import prism.PrismLog;
 import simulator.gpu.RuntimeDeviceInterface;
 import simulator.gpu.RuntimeFrameworkInterface;
 import simulator.gpu.automaton.AbstractAutomaton;
+import simulator.gpu.opencl.kernel.KernelConfig;
 import simulator.gpu.opencl.kernel.KernelException;
-import simulator.gpu.property.Property;
-import simulator.gpu.property.PropertyResult;
+import simulator.sampler.Sampler;
 
 import com.nativelibs4java.opencl.CLDevice;
 import com.nativelibs4java.opencl.CLException;
@@ -50,6 +51,10 @@ public class RuntimeOpenCL implements RuntimeFrameworkInterface
 	private CLPlatform currentPlatform = null;
 	private List<CLDeviceWrapper> currentDevices = new ArrayList<>();
 	List<RuntimeContext> currentContexts = null;
+	private long maxPathLength = 0;
+	private State initialState = null;
+	private PrismLog mainLog = null;
+	private int numberOfSamplesProcessed = 0;
 	/**
 	 * Interval for each simulation.
 	 * Equals to 2^40.
@@ -176,24 +181,34 @@ public class RuntimeOpenCL implements RuntimeFrameworkInterface
 	 * @see simulator.gpu.RuntimeFrameworkInterface#simulateProperty()
 	 */
 	@Override
-	public PropertyResult[] simulateProperty(AbstractAutomaton model, Property[] properties, PrismLog mainLog) throws PrismException
+	public void simulateProperty(AbstractAutomaton model, List<Sampler> properties, int numberOfSamples) throws PrismException
 	{
+		Preconditions.checkNotNull(mainLog, "");
+		Preconditions.checkCondition(maxPathLength > 0, "");
+		KernelConfig config = new KernelConfig();
+		if (initialState != null) {
+			config.initialState = initialState;
+		}
+		config.maxPathLength = maxPathLength;
 		try {
 			currentContexts = createContexts();
+			int sampleOffset = 0;
 			mainLog.println("Using " + currentContexts.size() + " OpenCL devices.");
 			for (RuntimeContext context : currentContexts) {
 				mainLog.println(context);
 			}
 			for (RuntimeContext context : currentContexts) {
-				context.createKernel(model, null);
+				KernelConfig newConfig = new KernelConfig(config);
+				config.sampleOffset = sampleOffset;
+				context.createKernel(model, properties, config);
+				sampleOffset += numberOfSamples;
 			}
 			for (RuntimeContext context : currentContexts) {
-				context.runSimulation(mainLog);
+				context.runSimulation(numberOfSamples, mainLog);
 			}
 		} catch (KernelException e) {
 			throw new PrismException(e.getMessage());
 		}
-		return null;
 	}
 
 	@Override
@@ -221,5 +236,23 @@ public class RuntimeOpenCL implements RuntimeFrameworkInterface
 		}
 		return contexts;
 
+	}
+
+	@Override
+	public void setInitialState(State initialState)
+	{
+		this.initialState = initialState;
+	}
+
+	@Override
+	public void setMaxPathLength(long maxPathLength)
+	{
+		this.maxPathLength = maxPathLength;
+	}
+
+	@Override
+	public void setMainLog(PrismLog mainLog)
+	{
+		this.mainLog = mainLog;
 	}
 }

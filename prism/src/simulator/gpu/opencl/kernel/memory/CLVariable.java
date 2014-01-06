@@ -27,7 +27,7 @@ package simulator.gpu.opencl.kernel.memory;
 
 import simulator.gpu.opencl.kernel.expression.Expression;
 
-public class CLVariable
+public class CLVariable implements CLValue
 {
 	public enum Location {
 		REGISTER, LOCAL, GLOBAL
@@ -67,6 +67,11 @@ public class CLVariable
 	public Expression getDeclaration()
 	{
 		StringBuilder builder = new StringBuilder();
+		if (memLocation == Location.LOCAL) {
+			builder.append("__local ");
+		} else if (memLocation == Location.GLOBAL) {
+			builder.append("__global ");
+		}
 		builder.append(varType.getType()).append(" ").append(varName);
 		builder.append(";");
 		return new Expression(builder.toString());
@@ -75,11 +80,29 @@ public class CLVariable
 	public Expression getDefinition()
 	{
 		StringBuilder builder = new StringBuilder();
+		if (memLocation == Location.LOCAL) {
+			builder.append("__local ");
+		} else if (memLocation == Location.GLOBAL) {
+			builder.append("__global ");
+		}
 		builder.append(varType.getType()).append(" ").append(varName);
 		if (initValue != null) {
 			builder.append(" = ").append(initValue.getSource());
 		}
 		builder.append(";");
 		return new Expression(builder.toString());
+	}
+
+	@Override
+	public boolean validateAssignmentTo(VariableInterface type)
+	{
+		//todo: implement
+		return false;
+	}
+
+	@Override
+	public Expression getSource()
+	{
+		return new Expression(varName);
 	}
 }

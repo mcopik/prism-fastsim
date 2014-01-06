@@ -88,6 +88,12 @@ public final class CIiterations extends CIMethod
 	}
 
 	@Override
+	public int getNumberOfSamples()
+	{
+		throw new RuntimeException("Accessing not-defined method in class CIiterations");
+	}
+
+	@Override
 	public void computeMissingParameterAfterSim()
 	{
 		// Store iters (computed earlier)
@@ -159,7 +165,7 @@ public final class CIiterations extends CIMethod
 			return 0;
 		return 10 * ((int) (100.0 * (double) (iters + 1) / (sampler.getVariance() * squaredQuantile / (width * width))) / 10);
 	}
-	
+
 	@Override
 	public SimulationMethod clone()
 	{

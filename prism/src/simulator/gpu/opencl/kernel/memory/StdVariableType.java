@@ -25,6 +25,8 @@
 //==============================================================================
 package simulator.gpu.opencl.kernel.memory;
 
+import java.util.EnumSet;
+
 import prism.Preconditions;
 import simulator.gpu.automaton.PrismVariable;
 import simulator.gpu.opencl.kernel.expression.Expression;
@@ -66,12 +68,20 @@ public class StdVariableType implements VariableInterface
 		@Override
 		public Expression getSource()
 		{
-			return new Expression(value.toString());
+			if (value instanceof Long) {
+				return new Expression(value.toString() + "L");
+			} else {
+				return new Expression(value.toString());
+			}
 		}
 	}
 
 	public enum StdType {
-		VOID, BOOL, INT8, UINT8, INT16, UINT16, INT32, UINT32, FLOAT, DOUBLE, INT64, UINT64
+		VOID, BOOL, CHAR, INT8, UINT8, INT16, UINT16, INT32, UINT32, FLOAT, DOUBLE, INT64, UINT64;
+		public boolean isInteger()
+		{
+			return this != VOID && this != BOOL && this != FLOAT && this != DOUBLE;
+		}
 	}
 
 	public final StdType varType;
@@ -86,11 +96,11 @@ public class StdVariableType implements VariableInterface
 		varType = getIntType(var.bitsNumber, var.signFlag);
 	}
 
-	public StdVariableType(int minimal, int maximal)
+	public StdVariableType(long minimal, long maximal)
 	{
 		Preconditions.checkCondition(minimal <= maximal, "Minimal > maximal!");
-		int length = maximal - minimal;
-		varType = getIntType(Integer.SIZE - Integer.numberOfLeadingZeros(length), minimal < 0);
+		long length = maximal - minimal;
+		varType = getIntType(Long.SIZE - Long.numberOfLeadingZeros(length), minimal < 0);
 	}
 
 	private StdType getIntType(long bitsNumber, boolean signFlag)
@@ -132,7 +142,8 @@ public class StdVariableType implements VariableInterface
 	@Override
 	public String getType()
 	{
-		if (varType == StdType.BOOL || varType == StdType.VOID || varType == StdType.FLOAT || varType == StdType.DOUBLE) {
+		EnumSet<StdType> set = EnumSet.of(StdType.BOOL, StdType.CHAR, StdType.VOID, StdType.FLOAT, StdType.DOUBLE);
+		if (set.contains(varType)) {
 			return varType.toString().toLowerCase();
 		} else {
 			return varType.toString().toLowerCase() + "_t";

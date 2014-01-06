@@ -25,24 +25,41 @@
 //==============================================================================
 package simulator.gpu.opencl.kernel;
 
+import java.util.List;
+
 import prism.Preconditions;
 import simulator.gpu.automaton.AbstractAutomaton;
+import simulator.gpu.automaton.update.Rate;
 import simulator.gpu.opencl.kernel.expression.Expression;
 import simulator.gpu.opencl.kernel.expression.ExpressionGenerator;
 import simulator.gpu.opencl.kernel.expression.ExpressionGenerator.Operator;
+import simulator.gpu.opencl.kernel.expression.ForLoop;
 import simulator.gpu.opencl.kernel.expression.IfElse;
 import simulator.gpu.opencl.kernel.expression.Method;
+import simulator.gpu.opencl.kernel.expression.Switch;
 import simulator.gpu.opencl.kernel.memory.CLVariable;
 import simulator.gpu.opencl.kernel.memory.PointerType;
 import simulator.gpu.opencl.kernel.memory.StdVariableType;
 import simulator.gpu.opencl.kernel.memory.StdVariableType.StdType;
+import simulator.sampler.Sampler;
 
 public class KernelGeneratorCTMC extends KernelGenerator
 {
 
-	public KernelGeneratorCTMC(AbstractAutomaton model, CLVariable stateVector)
+	public KernelGeneratorCTMC(AbstractAutomaton model, List<Sampler> properties, KernelConfig config)
 	{
-		super(model, stateVector);
+		super(model, properties, config);
+	}
+
+	@Override
+	public void mainMethodDefineLocalVars() throws KernelException
+	{
+		CLVariable time = new CLVariable(new StdVariableType(StdType.FLOAT), "time");
+		time.setInitValue(StdVariableType.initialize(0.0f));
+		currentMethod.addLocalVar(time);
+		CLVariable selectionSize = new CLVariable(new StdVariableType(StdType.FLOAT), "selectionSize");
+		selectionSize.setInitValue(StdVariableType.initialize(0.0f));
+		currentMethod.addLocalVar(selectionSize);
 	}
 
 	@Override
@@ -86,10 +103,36 @@ public class KernelGeneratorCTMC extends KernelGenerator
 	}
 
 	@Override
-	protected void updateMethodPerformSelection()
+	protected void updateMethodPerformSelection() throws KernelException
 	{
-		// TODO Auto-generated method stub
-
+		CLVariable selection = currentMethod.getLocalVar("selection");
+		CLVariable newSum = currentMethod.getLocalVar("newSum");
+		CLVariable selectionSum = currentMethod.getArg("selectionSum");
+		CLVariable sum = new CLVariable(new StdVariableType(StdType.FLOAT), "sum");
+		currentMethod.addLocalVar(sum);
+		ForLoop loop = new ForLoop(selection, false);
+		Switch _switch = new Switch(selection);
+		for (int i = 0; i < commands.length; ++i) {
+			Rate rateSum = commands[i].getRateSum();
+			_switch.addCase(new Expression(Integer.toString(i)));
+			_switch.addCommand(i, ExpressionGenerator.createAssignment(newSum, rateSum.toString()));
+		}
+		loop.addExpression(_switch);
+		// if(sum + newSum > selectionSum)
+		Expression condition = ExpressionGenerator.createBasicExpression(
+		//selectionSum
+				selectionSum,
+				// <
+				Operator.LT,
+				//sum + newSum
+				ExpressionGenerator.createBasicExpression(sum, Operator.ADD, newSum));
+		IfElse ifElse = new IfElse(condition);
+		Expression reduction = ExpressionGenerator.createBasicExpression(selectionSum, Operator.SUB_AUGM, sum);
+		ifElse.addCommand(0, reduction.add(";"));
+		ifElse.addCommand(0, new Expression("break;"));
+		loop.addExpression(ifElse);
+		loop.addExpression(ExpressionGenerator.createBasicExpression(sum, Operator.ADD_AUGM, newSum).add(";"));
+		currentMethod.addExpression(loop);
 	}
 
 	@Override

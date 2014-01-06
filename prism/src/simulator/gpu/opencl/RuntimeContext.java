@@ -25,28 +25,35 @@
 //==============================================================================
 package simulator.gpu.opencl;
 
+import java.util.ArrayList;
+import java.util.List;
+
+import org.bridj.NativeList;
+
 import prism.PrismLog;
 import simulator.gpu.automaton.AbstractAutomaton;
 import simulator.gpu.opencl.kernel.Kernel;
 import simulator.gpu.opencl.kernel.KernelConfig;
 import simulator.gpu.opencl.kernel.KernelException;
-import simulator.gpu.property.Property;
+import simulator.sampler.Sampler;
+import simulator.sampler.SamplerBoolean;
 
+import com.nativelibs4java.opencl.CLBuffer;
 import com.nativelibs4java.opencl.CLBuildException;
 import com.nativelibs4java.opencl.CLContext;
 import com.nativelibs4java.opencl.CLKernel;
+import com.nativelibs4java.opencl.CLMem;
 import com.nativelibs4java.opencl.CLProgram;
 import com.nativelibs4java.opencl.CLQueue;
 
-/**
- * @author mcopik
- *
- */
 public class RuntimeContext
 {
 	CLDeviceWrapper currentDevice = null;
 	CLContext context = null;
 	Kernel kernel = null;
+	KernelConfig config = null;
+	List<Sampler> properties = null;
+	int samplesOffset = 0;
 
 	public RuntimeContext(CLDeviceWrapper device)
 	{
@@ -54,11 +61,12 @@ public class RuntimeContext
 		context = currentDevice.createDeviceContext();
 	}
 
-	public void createKernel(AbstractAutomaton automaton, Property[] properties) throws KernelException
+	public void createKernel(AbstractAutomaton automaton, List<Sampler> properties, KernelConfig config) throws KernelException
 	{
-		KernelConfig config = new KernelConfig();
-		config.configDevice(currentDevice);
-		kernel = new Kernel(config, automaton, properties);
+		this.config = config;
+		this.config.configDevice(currentDevice);
+		this.properties = properties;
+		kernel = new Kernel(this.config, automaton, properties);
 	}
 
 	public void createTestKernel()
@@ -66,18 +74,63 @@ public class RuntimeContext
 		kernel = Kernel.createTestKernel();
 	}
 
-	public void runSimulation(PrismLog mainLog)
+	public void setSamplesOffset(int numberOfSamples)
+	{
+		samplesOffset = numberOfSamples;
+	}
+
+	public void runSimulation(int numberOfSamples, PrismLog mainLog)
 	{
 		mainLog.println(kernel.getSource());
 		try {
+			int samplesProcessed = 0;
 			CLProgram program = context.createProgram(kernel.getSource());
+			long offset = config.sampleOffset * config.rngOffset;
+			List<CLBuffer<Byte>> resultBuffers = new ArrayList<>();
+
 			program.addInclude("include/");
 			program.addInclude("classes/include/");
 			program.build();
 			CLKernel programKernel = program.createKernel("main");
 			CLQueue queue = context.createDefaultQueue();
-			programKernel.enqueueNDRange(queue, new int[] { 100, 100 });
-			queue.finish();
+			int localWorkSize = programKernel.getWorkGroupSize().get(currentDevice.getDevice()).intValue();
+			int globalWorkSize = 0;
+
+			if (config.globalWorkSize > numberOfSamples) {
+				globalWorkSize = roundUp(localWorkSize, numberOfSamples);
+			} else {
+				globalWorkSize = roundUp(localWorkSize, config.globalWorkSize);
+			}
+			for (int i = 0; i < properties.size(); ++i) {
+				resultBuffers.add(context.createByteBuffer(CLMem.Usage.Output, numberOfSamples));
+			}
+
+			while (samplesProcessed < numberOfSamples) {
+				int currentGWSize = (int) Math.min(globalWorkSize, numberOfSamples - samplesProcessed);
+				if (currentGWSize != globalWorkSize) {
+					currentGWSize = roundUp(localWorkSize, currentGWSize);
+				}
+				programKernel.setArg(0, offset);
+				programKernel.setArg(1, currentGWSize);
+				programKernel.setArg(2, samplesProcessed);
+				for (int i = 0; i < properties.size(); ++i) {
+					programKernel.setObjectArg(i + 3, resultBuffers.get(i));
+				}
+				programKernel.enqueueNDRange(queue, new int[] { currentGWSize }, new int[] { (int) localWorkSize });
+				queue.finish();
+				offset += config.rngOffset * currentGWSize;
+				samplesProcessed += currentGWSize;
+			}
+			for (int i = 0; i < resultBuffers.size(); ++i) {
+				NativeList<Byte> bytes = resultBuffers.get(i).read(queue).asList();
+				SamplerBoolean sampler = (SamplerBoolean) properties.get(i);
+				for (int j = 0; j < bytes.size(); ++j) {
+					sampler.addSample(bytes.get(j) == 1);
+				}
+			}
+			for (CLBuffer<Byte> buffer : resultBuffers) {
+				buffer.release();
+			}
 		} catch (CLBuildException exc) {
 			mainLog.println("Program build error: " + exc.getMessage());
 		} catch (Exception exc) {
@@ -100,6 +153,16 @@ public class RuntimeContext
 			mainLog.println("Program build error: " + exc.getMessage());
 		}
 
+	}
+
+	private int roundUp(int groupSize, int globalSize)
+	{
+		int r = globalSize % groupSize;
+		if (r == 0) {
+			return globalSize;
+		} else {
+			return globalSize + groupSize - r;
+		}
 	}
 
 	public String toString()

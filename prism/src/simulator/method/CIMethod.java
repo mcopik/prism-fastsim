@@ -128,6 +128,11 @@ public abstract class CIMethod extends SimulationMethod
 
 	public abstract int getProgress(int iters, Sampler sampler);
 
+	public int getNumberOfSamples()
+	{
+		return numSamples;
+	}
+
 	@Override
 	public Object getResult(Sampler sampler) throws PrismException
 	{

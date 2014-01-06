@@ -30,6 +30,7 @@ import java.util.Map;
 
 import prism.Preconditions;
 import simulator.gpu.opencl.kernel.KernelException;
+import simulator.gpu.opencl.kernel.memory.CLValue;
 import simulator.gpu.opencl.kernel.memory.CLVariable;
 import simulator.gpu.opencl.kernel.memory.VariableInterface;
 
@@ -82,7 +83,8 @@ public class Method extends ComplexKernelComponent
 		builder.append(" ").append(methodName).append("( ");
 		for (Map.Entry<String, CLVariable> decl : args.entrySet()) {
 			CLVariable var = decl.getValue();
-			builder.append(var.varType.getType()).append(" ").append(var.varName);
+			builder.append(var.getDeclaration());
+			builder.deleteCharAt(builder.length() - 1);
 			builder.append(", ");
 		}
 		if (args.size() != 0) {
@@ -98,6 +100,18 @@ public class Method extends ComplexKernelComponent
 	public Expression getDeclaration()
 	{
 		return new Expression(createHeader() + ";");
+	}
+
+	public Expression callMethod(CLValue... args)
+	{
+		StringBuilder builder = new StringBuilder(methodName);
+		builder.append("(");
+		for (CLValue arg : args) {
+			builder.append(arg.getSource()).append(",");
+		}
+		builder.deleteCharAt(builder.length() - 1);
+		builder.append(");\n");
+		return new Expression(builder.toString());
 	}
 
 	@Override

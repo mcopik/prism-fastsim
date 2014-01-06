@@ -26,9 +26,10 @@
 
 package simulator.sampler;
 
-import simulator.*;
 import prism.PrismException;
 import prism.PrismLangException;
+import simulator.Path;
+import simulator.TransitionList;
 
 /**
  * Samplers for properties that associate a simulation path with a Boolean value.
@@ -60,6 +61,15 @@ public abstract class SamplerBoolean extends Sampler
 	@Override
 	public abstract boolean update(Path path, TransitionList transList) throws PrismLangException;
 
+	/**
+	 * TODO: comment!
+	 */
+	public void addSample(boolean value)
+	{
+		this.value = value;
+		updateStats();
+	}
+
 	@Override
 	public void updateStats()
 	{
@@ -89,9 +99,9 @@ public abstract class SamplerBoolean extends Sampler
 		if (numSamples <= 1) {
 			return 0.0;
 		} else {
-			return (numTrue * ((double) numSamples - numTrue) / ( numSamples * (numSamples - 1.0))); 
+			return (numTrue * ((double) numSamples - numTrue) / (numSamples * (numSamples - 1.0)));
 		}
-		
+
 		// An alternative, below, would be to use the empirical mean
 		// (this is not equivalent (or unbiased) but, asymptotically, is the same)
 		//double mean = numTrue / (double) numSamples;

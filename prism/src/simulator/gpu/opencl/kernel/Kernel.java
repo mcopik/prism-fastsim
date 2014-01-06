@@ -30,20 +30,14 @@ import java.util.List;
 
 import simulator.gpu.automaton.AbstractAutomaton;
 import simulator.gpu.automaton.AbstractAutomaton.AutomatonType;
-import simulator.gpu.automaton.AbstractAutomaton.StateVector;
 import simulator.gpu.automaton.PrismVariable;
-import simulator.gpu.opencl.kernel.expression.Expression;
-import simulator.gpu.opencl.kernel.expression.ForLoop;
 import simulator.gpu.opencl.kernel.expression.Include;
-import simulator.gpu.opencl.kernel.expression.KernelMethod;
+import simulator.gpu.opencl.kernel.expression.KernelComponent;
 import simulator.gpu.opencl.kernel.expression.MemoryTranslatorVisitor;
 import simulator.gpu.opencl.kernel.expression.Method;
 import simulator.gpu.opencl.kernel.memory.CLVariable;
-import simulator.gpu.opencl.kernel.memory.RNGType;
-import simulator.gpu.opencl.kernel.memory.StdVariableType;
-import simulator.gpu.opencl.kernel.memory.StdVariableType.StdType;
 import simulator.gpu.opencl.kernel.memory.StructureType;
-import simulator.gpu.property.Property;
+import simulator.sampler.Sampler;
 
 public class Kernel
 {
@@ -56,27 +50,17 @@ public class Kernel
 	/**
 	 * Input - three objects which determine kernel's source.
 	 */
+	@SuppressWarnings("unused")
 	private KernelConfig config = null;
 	private AbstractAutomaton model = null;
-	private Property[] properties = null;
+	@SuppressWarnings("unused")
+	private List<Sampler> properties = null;
 	/**
 	 * Source components.
 	 */
 	private String kernelSource = null;
 	private List<Include> includes = new ArrayList<>();
-	/**
-	 * struct StateVector {
-	 * 	each_variable;
-	 * }
-	 */
 	private StructureType stateVectorType = null;
-	/**
-	 * struct PropertyState {
-	 *  bool value;
-	 *  bool valueKnown;
-	 * }
-	 */
-	private StructureType propertyType = null;
 	/**
 	 * DTMC:
 	 * struct SynCmdState {
@@ -93,7 +77,7 @@ public class Kernel
 	 * OUTPUT:
 	 * global array of properties values
 	 */
-	private KernelMethod mainMethod = null;
+	private Method mainMethod = null;
 
 	private enum MethodIndices {
 		/**
@@ -116,7 +100,7 @@ public class Kernel
 		CHECK_GUARDS_SYN(1),
 		/**
 		 * DTMC:
-		 * void performUpdate(StateVector * sv, int updateSelection);
+		 * void performUpdate(StateVector * sv, float sumSelection, int allTransitions);
 		 * CTMC:
 		 * void performUpdate(StateVector * sv, float sumSelection,bool * guardsTab);
 		 */
@@ -154,33 +138,32 @@ public class Kernel
 	 */
 	private CLVariable timeCounter = null;
 
-	private List<Expression> globalDeclarations = new ArrayList<>();
+	private List<KernelComponent> globalDeclarations = new ArrayList<>();
 
 	public final static String KERNEL_TYPEDEFS = "typedef char int8_t;\n" + "typedef unsigned char uint8_t;\n" + "typedef unsigned short uint16_t;\n"
 			+ "typedef short int16_t;\n" + "typedef unsigned int uint32_t;\n" + "typedef int int32_t;\n" + "typedef long int64_t;\n"
 			+ "typedef unsigned long uint64_t;\n";
 
-	public Kernel(KernelConfig config, AbstractAutomaton model, Property[] properties) throws KernelException
+	public Kernel(KernelConfig config, AbstractAutomaton model, List<Sampler> properties) throws KernelException
 	{
 		this.config = config;
 		this.model = model;
 		this.properties = properties;
-		processInput();
-		importStateVector();
 		if (model.getType() == AutomatonType.DTMC) {
-			this.methodsGenerator = new KernelGeneratorDTMC(model, stateVector);
+			this.methodsGenerator = new KernelGeneratorDTMC(model, properties, config);
 		} else {
-			this.methodsGenerator = new KernelGeneratorCTMC(model, stateVector);
+			this.methodsGenerator = new KernelGeneratorCTMC(model, properties, config);
 		}
 		try {
+			stateVectorType = methodsGenerator.getSVType();
 			helperMethods[MethodIndices.CHECK_GUARDS.indice] = methodsGenerator.createNonsynGuardsMethod();
 			helperMethods[MethodIndices.PERFORM_UPDATE.indice] = methodsGenerator.createNonsynUpdate();
-			createMainMethod();
+			mainMethod = methodsGenerator.createMainMethod();
+			globalDeclarations.addAll(methodsGenerator.getAdditionalDeclarations());
 		} catch (KernelException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
-
 		generateSource();
 	}
 
@@ -192,45 +175,6 @@ public class Kernel
 	public static Kernel createTestKernel()
 	{
 		return new Kernel(TEST_KERNEL);
-	}
-
-	private void processInput()
-	{
-	}
-
-	private void importStateVector()
-	{
-		StateVector sv = model.getStateVector();
-		stateVectorType = new StructureType("StateVector");
-		Integer[] init = new Integer[sv.size()];
-		PrismVariable[] vars = sv.getVars();
-		for (int i = 0; i < vars.length; ++i) {
-			CLVariable var = new CLVariable(new StdVariableType(vars[i]), vars[i].name);
-			stateVectorType.addVariable(var);
-			init[i] = new Integer(vars[i].initValue);
-		}
-		stateVector = new CLVariable(stateVectorType, "stateVector");
-		stateVector.setInitValue(stateVectorType.initializeStdStructure(init));
-		globalDeclarations.add(stateVectorType.getDefinition());
-	}
-
-	private void createMainMethod() throws KernelException
-	{
-		mainMethod = new KernelMethod();
-		mainMethod.addLocalVar(stateVector);
-		ForLoop loop = new ForLoop("i", 0, config.maxPathLength);
-		mainMethod.addExpression(loop);
-		CLVariable rng = new CLVariable(new RNGType(), "rng");
-		mainMethod.addLocalVar(rng);
-		CLVariable temp = new CLVariable(new StdVariableType(StdType.INT8), "temp");
-		mainMethod.addLocalVar(temp);
-		temp.setInitValue(StdVariableType.initialize(0));
-		CLVariable temp2 = new CLVariable(new StdVariableType(StdType.FLOAT), "temp2");
-		mainMethod.addLocalVar(temp2);
-		mainMethod.addExpression(RNGType.initializeGenerator(rng, temp, Long.toString(config.rngOffset)));
-		mainMethod.addExpression(RNGType.assignRandomFloat(rng, temp2));
-		mainMethod.addExpression(RNGType.assignRandomInt(rng, temp, 17));
-		mainMethod.addExpression(new Expression("printf(\"%d\\n\",temp);"));
 	}
 
 	private void updateIncludes()
@@ -260,7 +204,7 @@ public class Kernel
 
 	private void visitMethodsTranslator(MemoryTranslatorVisitor visitor) throws KernelException
 	{
-		visitor.setStateVector(stateVector);
+		visitor.setStateVector(mainMethod.accessStateVector());
 		mainMethod.accept(visitor);
 		for (Method method : helperMethods) {
 			if (method == null)
@@ -301,7 +245,7 @@ public class Kernel
 			builder.append(include.getSource()).append("\n");
 		}
 		builder.append(KERNEL_TYPEDEFS).append("\n");
-		for (Expression expr : globalDeclarations) {
+		for (KernelComponent expr : globalDeclarations) {
 			builder.append(expr.getSource()).append("\n");
 		}
 		visitMethodsTranslator(createTranslatorVisitor());

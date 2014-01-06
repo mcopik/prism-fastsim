@@ -25,6 +25,8 @@
 //==============================================================================
 package simulator.gpu.opencl.kernel;
 
+import java.util.List;
+
 import prism.Preconditions;
 import simulator.gpu.automaton.AbstractAutomaton;
 import simulator.gpu.opencl.kernel.expression.Expression;
@@ -34,13 +36,27 @@ import simulator.gpu.opencl.kernel.expression.IfElse;
 import simulator.gpu.opencl.kernel.expression.Method;
 import simulator.gpu.opencl.kernel.memory.CLVariable;
 import simulator.gpu.opencl.kernel.memory.StdVariableType;
+import simulator.sampler.Sampler;
 
 public class KernelGeneratorDTMC extends KernelGenerator
 {
 
-	public KernelGeneratorDTMC(AbstractAutomaton model, CLVariable stateVector)
+	public KernelGeneratorDTMC(AbstractAutomaton model, List<Sampler> properties, KernelConfig config)
 	{
-		super(model, stateVector);
+		super(model, properties, config);
+	}
+
+	@Override
+	public void mainMethodDefineLocalVars() throws KernelException
+	{
+		//number of transitions
+		CLVariable time = new CLVariable(new StdVariableType(0, config.maxPathLength), "time");
+		time.setInitValue(StdVariableType.initialize(0));
+		currentMethod.addLocalVar(time);
+		//number of transitions
+		CLVariable selectionSize = new CLVariable(new StdVariableType(0, model.commandsNumber()), "selectionSize");
+		selectionSize.setInitValue(StdVariableType.initialize(0));
+		currentMethod.addLocalVar(selectionSize);
 	}
 
 	@Override
@@ -76,7 +92,7 @@ public class KernelGeneratorDTMC extends KernelGenerator
 	}
 
 	@Override
-	protected void updateMethodPerformSelection()
+	protected void updateMethodPerformSelection() throws KernelException
 	{
 		CLVariable sum = currentMethod.getArg("selectionSum");
 		CLVariable number = currentMethod.getArg("numberOfCommands");

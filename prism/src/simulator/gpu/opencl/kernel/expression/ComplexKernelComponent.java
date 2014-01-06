@@ -52,6 +52,11 @@ public abstract class ComplexKernelComponent implements KernelComponent
 		body.add(expr);
 	}
 
+	public void addExpression(String expr)
+	{
+		body.add(new Expression(expr));
+	}
+
 	protected final void updateIncludes(CLVariable var)
 	{
 		if (var.varType instanceof UDType) {
