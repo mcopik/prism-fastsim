@@ -82,7 +82,7 @@ public class RuntimeContext
 	public void runSimulation(int numberOfSamples, PrismLog mainLog)
 	{
 		//TODO: ERASE THIS!
-		//numberOfSamples = 1;
+		numberOfSamples = 100000;
 		mainLog.println(kernel.getSource());
 		try {
 			int samplesProcessed = 0;
@@ -94,7 +94,7 @@ public class RuntimeContext
 			program.addInclude("classes/include/");
 			program.build();
 			CLKernel programKernel = program.createKernel("main");
-			CLQueue queue = context.createDefaultQueue();
+			CLQueue queue = context.createDefaultProfilingQueue();
 			int localWorkSize = programKernel.getWorkGroupSize().get(currentDevice.getDevice()).intValue();
 			int globalWorkSize = 0;
 
@@ -112,15 +112,23 @@ public class RuntimeContext
 				programKernel.setArg(0, offset);
 				programKernel.setArg(1, currentGWSize);
 				programKernel.setArg(2, samplesProcessed);
+
 				for (int i = 0; i < properties.size(); ++i) {
 					programKernel.setObjectArg(i + 3, resultBuffers.get(i));
 				}
+				long start = System.nanoTime();
+				/*
 				programKernel.enqueueNDRange(queue,
 				//global work size
-						new int[] { roundUp(localWorkSize, currentGWSize) },
-						//local work size
-						new int[] { (int) localWorkSize });
+				new int[] { roundUp(localWorkSize, currentGWSize) },
+				//local work size
+				new int[] { (int) localWorkSize });*/
+
+				programKernel.enqueueNDRange(queue,
+				//global work size
+						new int[] { roundUp(localWorkSize, currentGWSize) });
 				queue.finish();
+				mainLog.println(String.format("%d samples done - time %d ms", roundUp(localWorkSize, currentGWSize), (System.nanoTime() - start) / 1000000));
 				offset += config.rngOffset * currentGWSize;
 				samplesProcessed += currentGWSize;
 			}

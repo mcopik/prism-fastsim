@@ -277,17 +277,18 @@ public abstract class KernelGenerator
 		currentMethod.addLocalVar(rng);
 		currentMethod.addExpression(String.format("if(%s >= %s) {\n return;\n}\n", globalID.varName, numberOfSimulations.varName));
 		currentMethod.addExpression(RNGType.initializeGenerator(rng, generatorOffset, Long.toString(config.rngOffset) + "L"));
-		//ForLoop loop = new ForLoop("i", 0, config.maxPathLength);
+		ForLoop loop = new ForLoop("i", 0, config.maxPathLength);
 		/*currentMethod.addExpression(new Expression(
 				"properties[0].valueKnown = false; printf(\"START: %d %d %d\\n\",stateVector.s,stateVector.d,properties[0].valueKnown);"));
 		*/
-		ForLoop loop = new ForLoop("i", 0, 15);
+		//ForLoop loop = new ForLoop("i", 0, 15);
 		Expression callCheckGuards = helperMethods.get(KernelMethods.CHECK_GUARDS).callMethod(stateVector.convertToPointer(), guards);
 		loop.addExpression(ExpressionGenerator.createAssignment(selectionSize, callCheckGuards));
 		loop.addExpression(RNGType.assignRandomFloat(rng, selection, selectionSize));
 		loop.addExpression(mainMethodCallUpdate(currentMethod));
 		mainMethodUpdateTime(currentMethod, loop);
 		IfElse ifElse = new IfElse(mainMethodCallCheckingProperties(currentMethod));
+		//ifElse.addCommand(0, new Expression("printf(\"END: %d %d\\n\",i,properties[0].valueKnown);"));
 		ifElse.addCommand(0, new Expression("break;\n"));
 		loop.addExpression(ifElse);
 		/**
@@ -308,7 +309,6 @@ public abstract class KernelGenerator
 		 * }
 		 */
 		currentMethod.addExpression(loop);
-		//currentMethod.addExpression(new Expression("printf(\"END: %d %d %d\\n\",stateVector.s,stateVector.d,properties[0].valueKnown);"));
 		//sampleNumber + globalID
 		Expression position = ExpressionGenerator.createBasicExpression(globalID, Operator.ADD, sampleNumber);
 		for (int i = 0; i < properties.size(); ++i) {
@@ -442,6 +442,7 @@ public abstract class KernelGenerator
 		currentMethod.addLocalVar(counter);
 		//bool allKnown
 		CLVariable allKnown = new CLVariable(new StdVariableType(StdType.BOOL), "allKnown");
+		allKnown.setInitValue(StdVariableType.initialize(1));
 		currentMethod.addLocalVar(allKnown);
 		for (int i = 0; i < properties.size(); ++i) {
 			Sampler property = properties.get(i);

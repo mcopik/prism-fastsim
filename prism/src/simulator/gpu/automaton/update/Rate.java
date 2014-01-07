@@ -48,6 +48,7 @@ public class Rate
 		this.isConst = rate.isConst;
 		if (rate.expressions != null) {
 			for (Expression expr : rate.expressions) {
+				this.expressions = new ArrayList<>();
 				this.expressions.add(expr.deepCopy());
 			}
 		}
