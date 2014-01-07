@@ -81,6 +81,8 @@ public class RuntimeContext
 
 	public void runSimulation(int numberOfSamples, PrismLog mainLog)
 	{
+		//TODO: ERASE THIS!
+		numberOfSamples = 1;
 		mainLog.println(kernel.getSource());
 		try {
 			int samplesProcessed = 0;

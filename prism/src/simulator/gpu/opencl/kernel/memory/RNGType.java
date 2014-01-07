@@ -57,6 +57,11 @@ public class RNGType implements VariableInterface, UDType
 		return ExpressionGenerator.createAssignment(dest, String.format("((float)MWC64X_NextUint(&%s))/%s", rng.varName, RNG_MAX));
 	}
 
+	static public Expression assignRandomFloat(CLVariable rng, CLVariable dest, CLVariable max)
+	{
+		return ExpressionGenerator.createAssignment(dest, String.format("((float)MWC64X_NextUint(&%s))*%s/%s", rng.varName, max.varName, RNG_MAX));
+	}
+
 	/* (non-Javadoc)
 	 * @see simulator.gpu.opencl.kernel.memory.VariableInterface#getDeclaration()
 	 */

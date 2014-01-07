@@ -62,7 +62,7 @@ import simulator.sampler.SamplerUntil;
 
 public abstract class KernelGenerator
 {
-	private enum KernelMethods {
+	protected enum KernelMethods {
 		/**
 		 * DTMC:
 		 * Return value is number of concurrent transitions.
@@ -83,9 +83,9 @@ public abstract class KernelGenerator
 		CHECK_GUARDS_SYN(1),
 		/**
 		 * DTMC:
-		 * void performUpdate(StateVector * sv, float sumSelection, int allTransitions);
+		 * void performUpdate(StateVector * sv, bool * guardsTab, float sumSelection, int allTransitions);
 		 * CTMC:
-		 * void performUpdate(StateVector * sv, float sumSelection,bool * guardsTab);
+		 * void performUpdate(StateVector * sv,  bool * guardsTab,float sumSelection);
 		 */
 		PERFORM_UPDATE(2),
 		/**
@@ -250,16 +250,28 @@ public abstract class KernelGenerator
 		//property results
 		CLVariable propertiesArray = new CLVariable(new ArrayType(PROPERTY_STATE_STRUCTURE, properties.size()), "properties");
 		currentMethod.addLocalVar(propertiesArray);
+		//guardsTab
+		CLVariable guards = new CLVariable(new ArrayType(new StdVariableType(0, commands.length), commands.length), "guardsTab");
+		currentMethod.addLocalVar(guards);
+		//selection
+		CLVariable selection = new CLVariable(new StdVariableType(StdType.FLOAT), "selection");
+		currentMethod.addLocalVar(selection);
 		mainMethodDefineLocalVars(currentMethod);
-		CLVariable transitions = currentMethod.getLocalVar("transitions");
+		CLVariable selectionSize = currentMethod.getLocalVar("selectionSize");
 		CLVariable rng = new CLVariable(new RNGType(), "rng");
 		currentMethod.addLocalVar(stateVector);
 		currentMethod.registerStateVector(stateVector);
 		currentMethod.addLocalVar(rng);
 		currentMethod.addExpression(String.format("if(%s >= %s) {\n return;\n}\n", globalID.varName, numberOfSimulations.varName));
 		currentMethod.addExpression(RNGType.initializeGenerator(rng, generatorOffset, Long.toString(config.rngOffset) + "L"));
-		ForLoop loop = new ForLoop("i", 0, config.maxPathLength);
-		//loop.addExpression(ExpressionGenerator.createAssignment(transitions, helperMethods.get(KernelMethods.CHECK_GUARDS).callMethod(args));
+		//ForLoop loop = new ForLoop("i", 0, config.maxPathLength);
+		ForLoop loop = new ForLoop("i", 0, 15);
+		Expression callCheckGuards = helperMethods.get(KernelMethods.CHECK_GUARDS).callMethod(stateVector.convertToPointer(), guards);
+		loop.addExpression(ExpressionGenerator.createAssignment(selectionSize, callCheckGuards));
+		loop.addExpression(RNGType.assignRandomFloat(rng, selection, selectionSize));
+		loop.addExpression(new Expression("printf(\"%d %f %d %d\\n\",selectionSize,selection,stateVector.s, stateVector.d);"));
+		loop.addExpression(mainMethodCallUpdate(currentMethod));
+		loop.addExpression(new Expression("printf(\"%d %f %d %d\\n\",selectionSize,selection,stateVector.s, stateVector.d);"));
 		/**
 		 * DTMC:
 		 * int transitions = 0;
@@ -285,6 +297,8 @@ public abstract class KernelGenerator
 	}
 
 	protected abstract void mainMethodDefineLocalVars(Method currentMethod) throws KernelException;
+
+	protected abstract KernelComponent mainMethodCallUpdate(Method currentMethod);
 
 	protected Method createNonsynGuardsMethod() throws KernelException
 	{
@@ -334,11 +348,15 @@ public abstract class KernelGenerator
 		CLVariable sv = new CLVariable(stateVector.getPointer(), "sv");
 		currentMethod.addArg(sv);
 		currentMethod.registerStateVector(sv);
+		//bool * guardsTab
+		CLVariable guards = new CLVariable(new PointerType(new StdVariableType(0, commands.length)), "guardsTab");
+		currentMethod.addArg(guards);
 		//float sum
 		CLVariable selectionSum = new CLVariable(new StdVariableType(StdType.FLOAT), "selectionSum");
 		selectionSum.setInitValue(StdVariableType.initialize(0.0f));
 		currentMethod.addArg(selectionSum);
 		CLVariable selection = new CLVariable(new StdVariableType(0, commands.length), "selection");
+		selection.setInitValue(StdVariableType.initialize(0));
 		currentMethod.addLocalVar(selection);
 		updateMethodAdditionalArgs(currentMethod);
 		updateMethodLocalVars(currentMethod);
@@ -347,17 +365,17 @@ public abstract class KernelGenerator
 		int switchCounter = 0;
 		for (int i = 0; i < commands.length; ++i) {
 			Update update = commands[i].getUpdate();
-			Rate rate = update.getRate(0);
+			Rate rate = new Rate(update.getRate(0));
 			if (update.getActionsNumber() > 1) {
 				IfElse ifElse = new IfElse(ExpressionGenerator.createBasicExpression(selectionSum, Operator.LT, rate.toString()));
 				if (!update.isActionTrue(0)) {
-					ifElse.addCommand(0, new Expression(String.format("%s;", update.getAction(0).toString())));
+					ifElse.addCommand(0, ExpressionGenerator.convertPrismAction(update.getAction(0)));
 				}
 				for (int j = 1; j < update.getActionsNumber(); ++j) {
 					rate.addRate(update.getRate(j));
 					ifElse.addElif(ExpressionGenerator.createBasicExpression(selectionSum, Operator.LT, rate.toString()));
 					if (!update.isActionTrue(j)) {
-						ifElse.addCommand(j, new Expression(String.format("%s;", update.getAction(0).toString())));
+						ifElse.addCommand(j, ExpressionGenerator.convertPrismAction(update.getAction(j)));
 					}
 				}
 				_switch.addCase(new Expression(Integer.toString(i)));
@@ -365,7 +383,7 @@ public abstract class KernelGenerator
 			} else {
 				if (!update.isActionTrue(0)) {
 					_switch.addCase(new Expression(Integer.toString(i)));
-					_switch.addCommand(switchCounter++, new Expression(String.format("%s;", update.getAction(0).toString())));
+					_switch.addCommand(switchCounter++, ExpressionGenerator.convertPrismAction(update.getAction(0)));
 				}
 			}
 		}
@@ -453,10 +471,11 @@ public abstract class KernelGenerator
 
 	protected Expression propertiesMethodCreateExpression(String expr)
 	{
+		String newExpr = expr.replace("=", "==").replace("&", "&&").replace("|", "||");
 		if (expr.charAt(0) == ('!')) {
-			return new Expression(String.format("!(%s)", expr.substring(1)));
+			return new Expression(String.format("!(%s)", newExpr.substring(1)));
 		} else {
-			return new Expression(expr);
+			return new Expression(newExpr);
 		}
 
 	}

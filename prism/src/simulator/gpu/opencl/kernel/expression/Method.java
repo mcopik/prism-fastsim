@@ -58,6 +58,11 @@ public class Method extends ComplexKernelComponent
 		updateIncludes(var);
 	}
 
+	public int getArgsSize()
+	{
+		return args.size();
+	}
+
 	public CLVariable getArg(String name)
 	{
 		return args.get(name);

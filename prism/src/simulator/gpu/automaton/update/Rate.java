@@ -42,6 +42,17 @@ public class Rate
 
 	}
 
+	public Rate(Rate rate)
+	{
+		this.rate = rate.rate;
+		this.isConst = rate.isConst;
+		if (rate.expressions != null) {
+			for (Expression expr : rate.expressions) {
+				this.expressions.add(expr.deepCopy());
+			}
+		}
+	}
+
 	public Rate(double initial)
 	{
 		rate = initial;

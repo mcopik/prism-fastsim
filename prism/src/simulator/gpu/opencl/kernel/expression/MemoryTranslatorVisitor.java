@@ -53,8 +53,11 @@ public class MemoryTranslatorVisitor implements VisitorInterface
 	{
 		Preconditions.checkNotNull(svInstance, "Visiting without specyfing SV instance!");
 		for (Pair<String, String> pair : translations) {
-			CLVariable newVar = svInstance.varType.accessField(svInstance.varName, pair.second);
-			str = str.replaceAll("\\b" + pair.first + "\\b", newVar.varName);
+			//enable easy debugging!
+			if (!str.contains("printf")) {
+				CLVariable newVar = svInstance.varType.accessField(svInstance.varName, pair.second);
+				str = str.replaceAll("\\b" + pair.first + "\\b", newVar.varName);
+			}
 		}
 		return str;
 	}

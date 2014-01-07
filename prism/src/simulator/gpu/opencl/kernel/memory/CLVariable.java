@@ -64,9 +64,19 @@ public class CLVariable implements CLValue
 		return new PointerType(varType);
 	}
 
+	public CLVariable convertToPointer()
+	{
+		return new CLVariable(getPointer(), "&" + varName);
+	}
+
 	public Expression getName()
 	{
 		return new Expression(varName);
+	}
+
+	public Expression cast(String type)
+	{
+		return new Expression(String.format("((%s)%s)", type, varName));
 	}
 
 	public Expression getDeclaration()

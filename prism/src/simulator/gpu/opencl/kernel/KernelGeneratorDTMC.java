@@ -52,7 +52,7 @@ public class KernelGeneratorDTMC extends KernelGenerator
 	@Override
 	public void mainMethodDefineLocalVars(Method currentMethod) throws KernelException
 	{
-		//number of transitions
+		//time
 		CLVariable time = new CLVariable(new StdVariableType(0, config.maxPathLength), "time");
 		time.setInitValue(StdVariableType.initialize(0));
 		currentMethod.addLocalVar(time);
@@ -60,6 +60,17 @@ public class KernelGeneratorDTMC extends KernelGenerator
 		CLVariable selectionSize = new CLVariable(new StdVariableType(0, model.commandsNumber()), "selectionSize");
 		selectionSize.setInitValue(StdVariableType.initialize(0));
 		currentMethod.addLocalVar(selectionSize);
+	}
+
+	@Override
+	protected KernelComponent mainMethodCallUpdate(Method currentMethod)
+	{
+		Method update = helperMethods.get(KernelMethods.PERFORM_UPDATE);
+		CLVariable sv = currentMethod.getLocalVar("stateVector");
+		CLVariable selection = currentMethod.getLocalVar("selection");
+		CLVariable selectionSize = currentMethod.getLocalVar("selectionSize");
+		CLVariable guardsTab = currentMethod.getLocalVar("guardsTab");
+		return update.callMethod(sv.convertToPointer(), guardsTab, selection, selectionSize);
 	}
 
 	@Override
@@ -97,14 +108,23 @@ public class KernelGeneratorDTMC extends KernelGenerator
 	@Override
 	protected void updateMethodPerformSelection(Method currentMethod) throws KernelException
 	{
+		//INPUT: selectionSum - float [0, numberOfAllCommands];
 		CLVariable sum = currentMethod.getArg("selectionSum");
 		CLVariable number = currentMethod.getArg("numberOfCommands");
 		CLVariable selection = currentMethod.getLocalVar("selection");
-		Expression divideSum = ExpressionGenerator.createBasicExpression(selection, Operator.DIV, number);
-		Expression reduceSum = ExpressionGenerator.createBasicExpression(sum, Operator.SUB, divideSum);
-		ExpressionGenerator.addParentheses(reduceSum);
-		reduceSum = ExpressionGenerator.createBasicExpression(number, Operator.MUL, reduceSum);
-		currentMethod.addExpression(ExpressionGenerator.createAssignment(sum, reduceSum));
+		CLVariable guardsTab = currentMethod.getArg("guardsTab");
+		guardsTab = guardsTab.varType.accessElement(guardsTab, selection.getName());
+
+		// selection = floor(selectionSum)
+		currentMethod.addExpression(ExpressionGenerator.createAssignment(selection, ExpressionGenerator.functionCall("floor", sum.getName())));
+
+		// selectionSum = numberOfCommands * ( selectionSum - selection/numberOfCommands);
+		Expression divideSelection = ExpressionGenerator.createBasicExpression(selection.cast("float"), Operator.DIV, number);
+		Expression subSum = ExpressionGenerator.createBasicExpression(sum, Operator.SUB, divideSelection);
+		ExpressionGenerator.addParentheses(subSum);
+		Expression asSum = ExpressionGenerator.createBasicExpression(number, Operator.MUL, subSum);
+		currentMethod.addExpression(ExpressionGenerator.createAssignment(sum, asSum));
+		currentMethod.addExpression(ExpressionGenerator.createAssignment(selection, guardsTab.getName()));
 	}
 
 	@Override

@@ -39,7 +39,6 @@ import simulator.gpu.opencl.kernel.expression.KernelComponent;
 import simulator.gpu.opencl.kernel.expression.Method;
 import simulator.gpu.opencl.kernel.expression.Switch;
 import simulator.gpu.opencl.kernel.memory.CLVariable;
-import simulator.gpu.opencl.kernel.memory.PointerType;
 import simulator.gpu.opencl.kernel.memory.StdVariableType;
 import simulator.gpu.opencl.kernel.memory.StdVariableType.StdType;
 import simulator.sampler.Sampler;
@@ -57,12 +56,28 @@ public class KernelGeneratorCTMC extends KernelGenerator
 	@Override
 	public void mainMethodDefineLocalVars(Method currentMethod) throws KernelException
 	{
+		//time
 		CLVariable time = new CLVariable(new StdVariableType(StdType.FLOAT), "time");
 		time.setInitValue(StdVariableType.initialize(0.0f));
 		currentMethod.addLocalVar(time);
-		CLVariable selectionSize = new CLVariable(new StdVariableType(StdType.FLOAT), "selectionSize");
-		selectionSize.setInitValue(StdVariableType.initialize(0.0f));
+		//updated time
+		CLVariable updatedTime = new CLVariable(new StdVariableType(StdType.FLOAT), "updatedTime");
+		updatedTime.setInitValue(StdVariableType.initialize(0.0f));
+		currentMethod.addLocalVar(updatedTime);
+		//number of transitions
+		CLVariable selectionSize = new CLVariable(new StdVariableType(0, model.commandsNumber()), "selectionSize");
+		selectionSize.setInitValue(StdVariableType.initialize(0));
 		currentMethod.addLocalVar(selectionSize);
+	}
+
+	@Override
+	protected KernelComponent mainMethodCallUpdate(Method currentMethod)
+	{
+		Method update = helperMethods.get(KernelMethods.PERFORM_UPDATE);
+		CLVariable sv = currentMethod.getLocalVar("stateVector");
+		CLVariable selection = currentMethod.getLocalVar("selection");
+		CLVariable guardsTab = currentMethod.getLocalVar("guardsTab");
+		return update.callMethod(sv.convertToPointer(), guardsTab, selection);
 	}
 
 	@Override
@@ -109,12 +124,13 @@ public class KernelGeneratorCTMC extends KernelGenerator
 	protected void updateMethodPerformSelection(Method currentMethod) throws KernelException
 	{
 		CLVariable selection = currentMethod.getLocalVar("selection");
+		CLVariable guardsTab = currentMethod.getArg("guardsTab");
 		CLVariable newSum = currentMethod.getLocalVar("newSum");
 		CLVariable selectionSum = currentMethod.getArg("selectionSum");
 		CLVariable sum = new CLVariable(new StdVariableType(StdType.FLOAT), "sum");
 		currentMethod.addLocalVar(sum);
 		ForLoop loop = new ForLoop(selection, false);
-		Switch _switch = new Switch(selection);
+		Switch _switch = new Switch(guardsTab.varType.accessElement(guardsTab, selection.getName()));
 		for (int i = 0; i < commands.length; ++i) {
 			Rate rateSum = commands[i].getRateSum();
 			_switch.addCase(new Expression(Integer.toString(i)));
@@ -141,9 +157,6 @@ public class KernelGeneratorCTMC extends KernelGenerator
 	@Override
 	protected void updateMethodAdditionalArgs(Method currentMethod) throws KernelException
 	{
-		//bool * guardsTab
-		CLVariable guards = new CLVariable(new PointerType(new StdVariableType(0, commands.length)), "guardsTab");
-		currentMethod.addArg(guards);
 	}
 
 	@Override
@@ -181,4 +194,5 @@ public class KernelGeneratorCTMC extends KernelGenerator
 	{
 		return null;
 	}
+
 }

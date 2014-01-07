@@ -28,7 +28,10 @@ package simulator.gpu.opencl.kernel.expression;
 import java.util.HashMap;
 import java.util.Map;
 
+import prism.Pair;
 import prism.Preconditions;
+import simulator.gpu.automaton.PrismVariable;
+import simulator.gpu.automaton.update.Action;
 import simulator.gpu.opencl.kernel.KernelException;
 import simulator.gpu.opencl.kernel.memory.ArrayType;
 import simulator.gpu.opencl.kernel.memory.CLValue;
@@ -98,6 +101,11 @@ public class ExpressionGenerator
 		return ExpressionGenerator.createBasicExpression(var, operator, var2.getSource());
 	}
 
+	static public Expression createBasicExpression(Expression var, Operator operator, CLValue expr)
+	{
+		return new Expression(String.format("%s %s %s", var, operatorsSource.get(operator), expr.getSource()));
+	}
+
 	static public Expression createBasicExpression(CLVariable var, Operator operator, String expr)
 	{
 		return new Expression(String.format("%s %s %s", var.varName, operatorsSource.get(operator), expr));
@@ -141,5 +149,27 @@ public class ExpressionGenerator
 	static public CLValue assignGlobalID()
 	{
 		return new ExpressionValue(new Expression("get_global_id(0)"));
+	}
+
+	static public Expression functionCall(String functionName, Expression... args)
+	{
+		StringBuilder builder = new StringBuilder(functionName);
+		builder.append("(");
+		for (Expression arg : args) {
+			builder.append(arg.getSource()).append(",");
+		}
+		builder.deleteCharAt(builder.length() - 1);
+		builder.append(")");
+		return new Expression(builder.toString());
+	}
+
+	static public Expression convertPrismAction(Action action)
+	{
+		StringBuilder builder = new StringBuilder();
+		for (Pair<PrismVariable, parser.ast.Expression> expr : action.expressions) {
+			builder.append(expr.first.name).append(" = ").append(expr.second.toString()).append(";");
+			builder.append("\n");
+		}
+		return new Expression(builder.toString());
 	}
 }
