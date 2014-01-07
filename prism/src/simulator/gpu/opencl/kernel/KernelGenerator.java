@@ -50,6 +50,7 @@ import simulator.gpu.opencl.kernel.expression.KernelMethod;
 import simulator.gpu.opencl.kernel.expression.Method;
 import simulator.gpu.opencl.kernel.expression.Switch;
 import simulator.gpu.opencl.kernel.memory.ArrayType;
+import simulator.gpu.opencl.kernel.memory.CLValue;
 import simulator.gpu.opencl.kernel.memory.CLVariable;
 import simulator.gpu.opencl.kernel.memory.CLVariable.Location;
 import simulator.gpu.opencl.kernel.memory.PointerType;
@@ -249,12 +250,22 @@ public abstract class KernelGenerator
 		CLVariable globalID = new CLVariable(new StdVariableType(StdType.UINT32), "globalID");
 		globalID.setInitValue(ExpressionGenerator.assignGlobalID());
 		currentMethod.addLocalVar(globalID);
+
 		//property results
-		CLVariable propertiesArray = new CLVariable(new ArrayType(PROPERTY_STATE_STRUCTURE, properties.size()), "properties");
+		ArrayType propertiesArrayType = new ArrayType(PROPERTY_STATE_STRUCTURE, properties.size());
+		CLVariable propertiesArray = new CLVariable(propertiesArrayType, "properties");
 		currentMethod.addLocalVar(propertiesArray);
+		CLValue initValues[] = new CLValue[properties.size()];
+		CLValue initValue = PROPERTY_STATE_STRUCTURE.initializeStdStructure(new Number[] { 0, 0 });
+		for (int i = 0; i < initValues.length; ++i) {
+			initValues[i] = initValue;
+		}
+		propertiesArray.setInitValue(propertiesArrayType.initializeArray(initValues));
+
 		//guardsTab
 		CLVariable guards = new CLVariable(new ArrayType(new StdVariableType(0, commands.length), commands.length), "guardsTab");
 		currentMethod.addLocalVar(guards);
+
 		//selection
 		CLVariable selection = new CLVariable(new StdVariableType(StdType.FLOAT), "selection");
 		currentMethod.addLocalVar(selection);

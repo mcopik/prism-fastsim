@@ -25,10 +25,51 @@
 //==============================================================================
 package simulator.gpu.opencl.kernel.memory;
 
+import prism.Preconditions;
 import simulator.gpu.opencl.kernel.expression.Expression;
 
 public class ArrayType implements VariableInterface
 {
+	private static class ArrayValue implements CLValue
+	{
+		private VariableInterface type;
+		private CLValue[] values = null;
+
+		public ArrayValue(VariableInterface type, CLValue[] values)
+		{
+			this.type = type;
+			this.values = values;
+		}
+
+		@Override
+		public boolean validateAssignmentTo(VariableInterface type)
+		{
+			if (type instanceof ArrayType) {
+				ArrayType array = (ArrayType) type;
+				if (array.length != values.length) {
+					return false;
+				}
+				return values[0].validateAssignmentTo(type);
+			} else {
+				return false;
+			}
+		}
+
+		@Override
+		public Expression getSource()
+		{
+			StringBuilder builder = new StringBuilder("{\n");
+			for (CLValue value : values) {
+				builder.append(value.getSource().toString().replace("\n", " "));
+				builder.append(",\n");
+			}
+			int len = builder.length();
+			builder.delete(len - 2, len - 1);
+			builder.append("}");
+			return new Expression(builder.toString());
+		}
+	}
+
 	private final VariableInterface varType;
 	public final int length;
 
@@ -72,5 +113,11 @@ public class ArrayType implements VariableInterface
 	public String declareVar(String varName)
 	{
 		return String.format("%s %s[%d]", varType.getType(), varName, length);
+	}
+
+	public CLValue initializeArray(CLValue[] values)
+	{
+		Preconditions.checkCondition(values[0].validateAssignmentTo(varType), "Initialization value can't be assigned to array type!");
+		return new ArrayValue(varType, values);
 	}
 }

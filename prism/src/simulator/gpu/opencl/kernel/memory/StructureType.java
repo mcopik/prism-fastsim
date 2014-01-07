@@ -27,6 +27,7 @@ package simulator.gpu.opencl.kernel.memory;
 
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
@@ -108,8 +109,10 @@ public class StructureType implements VariableInterface, UDType
 		if (fields.size() != type.fields.size()) {
 			return false;
 		}
-		for (int i = 0; i < fields.size(); ++i) {
-			if (!fields.get(i).varType.equals(type.fields.get(i).varType)) {
+		Iterator<CLVariable> thisIt = fields.values().iterator();
+		Iterator<CLVariable> otherIt = type.fields.values().iterator();
+		while (thisIt.hasNext()) {
+			if (!thisIt.next().equals(otherIt.next())) {
 				return false;
 			}
 		}

@@ -34,7 +34,6 @@ public abstract class ComplexKernelComponent implements KernelComponent
 			throw new KernelException("Variable " + var.varName + " already exists!");
 		}
 		localVars.put(var.varName, var);
-		variableDefinitions.add(var.getDefinition());
 		updateIncludes(var);
 	}
 
@@ -111,8 +110,8 @@ public abstract class ComplexKernelComponent implements KernelComponent
 	{
 		StringBuilder source = new StringBuilder(createHeader());
 		source.append("{\n");
-		for (Expression e : variableDefinitions) {
-			source.append(e.exprString).append("\n");
+		for (Map.Entry<String, CLVariable> var : localVars.entrySet()) {
+			source.append(var.getValue().getDefinition()).append("\n");
 		}
 		for (KernelComponent e : body) {
 			source.append(e.getSource()).append("\n");
