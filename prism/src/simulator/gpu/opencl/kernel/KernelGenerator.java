@@ -30,6 +30,7 @@ import java.util.Collection;
 import java.util.EnumMap;
 import java.util.List;
 
+import parser.ast.ExpressionLiteral;
 import simulator.gpu.automaton.AbstractAutomaton;
 import simulator.gpu.automaton.AbstractAutomaton.StateVector;
 import simulator.gpu.automaton.PrismVariable;
@@ -38,6 +39,7 @@ import simulator.gpu.automaton.command.CommandInterface;
 import simulator.gpu.automaton.command.SynchronizedCommand;
 import simulator.gpu.automaton.update.Rate;
 import simulator.gpu.automaton.update.Update;
+import simulator.gpu.opencl.kernel.expression.ComplexKernelComponent;
 import simulator.gpu.opencl.kernel.expression.Expression;
 import simulator.gpu.opencl.kernel.expression.ExpressionGenerator;
 import simulator.gpu.opencl.kernel.expression.ExpressionGenerator.Operator;
@@ -265,13 +267,18 @@ public abstract class KernelGenerator
 		currentMethod.addExpression(String.format("if(%s >= %s) {\n return;\n}\n", globalID.varName, numberOfSimulations.varName));
 		currentMethod.addExpression(RNGType.initializeGenerator(rng, generatorOffset, Long.toString(config.rngOffset) + "L"));
 		//ForLoop loop = new ForLoop("i", 0, config.maxPathLength);
+		/*currentMethod.addExpression(new Expression(
+				"properties[0].valueKnown = false; printf(\"START: %d %d %d\\n\",stateVector.s,stateVector.d,properties[0].valueKnown);"));
+		*/
 		ForLoop loop = new ForLoop("i", 0, 15);
 		Expression callCheckGuards = helperMethods.get(KernelMethods.CHECK_GUARDS).callMethod(stateVector.convertToPointer(), guards);
 		loop.addExpression(ExpressionGenerator.createAssignment(selectionSize, callCheckGuards));
 		loop.addExpression(RNGType.assignRandomFloat(rng, selection, selectionSize));
-		loop.addExpression(new Expression("printf(\"%d %f %d %d\\n\",selectionSize,selection,stateVector.s, stateVector.d);"));
 		loop.addExpression(mainMethodCallUpdate(currentMethod));
-		loop.addExpression(new Expression("printf(\"%d %f %d %d\\n\",selectionSize,selection,stateVector.s, stateVector.d);"));
+		mainMethodUpdateTime(currentMethod, loop);
+		IfElse ifElse = new IfElse(mainMethodCallCheckingProperties(currentMethod));
+		ifElse.addCommand(0, new Expression("break;\n"));
+		loop.addExpression(ifElse);
 		/**
 		 * DTMC:
 		 * int transitions = 0;
@@ -290,15 +297,24 @@ public abstract class KernelGenerator
 		 * }
 		 */
 		currentMethod.addExpression(loop);
-		CLVariable result = samplingResults[0].varType.accessElement(samplingResults[0], new Expression(globalID.varName));
-		currentMethod.addExpression(ExpressionGenerator.createConditionalAssignment(result.varName, "globalID % 2 == 0", "true", "false"));
-		//currentMethod.addExpression(new Expression("printf(\"%d\\n\",globalID);"));
+		//currentMethod.addExpression(new Expression("printf(\"END: %d %d %d\\n\",stateVector.s,stateVector.d,properties[0].valueKnown);"));
+		//sampleNumber + globalID
+		Expression position = ExpressionGenerator.createBasicExpression(globalID, Operator.ADD, sampleNumber);
+		for (int i = 0; i < properties.size(); ++i) {
+			CLVariable result = samplingResults[i].varType.accessElement(samplingResults[i], position);
+			CLVariable property = propertiesArray.accessElement(ExpressionGenerator.fromString(i)).accessField("propertyState");
+			currentMethod.addExpression(ExpressionGenerator.createAssignment(result, property));
+		}
 		return currentMethod;
 	}
 
 	protected abstract void mainMethodDefineLocalVars(Method currentMethod) throws KernelException;
 
 	protected abstract KernelComponent mainMethodCallUpdate(Method currentMethod);
+
+	protected abstract void mainMethodUpdateTime(Method currentMethod, ComplexKernelComponent parent);
+
+	protected abstract Expression mainMethodCallCheckingProperties(Method currentMethod);
 
 	protected Method createNonsynGuardsMethod() throws KernelException
 	{
@@ -461,9 +477,11 @@ public abstract class KernelGenerator
 		IfElse ifElse = new IfElse(propertiesMethodCreateExpression(property.getRightSide().toString()));
 		ifElse.addCommand(0, ExpressionGenerator.createAssignment(propertyState, "true"));
 		ifElse.addCommand(0, ExpressionGenerator.createAssignment(valueKnown, "true"));
-		ifElse.addElif(ExpressionGenerator.createNegation(propertiesMethodCreateExpression(property.getLeftSide().toString())));
-		ifElse.addCommand(1, ExpressionGenerator.createAssignment(propertyState, "false"));
-		ifElse.addCommand(1, ExpressionGenerator.createAssignment(valueKnown, "true"));
+		if (!(property.getLeftSide() instanceof ExpressionLiteral)) {
+			ifElse.addElif(ExpressionGenerator.createNegation(propertiesMethodCreateExpression(property.getLeftSide().toString())));
+			ifElse.addCommand(1, ExpressionGenerator.createAssignment(propertyState, "false"));
+			ifElse.addCommand(1, ExpressionGenerator.createAssignment(valueKnown, "true"));
+		}
 		return ifElse;
 	}
 

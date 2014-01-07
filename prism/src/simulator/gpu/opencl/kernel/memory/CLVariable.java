@@ -69,6 +69,16 @@ public class CLVariable implements CLValue
 		return new CLVariable(getPointer(), "&" + varName);
 	}
 
+	public CLVariable accessElement(Expression index)
+	{
+		return varType.accessElement(this, index);
+	}
+
+	public CLVariable accessField(String fieldName)
+	{
+		return varType.accessField(this.varName, fieldName);
+	}
+
 	public Expression getName()
 	{
 		return new Expression(varName);

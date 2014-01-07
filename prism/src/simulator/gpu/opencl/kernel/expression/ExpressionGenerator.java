@@ -60,6 +60,11 @@ public class ExpressionGenerator
 		return field != null ? new CLVariable(field.varType, structure.varName + "." + field.varName) : null;
 	}
 
+	static public <T> Expression fromString(T object)
+	{
+		return new Expression(object.toString());
+	}
+
 	static public Expression createAssignment(CLVariable dest, String expr)
 	{
 		Expression ret = createBasicExpression(dest, Operator.AS, expr);
@@ -70,6 +75,11 @@ public class ExpressionGenerator
 	static public Expression createAssignment(CLVariable dest, Expression expr)
 	{
 		return createAssignment(dest, expr.getSource());
+	}
+
+	static public Expression createAssignment(CLVariable dest, CLVariable source)
+	{
+		return createAssignment(dest, source.getName());
 	}
 
 	public enum Operator {

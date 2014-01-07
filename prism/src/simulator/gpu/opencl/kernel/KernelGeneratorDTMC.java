@@ -29,6 +29,7 @@ import java.util.List;
 
 import prism.Preconditions;
 import simulator.gpu.automaton.AbstractAutomaton;
+import simulator.gpu.opencl.kernel.expression.ComplexKernelComponent;
 import simulator.gpu.opencl.kernel.expression.Expression;
 import simulator.gpu.opencl.kernel.expression.ExpressionGenerator;
 import simulator.gpu.opencl.kernel.expression.ExpressionGenerator.Operator;
@@ -71,6 +72,22 @@ public class KernelGeneratorDTMC extends KernelGenerator
 		CLVariable selectionSize = currentMethod.getLocalVar("selectionSize");
 		CLVariable guardsTab = currentMethod.getLocalVar("guardsTab");
 		return update.callMethod(sv.convertToPointer(), guardsTab, selection, selectionSize);
+	}
+
+	@Override
+	protected void mainMethodUpdateTime(Method currentMethod, ComplexKernelComponent parent)
+	{
+		parent.addExpression(ExpressionGenerator.postIncrement(currentMethod.getLocalVar("time")).add(";"));
+	}
+
+	@Override
+	protected Expression mainMethodCallCheckingProperties(Method currentMethod)
+	{
+		CLVariable sv = currentMethod.getLocalVar("stateVector");
+		CLVariable propertiesArray = currentMethod.getLocalVar("properties");
+		Expression call = helperMethods.get(KernelMethods.UPDATE_PROPERTIES).callMethod(sv.convertToPointer(), propertiesArray);
+		String source = call.getSource();
+		return new Expression(source.substring(0, source.indexOf(';')));
 	}
 
 	@Override

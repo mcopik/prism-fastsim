@@ -30,6 +30,7 @@ import java.util.List;
 import prism.Preconditions;
 import simulator.gpu.automaton.AbstractAutomaton;
 import simulator.gpu.automaton.update.Rate;
+import simulator.gpu.opencl.kernel.expression.ComplexKernelComponent;
 import simulator.gpu.opencl.kernel.expression.Expression;
 import simulator.gpu.opencl.kernel.expression.ExpressionGenerator;
 import simulator.gpu.opencl.kernel.expression.ExpressionGenerator.Operator;
@@ -192,6 +193,20 @@ public class KernelGeneratorCTMC extends KernelGenerator
 	@Override
 	protected KernelComponent propertiesMethodAddBoundedUntil(Method currentMethod, SamplerBoolean property, CLVariable propertyVar)
 	{
+		return null;
+	}
+
+	@Override
+	protected void mainMethodUpdateTime(Method currentMethod, ComplexKernelComponent parent)
+	{
+		// TODO Auto-generated method stub
+
+	}
+
+	@Override
+	protected Expression mainMethodCallCheckingProperties(Method currentMethod)
+	{
+		// TODO Auto-generated method stub
 		return null;
 	}
 
