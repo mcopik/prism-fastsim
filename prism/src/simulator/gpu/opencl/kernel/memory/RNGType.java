@@ -115,4 +115,10 @@ public class RNGType implements VariableInterface, UDType
 	{
 		return null;
 	}
+
+	@Override
+	public String declareVar(String varName)
+	{
+		return String.format("%s %s", getType(), varName);
+	}
 }

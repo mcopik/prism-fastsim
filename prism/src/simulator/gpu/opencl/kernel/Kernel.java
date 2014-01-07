@@ -26,6 +26,7 @@
 package simulator.gpu.opencl.kernel;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 
 import simulator.gpu.automaton.AbstractAutomaton;
@@ -35,7 +36,6 @@ import simulator.gpu.opencl.kernel.expression.Include;
 import simulator.gpu.opencl.kernel.expression.KernelComponent;
 import simulator.gpu.opencl.kernel.expression.MemoryTranslatorVisitor;
 import simulator.gpu.opencl.kernel.expression.Method;
-import simulator.gpu.opencl.kernel.memory.CLVariable;
 import simulator.gpu.opencl.kernel.memory.StructureType;
 import simulator.sampler.Sampler;
 
@@ -62,14 +62,6 @@ public class Kernel
 	private List<Include> includes = new ArrayList<>();
 	private StructureType stateVectorType = null;
 	/**
-	 * DTMC:
-	 * struct SynCmdState {
-	 * 	uint8_t numberOfTransitions;
-	 *  bool[] flags;
-	 *  }
-	 */
-	private StructureType synCmdState = null;
-	/**
 	 * Main kernel method.
 	 * INPUT:
 	 * RNG offset
@@ -79,65 +71,8 @@ public class Kernel
 	 */
 	private Method mainMethod = null;
 
-	private enum MethodIndices {
-		/**
-		 * DTMC:
-		 * Return value is number of concurrent transitions.
-		 * int checkGuards(StateVector * sv, bool * guardsTab);
-		 * CTMC:
-		 * Return value is rates sum of transitions in race condition.
-		 * float checkGuards(StateVector * sv, bool * guardsTab);
-		 */
-		CHECK_GUARDS(0),
-		/**
-		 * DTMC:
-		 * Return value is number of concurrent transitions.
-		 * int checkGuardsSyn(StateVector * sv, SynCmdState ** tab);
-		 * CTMC:
-		 * Return value is rates sum of transitions in race condition.
-		 * float checkGuardsSyn(StateVector * sv, SynCmdState * tab);
-		 */
-		CHECK_GUARDS_SYN(1),
-		/**
-		 * DTMC:
-		 * void performUpdate(StateVector * sv, float sumSelection, int allTransitions);
-		 * CTMC:
-		 * void performUpdate(StateVector * sv, float sumSelection,bool * guardsTab);
-		 */
-		PERFORM_UPDATE(2),
-		/**
-		 * DTMC:
-		 * void performUpdateSyn(StateVector * sv, int updateSelection,SynCmdState * tab);
-		 * CTMC:
-		 * void performUpdateSyn(StateVector * sv, float sumSelection,SynCmdState * tab);
-		 */
-		PERFORM_UPDATE_SYN(3),
-		/**
-		 * Return value determines is we can stop simulation(we know all values).
-		 * DTMC:
-		 * bool updateProperties(StateVector * sv,PropertyState * prop,int time);
-		 * CTMC:
-		 * bool updateProperties(StateVector * sv,PropertyState * prop,float time);
-		 */
-		UPDATE_PROPERTIES(4);
-		public final int indice;
-
-		private MethodIndices(int indice)
-		{
-			this.indice = indice;
-		}
-
-		public final static int SIZE = MethodIndices.values().length;
-	}
-
 	private KernelGenerator methodsGenerator = null;
-	private Method helperMethods[] = new Method[MethodIndices.SIZE];
-	private CLVariable stateVector = null;
-	/**
-	 * For CTMC - float. For DTMC - depends on MAX_ITERATIONS.
-	 */
-	private CLVariable timeCounter = null;
-
+	private Collection<Method> helperMethods = null;
 	private List<KernelComponent> globalDeclarations = new ArrayList<>();
 
 	public final static String KERNEL_TYPEDEFS = "typedef char int8_t;\n" + "typedef unsigned char uint8_t;\n" + "typedef unsigned short uint16_t;\n"
@@ -155,10 +90,8 @@ public class Kernel
 			this.methodsGenerator = new KernelGeneratorCTMC(model, properties, config);
 		}
 		stateVectorType = methodsGenerator.getSVType();
-		helperMethods[MethodIndices.CHECK_GUARDS.indice] = methodsGenerator.createNonsynGuardsMethod();
-		helperMethods[MethodIndices.PERFORM_UPDATE.indice] = methodsGenerator.createNonsynUpdate();
-		helperMethods[MethodIndices.UPDATE_PROPERTIES.indice] = methodsGenerator.createPropertiesMethod();
 		mainMethod = methodsGenerator.createMainMethod();
+		helperMethods = methodsGenerator.getHelperMethods();
 		globalDeclarations.addAll(methodsGenerator.getAdditionalDeclarations());
 		generateSource();
 	}

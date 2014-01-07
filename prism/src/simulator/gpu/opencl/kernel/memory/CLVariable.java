@@ -77,7 +77,7 @@ public class CLVariable implements CLValue
 		} else if (memLocation == Location.GLOBAL) {
 			builder.append("__global ");
 		}
-		builder.append(varType.getType()).append(" ").append(varName);
+		builder.append(varType.declareVar(varName));
 		builder.append(";");
 		return new Expression(builder.toString());
 	}
@@ -90,7 +90,7 @@ public class CLVariable implements CLValue
 		} else if (memLocation == Location.GLOBAL) {
 			builder.append("__global ");
 		}
-		builder.append(varType.getType()).append(" ").append(varName);
+		builder.append(varType.declareVar(varName));
 		if (initValue != null) {
 			builder.append(" = ").append(initValue.getSource());
 		}

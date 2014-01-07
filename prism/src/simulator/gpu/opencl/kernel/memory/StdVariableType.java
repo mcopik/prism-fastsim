@@ -174,4 +174,10 @@ public class StdVariableType implements VariableInterface
 	{
 		return null;
 	}
+
+	@Override
+	public String declareVar(String varName)
+	{
+		return String.format("%s %s", getType(), varName);
+	}
 }

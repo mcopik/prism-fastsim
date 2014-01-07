@@ -55,7 +55,7 @@ public class KernelGeneratorCTMC extends KernelGenerator
 	}
 
 	@Override
-	public void mainMethodDefineLocalVars() throws KernelException
+	public void mainMethodDefineLocalVars(Method currentMethod) throws KernelException
 	{
 		CLVariable time = new CLVariable(new StdVariableType(StdType.FLOAT), "time");
 		time.setInitValue(StdVariableType.initialize(0.0f));
@@ -66,7 +66,7 @@ public class KernelGeneratorCTMC extends KernelGenerator
 	}
 
 	@Override
-	protected void guardsMethodCreateLocalVars() throws KernelException
+	protected void guardsMethodCreateLocalVars(Method currentMethod) throws KernelException
 	{
 		CLVariable sum = new CLVariable(new StdVariableType(StdType.FLOAT), "sum");
 		sum.setInitValue(StdVariableType.initialize(0.0f));
@@ -74,13 +74,13 @@ public class KernelGeneratorCTMC extends KernelGenerator
 	}
 
 	@Override
-	protected void guardsMethodCreateSignature()
+	protected Method guardsMethodCreateSignature()
 	{
-		currentMethod = new Method("checkNonsynGuards", new StdVariableType(StdType.FLOAT));
+		return new Method("checkNonsynGuards", new StdVariableType(StdType.FLOAT));
 	}
 
 	@Override
-	protected void guardsMethodCreateCondition(int position, String guard)
+	protected void guardsMethodCreateCondition(Method currentMethod, int position, String guard)
 	{
 		CLVariable guardsTab = currentMethod.getArg("guardsTab");
 		Preconditions.checkNotNull(guardsTab, "");
@@ -98,7 +98,7 @@ public class KernelGeneratorCTMC extends KernelGenerator
 	}
 
 	@Override
-	protected void guardsMethodReturnValue()
+	protected void guardsMethodReturnValue(Method currentMethod)
 	{
 		CLVariable sum = currentMethod.getLocalVar("sum");
 		Preconditions.checkNotNull(sum, "");
@@ -106,7 +106,7 @@ public class KernelGeneratorCTMC extends KernelGenerator
 	}
 
 	@Override
-	protected void updateMethodPerformSelection() throws KernelException
+	protected void updateMethodPerformSelection(Method currentMethod) throws KernelException
 	{
 		CLVariable selection = currentMethod.getLocalVar("selection");
 		CLVariable newSum = currentMethod.getLocalVar("newSum");
@@ -139,7 +139,7 @@ public class KernelGeneratorCTMC extends KernelGenerator
 	}
 
 	@Override
-	protected void updateMethodAdditionalArgs() throws KernelException
+	protected void updateMethodAdditionalArgs(Method currentMethod) throws KernelException
 	{
 		//bool * guardsTab
 		CLVariable guards = new CLVariable(new PointerType(new StdVariableType(0, commands.length)), "guardsTab");
@@ -147,7 +147,7 @@ public class KernelGeneratorCTMC extends KernelGenerator
 	}
 
 	@Override
-	protected void updateMethodLocalVars() throws KernelException
+	protected void updateMethodLocalVars(Method currentMethod) throws KernelException
 	{
 		//float newSum
 		CLVariable newSum = new CLVariable(new StdVariableType(StdType.FLOAT), "newSum");
@@ -159,7 +159,7 @@ public class KernelGeneratorCTMC extends KernelGenerator
 	}
 
 	@Override
-	protected void propertiesMethodTimeArg() throws KernelException
+	protected void propertiesMethodTimeArg(Method currentMethod) throws KernelException
 	{
 		boolean necessaryFlag = false;
 		for (Sampler sampler : properties) {
@@ -177,7 +177,7 @@ public class KernelGeneratorCTMC extends KernelGenerator
 	}
 
 	@Override
-	protected KernelComponent propertiesMethodAddBoundedUntil(SamplerBoolean property, CLVariable propertyVar)
+	protected KernelComponent propertiesMethodAddBoundedUntil(Method currentMethod, SamplerBoolean property, CLVariable propertyVar)
 	{
 		return null;
 	}

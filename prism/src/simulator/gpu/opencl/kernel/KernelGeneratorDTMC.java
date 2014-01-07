@@ -50,7 +50,7 @@ public class KernelGeneratorDTMC extends KernelGenerator
 	}
 
 	@Override
-	public void mainMethodDefineLocalVars() throws KernelException
+	public void mainMethodDefineLocalVars(Method currentMethod) throws KernelException
 	{
 		//number of transitions
 		CLVariable time = new CLVariable(new StdVariableType(0, config.maxPathLength), "time");
@@ -63,18 +63,18 @@ public class KernelGeneratorDTMC extends KernelGenerator
 	}
 
 	@Override
-	protected void guardsMethodCreateLocalVars() throws KernelException
+	protected void guardsMethodCreateLocalVars(Method currentMethod) throws KernelException
 	{
 	}
 
 	@Override
-	protected void guardsMethodCreateSignature()
+	protected Method guardsMethodCreateSignature()
 	{
-		currentMethod = new Method("checkNonsynGuards", new StdVariableType(0, commands.length - 1));
+		return new Method("checkNonsynGuards", new StdVariableType(0, commands.length - 1));
 	}
 
 	@Override
-	protected void guardsMethodCreateCondition(int position, String guard)
+	protected void guardsMethodCreateCondition(Method currentMethod, int position, String guard)
 	{
 		CLVariable guardsTab = currentMethod.getArg("guardsTab");
 		Preconditions.checkNotNull(guardsTab, "");
@@ -87,7 +87,7 @@ public class KernelGeneratorDTMC extends KernelGenerator
 	}
 
 	@Override
-	protected void guardsMethodReturnValue()
+	protected void guardsMethodReturnValue(Method currentMethod)
 	{
 		CLVariable counter = currentMethod.getLocalVar("counter");
 		Preconditions.checkNotNull(counter, "");
@@ -95,7 +95,7 @@ public class KernelGeneratorDTMC extends KernelGenerator
 	}
 
 	@Override
-	protected void updateMethodPerformSelection() throws KernelException
+	protected void updateMethodPerformSelection(Method currentMethod) throws KernelException
 	{
 		CLVariable sum = currentMethod.getArg("selectionSum");
 		CLVariable number = currentMethod.getArg("numberOfCommands");
@@ -108,7 +108,7 @@ public class KernelGeneratorDTMC extends KernelGenerator
 	}
 
 	@Override
-	protected void updateMethodAdditionalArgs() throws KernelException
+	protected void updateMethodAdditionalArgs(Method currentMethod) throws KernelException
 	{
 		//uint numberOfCommands
 		CLVariable numberOfCommands = new CLVariable(new StdVariableType(0, commands.length - 1), "numberOfCommands");
@@ -116,7 +116,7 @@ public class KernelGeneratorDTMC extends KernelGenerator
 	}
 
 	@Override
-	protected void updateMethodLocalVars() throws KernelException
+	protected void updateMethodLocalVars(Method currentMethod) throws KernelException
 	{
 		//selection
 		CLVariable sum = currentMethod.getArg("selectionSum");
@@ -127,7 +127,7 @@ public class KernelGeneratorDTMC extends KernelGenerator
 	}
 
 	@Override
-	protected void propertiesMethodTimeArg() throws KernelException
+	protected void propertiesMethodTimeArg(Method currentMethod) throws KernelException
 	{
 		boolean necessaryFlag = false;
 		for (Sampler sampler : properties) {
@@ -143,7 +143,7 @@ public class KernelGeneratorDTMC extends KernelGenerator
 	}
 
 	@Override
-	protected KernelComponent propertiesMethodAddBoundedUntil(SamplerBoolean property, CLVariable propertyVar)
+	protected KernelComponent propertiesMethodAddBoundedUntil(Method currentMethod, SamplerBoolean property, CLVariable propertyVar)
 	{
 		// TODO Auto-generated method stub
 		return null;

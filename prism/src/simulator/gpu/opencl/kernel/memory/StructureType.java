@@ -179,4 +179,10 @@ public class StructureType implements VariableInterface, UDType
 		CLVariable var = fields.get(fieldName);
 		return new CLVariable(var.varType, varName + "." + fieldName);
 	}
+
+	@Override
+	public String declareVar(String varName)
+	{
+		return String.format("%s %s", typeName, varName);
+	}
 }

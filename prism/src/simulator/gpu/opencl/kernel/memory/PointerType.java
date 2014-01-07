@@ -69,4 +69,10 @@ public class PointerType implements VariableInterface
 	{
 		return new CLVariable(internalType, String.format("%s[%s]", var.varName, index.getSource()));
 	}
+
+	@Override
+	public String declareVar(String varName)
+	{
+		return String.format("%s* %s", internalType.getType(), varName);
+	}
 }

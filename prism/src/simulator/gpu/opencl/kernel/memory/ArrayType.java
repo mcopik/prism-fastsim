@@ -67,4 +67,10 @@ public class ArrayType implements VariableInterface
 	{
 		return new CLVariable(varType, String.format("%s[%s]", var.varName, index.getSource()));
 	}
+
+	@Override
+	public String declareVar(String varName)
+	{
+		return String.format("%s %s[%d]", varType.getType(), varName, length);
+	}
 }

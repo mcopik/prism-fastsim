@@ -26,6 +26,8 @@
 package simulator.gpu.opencl.kernel;
 
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.EnumMap;
 import java.util.List;
 
 import simulator.gpu.automaton.AbstractAutomaton;
@@ -45,6 +47,7 @@ import simulator.gpu.opencl.kernel.expression.KernelComponent;
 import simulator.gpu.opencl.kernel.expression.KernelMethod;
 import simulator.gpu.opencl.kernel.expression.Method;
 import simulator.gpu.opencl.kernel.expression.Switch;
+import simulator.gpu.opencl.kernel.memory.ArrayType;
 import simulator.gpu.opencl.kernel.memory.CLVariable;
 import simulator.gpu.opencl.kernel.memory.CLVariable.Location;
 import simulator.gpu.opencl.kernel.memory.PointerType;
@@ -59,6 +62,62 @@ import simulator.sampler.SamplerUntil;
 
 public abstract class KernelGenerator
 {
+	private enum KernelMethods {
+		/**
+		 * DTMC:
+		 * Return value is number of concurrent transitions.
+		 * int checkGuards(StateVector * sv, bool * guardsTab);
+		 * CTMC:
+		 * Return value is rates sum of transitions in race condition.
+		 * float checkGuards(StateVector * sv, bool * guardsTab);
+		 */
+		CHECK_GUARDS(0),
+		/**
+		 * DTMC:
+		 * Return value is number of concurrent transitions.
+		 * int checkGuardsSyn(StateVector * sv, SynCmdState ** tab);
+		 * CTMC:
+		 * Return value is rates sum of transitions in race condition.
+		 * float checkGuardsSyn(StateVector * sv, SynCmdState * tab);
+		 */
+		CHECK_GUARDS_SYN(1),
+		/**
+		 * DTMC:
+		 * void performUpdate(StateVector * sv, float sumSelection, int allTransitions);
+		 * CTMC:
+		 * void performUpdate(StateVector * sv, float sumSelection,bool * guardsTab);
+		 */
+		PERFORM_UPDATE(2),
+		/**
+		 * DTMC:
+		 * void performUpdateSyn(StateVector * sv, int updateSelection,SynCmdState * tab);
+		 * CTMC:
+		 * void performUpdateSyn(StateVector * sv, float sumSelection,SynCmdState * tab);
+		 */
+		PERFORM_UPDATE_SYN(3),
+		/**
+		 * Return value determines is we can stop simulation(we know all values).
+		 * DTMC:
+		 * bool updateProperties(StateVector * sv,PropertyState * prop);
+		 * OR
+		 * bool updateProperties(StateVector * sv,PropertyState * prop,int time);
+		 * 
+		 * CTMC:
+		 * bool updateProperties(StateVector * sv,PropertyState * prop);
+		 * OR
+		 * bool updateProperties(StateVector * sv,PropertyState * prop,float time, float updated_time);
+		 */
+		UPDATE_PROPERTIES(4);
+		public final int indice;
+
+		private KernelMethods(int indice)
+		{
+			this.indice = indice;
+		}
+
+		public final static int SIZE = KernelMethods.values().length;
+	}
+
 	/**
 	 * struct StateVector {
 	 * 	each_variable;
@@ -72,22 +131,30 @@ public abstract class KernelGenerator
 		type.addVariable(new CLVariable(new StdVariableType(StdType.BOOL), "valueKnown"));
 		PROPERTY_STATE_STRUCTURE = type;
 	}
-	public final static StructureType SYNCMD_STATE_STRUCTURE;
-	static {
-		StructureType type = new StructureType("SynCmdState");
-		type.addVariable(new CLVariable(new StdVariableType(StdType.BOOL), "propertyState"));
-		type.addVariable(new CLVariable(new StdVariableType(StdType.BOOL), "valueKnown"));
-		SYNCMD_STATE_STRUCTURE = type;
-	}
+	/**
+	 * DTMC:
+	 * struct SynCmdState {
+	 * 	uint8_t numberOfTransitions;
+	 *  bool[] flags;
+	 *  }
+	 */
+	protected StructureType synCmdState = null;
 	protected AbstractAutomaton model = null;
 	protected KernelConfig config = null;
 	protected Command commands[] = null;
 	protected SynchronizedCommand synCommands[] = null;
 	protected List<Sampler> properties = null;
 	protected CLVariable stateVector = null;
-	protected Method currentMethod = null;
 	protected List<KernelComponent> additionalDeclarations = new ArrayList<>();
+	protected EnumMap<KernelMethods, Method> helperMethods = new EnumMap<>(KernelMethods.class);
+	protected KernelMethod mainMethod = null;
 
+	/**
+	 * 
+	 * @param model
+	 * @param properties
+	 * @param config
+	 */
 	public KernelGenerator(AbstractAutomaton model, List<Sampler> properties, KernelConfig config)
 	{
 		this.model = model;
@@ -122,6 +189,11 @@ public abstract class KernelGenerator
 		return additionalDeclarations;
 	}
 
+	public Collection<Method> getHelperMethods()
+	{
+		return helperMethods.values();
+	}
+
 	protected void importStateVector()
 	{
 		StateVector sv = model.getStateVector();
@@ -151,7 +223,10 @@ public abstract class KernelGenerator
 
 	public Method createMainMethod() throws KernelException
 	{
-		currentMethod = new KernelMethod();
+		helperMethods.put(KernelMethods.CHECK_GUARDS, createNonsynGuardsMethod());
+		helperMethods.put(KernelMethods.PERFORM_UPDATE, createNonsynUpdate());
+		helperMethods.put(KernelMethods.UPDATE_PROPERTIES, createPropertiesMethod());
+		Method currentMethod = new KernelMethod();
 		//generatorOffset for this set of threads
 		CLVariable generatorOffset = new CLVariable(new StdVariableType(StdType.UINT64), "generatorOffset");
 		currentMethod.addArg(generatorOffset);
@@ -161,6 +236,7 @@ public abstract class KernelGenerator
 		//offset in access into global array of results
 		CLVariable sampleNumber = new CLVariable(new StdVariableType(StdType.UINT32), "sampleNumber");
 		currentMethod.addArg(sampleNumber);
+		//global arrays of results
 		CLVariable samplingResults[] = new CLVariable[properties.size()];
 		for (int i = 0; i < properties.size(); ++i) {
 			samplingResults[i] = new CLVariable(new PointerType(new StdVariableType(StdType.CHAR)), String.format("samplingResults%d", i));
@@ -171,7 +247,11 @@ public abstract class KernelGenerator
 		CLVariable globalID = new CLVariable(new StdVariableType(StdType.UINT32), "globalID");
 		globalID.setInitValue(ExpressionGenerator.assignGlobalID());
 		currentMethod.addLocalVar(globalID);
-		mainMethodDefineLocalVars();
+		//property results
+		CLVariable propertiesArray = new CLVariable(new ArrayType(PROPERTY_STATE_STRUCTURE, properties.size()), "properties");
+		currentMethod.addLocalVar(propertiesArray);
+		mainMethodDefineLocalVars(currentMethod);
+		CLVariable transitions = currentMethod.getLocalVar("transitions");
 		CLVariable rng = new CLVariable(new RNGType(), "rng");
 		currentMethod.addLocalVar(stateVector);
 		currentMethod.registerStateVector(stateVector);
@@ -179,6 +259,7 @@ public abstract class KernelGenerator
 		currentMethod.addExpression(String.format("if(%s >= %s) {\n return;\n}\n", globalID.varName, numberOfSimulations.varName));
 		currentMethod.addExpression(RNGType.initializeGenerator(rng, generatorOffset, Long.toString(config.rngOffset) + "L"));
 		ForLoop loop = new ForLoop("i", 0, config.maxPathLength);
+		//loop.addExpression(ExpressionGenerator.createAssignment(transitions, helperMethods.get(KernelMethods.CHECK_GUARDS).callMethod(args));
 		/**
 		 * DTMC:
 		 * int transitions = 0;
@@ -203,14 +284,14 @@ public abstract class KernelGenerator
 		return currentMethod;
 	}
 
-	public abstract void mainMethodDefineLocalVars() throws KernelException;
+	protected abstract void mainMethodDefineLocalVars(Method currentMethod) throws KernelException;
 
-	public Method createNonsynGuardsMethod() throws KernelException
+	protected Method createNonsynGuardsMethod() throws KernelException
 	{
 		if (commands == null) {
 			return null;
 		}
-		guardsMethodCreateSignature();
+		Method currentMethod = guardsMethodCreateSignature();
 		//StateVector * sv
 		CLVariable sv = new CLVariable(stateVector.getPointer(), "sv");
 		currentMethod.addArg(sv);
@@ -222,33 +303,33 @@ public abstract class KernelGenerator
 		CLVariable counter = new CLVariable(new StdVariableType(0, commands.length), "counter");
 		counter.setInitValue(StdVariableType.initialize(0));
 		currentMethod.addLocalVar(counter);
-		guardsMethodCreateLocalVars();
+		guardsMethodCreateLocalVars(currentMethod);
 		for (int i = 0; i < commands.length; ++i) {
-			guardsMethodCreateCondition(i, commands[i].getGuard().toString().replace("=", "=="));
+			guardsMethodCreateCondition(currentMethod, i, commands[i].getGuard().toString().replace("=", "=="));
 		}
 		//signature last guard
 		CLVariable position = guards.varType.accessElement(guards, new Expression(counter.varName));
 		IfElse ifElse = new IfElse(ExpressionGenerator.createBasicExpression(counter, Operator.NE, Integer.toString(commands.length)));
 		ifElse.addCommand(0, ExpressionGenerator.createAssignment(position, Integer.toString(commands.length)));
 		currentMethod.addExpression(ifElse);
-		guardsMethodReturnValue();
+		guardsMethodReturnValue(currentMethod);
 		return currentMethod;
 	}
 
-	protected abstract void guardsMethodCreateSignature();
+	protected abstract Method guardsMethodCreateSignature();
 
-	protected abstract void guardsMethodCreateLocalVars() throws KernelException;
+	protected abstract void guardsMethodCreateLocalVars(Method currentMethod) throws KernelException;
 
-	protected abstract void guardsMethodCreateCondition(int position, String guard);
+	protected abstract void guardsMethodCreateCondition(Method currentMethod, int position, String guard);
 
-	protected abstract void guardsMethodReturnValue();
+	protected abstract void guardsMethodReturnValue(Method currentMethod);
 
-	public Method createNonsynUpdate() throws KernelException
+	protected Method createNonsynUpdate() throws KernelException
 	{
 		if (commands == null) {
 			return null;
 		}
-		currentMethod = new Method("updateNonsynGuards", new StdVariableType(StdType.VOID));
+		Method currentMethod = new Method("updateNonsynGuards", new StdVariableType(StdType.VOID));
 		//StateVector * sv
 		CLVariable sv = new CLVariable(stateVector.getPointer(), "sv");
 		currentMethod.addArg(sv);
@@ -259,9 +340,9 @@ public abstract class KernelGenerator
 		currentMethod.addArg(selectionSum);
 		CLVariable selection = new CLVariable(new StdVariableType(0, commands.length), "selection");
 		currentMethod.addLocalVar(selection);
-		updateMethodAdditionalArgs();
-		updateMethodLocalVars();
-		updateMethodPerformSelection();
+		updateMethodAdditionalArgs(currentMethod);
+		updateMethodLocalVars(currentMethod);
+		updateMethodPerformSelection(currentMethod);
 		Switch _switch = new Switch(new Expression(selection.varName));
 		int switchCounter = 0;
 		for (int i = 0; i < commands.length; ++i) {
@@ -292,14 +373,15 @@ public abstract class KernelGenerator
 		return currentMethod;
 	}
 
-	protected abstract void updateMethodPerformSelection() throws KernelException;
+	protected abstract void updateMethodPerformSelection(Method currentMethod) throws KernelException;
 
-	protected abstract void updateMethodAdditionalArgs() throws KernelException;
+	protected abstract void updateMethodAdditionalArgs(Method currentMethod) throws KernelException;
 
-	protected abstract void updateMethodLocalVars() throws KernelException;
+	protected abstract void updateMethodLocalVars(Method currentMethod) throws KernelException;
 
-	public Method createPropertiesMethod() throws KernelException
+	protected Method createPropertiesMethod() throws KernelException
 	{
+		Method currentMethod = new Method("updateNonsynGuards", new StdVariableType(StdType.VOID));
 		currentMethod = new Method("checkProperties", new StdVariableType(StdType.BOOL));
 		//StateVector * sv
 		CLVariable sv = new CLVariable(stateVector.getPointer(), "sv");
@@ -308,7 +390,7 @@ public abstract class KernelGenerator
 		//PropertyState * property
 		CLVariable propertyState = new CLVariable(new PointerType(PROPERTY_STATE_STRUCTURE), "propertyState");
 		currentMethod.addArg(propertyState);
-		propertiesMethodTimeArg();
+		propertiesMethodTimeArg(currentMethod);
 		CLVariable time = currentMethod.getArg("time");
 		//uint counter
 		CLVariable counter = new CLVariable(new StdVariableType(0, properties.size()), "counter");
@@ -326,11 +408,11 @@ public abstract class KernelGenerator
 			IfElse ifElse = new IfElse(ExpressionGenerator.createNegation(valueKnown.getName()));
 			ifElse.addCommand(0, ExpressionGenerator.createAssignment(allKnown, "false"));
 			if (property instanceof SamplerNext) {
-				ifElse.addCommand(0, propertiesMethodAddNext((SamplerNext) property, currentProperty));
+				ifElse.addCommand(0, propertiesMethodAddNext(currentMethod, (SamplerNext) property, currentProperty));
 			} else if (property instanceof SamplerUntil) {
-				ifElse.addCommand(0, propertiesMethodAddUntil((SamplerUntil) property, currentProperty));
+				ifElse.addCommand(0, propertiesMethodAddUntil(currentMethod, (SamplerUntil) property, currentProperty));
 			} else {
-				ifElse.addCommand(0, propertiesMethodAddBoundedUntil((SamplerBoolean) property, currentProperty));
+				ifElse.addCommand(0, propertiesMethodAddBoundedUntil(currentMethod, (SamplerBoolean) property, currentProperty));
 			}
 			currentMethod.addExpression(ifElse);
 		}
@@ -338,9 +420,9 @@ public abstract class KernelGenerator
 		return currentMethod;
 	}
 
-	protected abstract void propertiesMethodTimeArg() throws KernelException;
+	protected abstract void propertiesMethodTimeArg(Method currentMethod) throws KernelException;
 
-	protected KernelComponent propertiesMethodAddNext(SamplerNext property, CLVariable propertyVar)
+	protected KernelComponent propertiesMethodAddNext(Method currentMethod, SamplerNext property, CLVariable propertyVar)
 	{
 		CLVariable valueKnown = propertyVar.varType.accessField(propertyVar.varName, "valueKnown");
 		CLVariable propertyState = propertyVar.varType.accessField(propertyVar.varName, "propertyState");
@@ -353,7 +435,7 @@ public abstract class KernelGenerator
 		return ifElse;
 	}
 
-	protected KernelComponent propertiesMethodAddUntil(SamplerUntil property, CLVariable propertyVar)
+	protected KernelComponent propertiesMethodAddUntil(Method currentMethod, SamplerUntil property, CLVariable propertyVar)
 	{
 
 		CLVariable valueKnown = propertyVar.varType.accessField(propertyVar.varName, "valueKnown");
@@ -367,7 +449,7 @@ public abstract class KernelGenerator
 		return ifElse;
 	}
 
-	protected abstract KernelComponent propertiesMethodAddBoundedUntil(SamplerBoolean property, CLVariable propertyVar);
+	protected abstract KernelComponent propertiesMethodAddBoundedUntil(Method currentMethod, SamplerBoolean property, CLVariable propertyVar);
 
 	protected Expression propertiesMethodCreateExpression(String expr)
 	{

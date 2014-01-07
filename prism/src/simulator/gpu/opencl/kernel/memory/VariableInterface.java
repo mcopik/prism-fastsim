@@ -37,5 +37,7 @@ public interface VariableInterface
 
 	public CLVariable accessElement(CLVariable var, Expression index);
 
+	String declareVar(String varName);
+
 	String getType();
 }
