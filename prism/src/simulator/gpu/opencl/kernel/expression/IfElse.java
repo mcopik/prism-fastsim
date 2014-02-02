@@ -73,7 +73,7 @@ public class IfElse extends ComplexKernelComponent
 		}
 
 		@Override
-		public Expression getDeclaration()
+		public KernelComponent getDeclaration()
 		{
 			return null;
 		}
@@ -160,7 +160,7 @@ public class IfElse extends ComplexKernelComponent
 	 * @see simulator.gpu.opencl.kernel.expression.ComplexKernelComponent#getDeclaration()
 	 */
 	@Override
-	public Expression getDeclaration()
+	public KernelComponent getDeclaration()
 	{
 		return null;
 	}

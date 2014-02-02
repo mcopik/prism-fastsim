@@ -4,6 +4,7 @@
 package simulator.gpu.opencl.kernel.expression;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -49,6 +50,9 @@ public abstract class ComplexKernelComponent implements KernelComponent
 	public void addExpression(KernelComponent expr)
 	{
 		body.add(expr);
+		if (expr.hasIncludes()) {
+			necessaryIncludes.addAll(expr.getIncludes());
+		}
 	}
 
 	public void addExpression(String expr)
@@ -64,6 +68,16 @@ public abstract class ComplexKernelComponent implements KernelComponent
 				necessaryIncludes.addAll(list);
 			}
 		}
+	}
+
+	public void addInclude(Include include)
+	{
+		necessaryIncludes.add(include);
+	}
+
+	public void addInclude(Collection<Include> includes)
+	{
+		necessaryIncludes.addAll(includes);
 	}
 
 	/* (non-Javadoc)
@@ -94,7 +108,7 @@ public abstract class ComplexKernelComponent implements KernelComponent
 	 * @see simulator.gpu.opencl.kernel.expression.KernelComponent#getDeclaration()
 	 */
 	@Override
-	public abstract Expression getDeclaration();
+	public abstract KernelComponent getDeclaration();
 
 	/* (non-Javadoc)
 	 * @see simulator.gpu.opencl.kernel.expression.KernelComponent#accept(simulator.gpu.opencl.kernel.expression.VisitorInterface)

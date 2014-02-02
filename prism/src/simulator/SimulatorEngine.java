@@ -307,8 +307,10 @@ public class SimulatorEngine implements ModelCheckInterface
 		TransitionList transitions = getTransitionList();
 		// Check for deadlock; if so, stop and return false
 		numChoices = transitions.getNumChoices();
-		if (numChoices == 0)
+		if (numChoices == 0) {
+			mainLog.println("Deadlock found at state " + path.getCurrentState().toString(modulesFile));
 			return false;
+		}
 		//throw new PrismException("Deadlock found at state " + path.getCurrentState().toString(modulesFile));
 
 		switch (modelType) {
@@ -1624,6 +1626,7 @@ public class SimulatorEngine implements ModelCheckInterface
 		double time_taken;
 
 		// Start
+		long start2 = System.currentTimeMillis();
 		start = System.currentTimeMillis();
 		mainLog.print("\nSampling progress: [");
 		mainLog.flush();
@@ -1635,12 +1638,18 @@ public class SimulatorEngine implements ModelCheckInterface
 			// See if all properties are done; if so, stop sampling
 			allDone = true;
 			for (Sampler sampler : propertySamplers) {
-				if (!sampler.getSimulationMethod().shouldStopNow(iters, sampler))
+				if (!sampler.getSimulationMethod().shouldStopNow(iters, sampler)) {
 					allDone = false;
+				}
 			}
-			if (allDone)
-				break;
+			if (allDone) {
 
+				break;
+			}
+			if (iters % 10000 == 0) {
+				mainLog.println(String.format("Time %f - %d iterations", (System.currentTimeMillis() - start2) / 1000.0, iters));
+				start2 = System.currentTimeMillis();
+			}
 			// Display progress (of slowest property)
 			percentageDone = 0;
 			for (Sampler sampler : propertySamplers) {
@@ -1662,6 +1671,9 @@ public class SimulatorEngine implements ModelCheckInterface
 			someUnknownButBounded = false;
 			i = 0;
 			while ((!allKnown && i < maxPathLength) || someUnknownButBounded) {
+				if (iters == 249 && i == 2999) {
+					mainLog.println('o');
+				}
 				// Check status of samplers
 				allKnown = true;
 				someUnknownButBounded = false;
@@ -1677,8 +1689,11 @@ public class SimulatorEngine implements ModelCheckInterface
 				if ((allKnown || i >= maxPathLength) && !someUnknownButBounded)
 					break;
 				// Make a random transition
-				automaticTransition();
+				if (!automaticTransition()) {
+					//	break;
+				}
 				i++;
+				System.out.println(String.format("sample %d, iteration %d", iters, i));
 			}
 
 			// TODO: Detect deadlocks so we can report a warning

@@ -25,6 +25,7 @@
 //==============================================================================
 package simulator.gpu.opencl.kernel.expression;
 
+import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -56,6 +57,13 @@ public class Method extends ComplexKernelComponent
 		}
 		args.put(var.varName, var);
 		updateIncludes(var);
+	}
+
+	public void addArg(Collection<CLVariable> vars) throws KernelException
+	{
+		for (CLVariable var : vars) {
+			addArg(var);
+		}
 	}
 
 	public int getArgsSize()
@@ -102,7 +110,7 @@ public class Method extends ComplexKernelComponent
 	}
 
 	@Override
-	public Expression getDeclaration()
+	public KernelComponent getDeclaration()
 	{
 		return new Expression(createHeader() + ";");
 	}

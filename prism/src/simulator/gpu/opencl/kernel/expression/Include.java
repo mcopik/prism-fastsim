@@ -69,7 +69,7 @@ public class Include implements KernelComponent
 	 * @see simulator.gpu.opencl.kernel.KernelComponent#getDeclaration()
 	 */
 	@Override
-	public Expression getDeclaration()
+	public KernelComponent getDeclaration()
 	{
 		return null;
 	}

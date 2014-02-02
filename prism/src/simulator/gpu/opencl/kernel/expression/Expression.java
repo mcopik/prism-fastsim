@@ -80,7 +80,7 @@ public class Expression implements KernelComponent
 	}
 
 	@Override
-	public Expression getDeclaration()
+	public KernelComponent getDeclaration()
 	{
 		return null;
 	}

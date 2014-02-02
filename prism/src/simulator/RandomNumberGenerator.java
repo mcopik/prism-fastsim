@@ -27,8 +27,6 @@
 
 package simulator;
 
-import java.util.Date;
-
 import cern.jet.random.Exponential;
 import cern.jet.random.Uniform;
 import cern.jet.random.engine.MersenneTwister;
@@ -48,7 +46,7 @@ public class RandomNumberGenerator
 	 */
 	public RandomNumberGenerator()
 	{
-		random = new MersenneTwister(new Date());
+		random = new MersenneTwister(0);//new Date());
 		uniform = new Uniform(random);
 		// Create exponential generator (rate 1.0 but this is ignored from now on)
 		exponential = new Exponential(1.0, random);

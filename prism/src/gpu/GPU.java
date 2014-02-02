@@ -2,7 +2,7 @@
 //	
 //	Copyright (c) 2002-
 //	Authors:
-//	* Marcin Copik <mcopik@gmail.com> (Silesian University of Technology)
+//	* Mar
 //	
 //------------------------------------------------------------------------------
 //	
@@ -23,21 +23,23 @@
 //	Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 //	
 //==============================================================================
-package simulator.gpu.opencl.kernel.memory;
 
-import simulator.gpu.opencl.kernel.expression.Expression;
+package gpu;
 
-public interface VariableInterface
+public class GPU
 {
-	boolean isStructure();
+	//------------------------------------------------------------------------------
+	// Load JNI stuff from shared library
+	//------------------------------------------------------------------------------
 
-	public CLVariable accessField(String varName, String fieldName);
+	static {
+		try {
+			System.loadLibrary("gpu");
+		} catch (UnsatisfiedLinkError e) {
+			System.out.println(e);
+			System.exit(1);
+		}
+	}
 
-	boolean isArray();
-
-	public CLVariable accessElement(CLVariable var, Expression index);
-
-	String declareVar(String varName);
-
-	String getType();
+	public static native int[] initializeMersenneTwister(int numberOfWorkgroups, int seed);
 }

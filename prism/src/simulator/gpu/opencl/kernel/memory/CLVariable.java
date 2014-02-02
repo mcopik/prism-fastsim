@@ -36,6 +36,7 @@ public class CLVariable implements CLValue
 	public final String varName;
 	public final VariableInterface varType;
 	private Expression initValue = null;
+	private boolean dontDeclare = false;
 	public Location memLocation = Location.REGISTER;
 
 	public CLVariable(VariableInterface varType, String varName)
@@ -47,6 +48,11 @@ public class CLVariable implements CLValue
 	public void setMemoryLocation(Location loc)
 	{
 		memLocation = loc;
+	}
+
+	public void dontDeclareVar()
+	{
+		dontDeclare = true;
 	}
 
 	public void setInitValue(CLValue value)
@@ -91,6 +97,9 @@ public class CLVariable implements CLValue
 
 	public Expression getDeclaration()
 	{
+		if (dontDeclare) {
+			return new Expression("");
+		}
 		StringBuilder builder = new StringBuilder();
 		if (memLocation == Location.LOCAL) {
 			builder.append("__local ");
@@ -104,6 +113,9 @@ public class CLVariable implements CLValue
 
 	public Expression getDefinition()
 	{
+		if (dontDeclare) {
+			return new Expression("");
+		}
 		StringBuilder builder = new StringBuilder();
 		if (memLocation == Location.LOCAL) {
 			builder.append("__local ");

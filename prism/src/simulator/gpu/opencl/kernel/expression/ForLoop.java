@@ -31,6 +31,7 @@ import simulator.gpu.opencl.kernel.memory.StdVariableType;
 
 public class ForLoop extends ComplexKernelComponent
 {
+	private Expression definition;
 	private CLVariable counter;
 	private String endValue = null;
 	boolean decreasing = false;
@@ -38,13 +39,23 @@ public class ForLoop extends ComplexKernelComponent
 	public ForLoop(CLVariable counter, boolean decreasing)
 	{
 		this.counter = counter;
+		definition = new Expression(";");
 		this.decreasing = decreasing;
+	}
+
+	public ForLoop(CLVariable counter, long startValue, long endValue)
+	{
+		this.counter = counter;
+		definition = ExpressionGenerator.createAssignment(counter, new Expression("0"));
+		counter.setInitValue(StdVariableType.initialize(startValue));
+		this.endValue = Long.toString(endValue);
 	}
 
 	public ForLoop(String counterName, long startValue, long endValue)
 	{
 		counter = new CLVariable(new StdVariableType(startValue, endValue), counterName);
 		counter.setInitValue(StdVariableType.initialize(startValue));
+		definition = counter.getDefinition();
 		this.endValue = Long.toString(endValue);
 	}
 
@@ -69,7 +80,7 @@ public class ForLoop extends ComplexKernelComponent
 	}
 
 	@Override
-	public Expression getDeclaration()
+	public KernelComponent getDeclaration()
 	{
 		return null;
 	}
@@ -90,7 +101,7 @@ public class ForLoop extends ComplexKernelComponent
 	{
 		StringBuilder builder = new StringBuilder("for(");
 		if (endValue != null) {
-			builder.append(counter.getDefinition());
+			builder.append(definition);
 			if (decreasing) {
 				builder.append(ExpressionGenerator.createBasicExpression(counter, Operator.GT, endValue));
 			} else {

@@ -16,15 +16,16 @@ public class KernelConfig
 	public long maxPathLength = DEFAULT_MAX_PATH_LENGTH;
 	static public final int DEFAULT_SAMPLE_OFFSET = 0;
 	public int sampleOffset = DEFAULT_SAMPLE_OFFSET;
-	/**
-	 * Equals to 2^40 - which gives interval fpr 2^23 samples.
-	 */
-	static public final long DEFAULT_RNG_OFFSET = 1099511627776L;
-	public long rngOffset = DEFAULT_RNG_OFFSET;
 	public State initialState = null;
 	public Type deviceType = Type.CPU;
 	public int registerCount = 0;
 	public long localMemorySize = 0;
+	public PRNGType prngType = null;
+	public long prngSeed = 0;
+
+	public enum PRNG {
+		MERSENNE_TWISTER, MWC64X
+	}
 
 	public KernelConfig()
 	{
@@ -34,11 +35,12 @@ public class KernelConfig
 	{
 		this.globalWorkSize = config.globalWorkSize;
 		this.maxPathLength = config.maxPathLength;
-		this.rngOffset = config.rngOffset;
 		this.initialState = config.initialState;
 		this.deviceType = config.deviceType;
 		this.registerCount = config.registerCount;
 		this.localMemorySize = config.localMemorySize;
+		this.prngType = config.prngType;
+		this.prngSeed = config.prngSeed;
 	}
 
 	public void configDevice(CLDeviceWrapper dev) throws KernelException

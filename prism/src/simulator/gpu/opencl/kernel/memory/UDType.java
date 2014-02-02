@@ -8,7 +8,7 @@ import java.util.List;
 import simulator.gpu.opencl.kernel.expression.Expression;
 import simulator.gpu.opencl.kernel.expression.Include;
 
-public interface UDType
+public interface UDType extends VariableInterface
 {
 	List<Include> getIncludes();
 

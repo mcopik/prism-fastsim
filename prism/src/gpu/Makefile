@@ -9,18 +9,30 @@
 
 # Reminder: $@ = target, $* = target without extension, $< = dependency
 
-THIS_DIR = simulator
+THIS_DIR = gpu
 PRISM_DIR_REL = ../..
 
-JAVA_FILES_ALL = $(wildcard *.java sampler/*.java networking/*.java)
-JAVA_FILES = $(patsubst %package-info.java,,$(JAVA_FILES_ALL))
+INCLUDES = \
+-I"$(JAVA_JNI_H_DIR)" \
+-I"$(JAVA_JNI_MD_H_DIR)" \
+-I$(PRISM_DIR_REL)/$(INCLUDE_DIR)
+
+LIBRARIES = \
+-L$(PRISM_DIR_REL)/$(LIB_DIR) \
+-lOpenCL
+
+JAVA_FILES_ALL = $(wildcard *.java)
+JAVA_FILES = $(subst package-info.java,,$(JAVA_FILES_ALL))
 CLASS_FILES = $(JAVA_FILES:%.java=$(PRISM_DIR_REL)/$(CLASSES_DIR)/$(THIS_DIR)/%.class)
 
 PRISM_CLASSPATH = "$(THIS_DIR)/$(PRISM_DIR_REL)/$(CLASSES_DIR)$(CLASSPATHSEP)$(THIS_DIR)/$(PRISM_DIR_REL)/lib/*"
 
+CC_FILES = $(wildcard *.cc)
+O_FILES = $(CC_FILES:%.cc=$(PRISM_DIR_REL)/$(OBJ_DIR)/$(THIS_DIR)/%.o)
+
 default: all
 
-all: checks $(CLASS_FILES) gpu
+all: checks $(CLASS_FILES) $(PRISM_DIR_REL)/$(INCLUDE_DIR)/GPU.h $(PRISM_DIR_REL)/$(LIB_DIR)/$(LIBPREFIX)gpu$(LIBSUFFIX)
 
 # Try and prevent accidental makes (i.e. called manually, not from top-level Makefile)
 checks:
@@ -31,8 +43,17 @@ checks:
 $(PRISM_DIR_REL)/$(CLASSES_DIR)/$(THIS_DIR)/%.class: %.java
 	(cd ..; $(JAVAC) -sourcepath $(THIS_DIR)/$(PRISM_DIR_REL)/$(SRC_DIR) -classpath $(PRISM_CLASSPATH) -d $(THIS_DIR)/$(PRISM_DIR_REL)/$(CLASSES_DIR) $(THIS_DIR)/$<)
 
+$(PRISM_DIR_REL)/$(INCLUDE_DIR)/GPU.h: $(PRISM_DIR_REL)/$(CLASSES_DIR)/$(THIS_DIR)/GPU.class
+	($(JAVAH) -classpath $(PRISM_DIR_REL)/$(CLASSES_DIR) -jni -o $@ $(THIS_DIR).GPU; touch $@)
+
+$(PRISM_DIR_REL)/$(LIB_DIR)/$(LIBPREFIX)gpu$(LIBSUFFIX): $(O_FILES)
+	$(LD) $(SHARED) $(LDFLAGS) -o $@ $(O_FILES) $(LIBRARIES)
+
+$(PRISM_DIR_REL)/$(OBJ_DIR)/$(THIS_DIR)/%.o: %.cc
+	$(CPP) $(CPPFLAGS) -c $< -o $@ $(INCLUDES)
+
 clean: checks
-	@rm -f $(CLASS_FILES) $(PRISM_DIR_REL)/$(LIB_DIR)/$(LIBPREFIX)simengine$(LIBSUFFIX) $(O_FILES)
+	@rm -f $(CLASS_FILES) $(PRISM_DIR_REL)/$(LIB_DIR)/$(LIBPREFIX)gpu$(LIBSUFFIX) $(O_FILES)
 
 celan: clean
 

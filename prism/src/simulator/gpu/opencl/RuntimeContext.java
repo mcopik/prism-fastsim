@@ -29,6 +29,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import org.bridj.NativeList;
+import org.bridj.Pointer;
 
 import prism.PrismLog;
 import simulator.gpu.automaton.AbstractAutomaton;
@@ -36,11 +37,11 @@ import simulator.gpu.opencl.kernel.Kernel;
 import simulator.gpu.opencl.kernel.KernelConfig;
 import simulator.gpu.opencl.kernel.KernelException;
 import simulator.sampler.Sampler;
-import simulator.sampler.SamplerBoolean;
 
 import com.nativelibs4java.opencl.CLBuffer;
 import com.nativelibs4java.opencl.CLBuildException;
 import com.nativelibs4java.opencl.CLContext;
+import com.nativelibs4java.opencl.CLEvent;
 import com.nativelibs4java.opencl.CLKernel;
 import com.nativelibs4java.opencl.CLMem;
 import com.nativelibs4java.opencl.CLProgram;
@@ -82,20 +83,24 @@ public class RuntimeContext
 	public void runSimulation(int numberOfSamples, PrismLog mainLog)
 	{
 		//TODO: ERASE THIS!
-		numberOfSamples = 100000;
+		numberOfSamples = 1000000;
+		//config.globalWorkSize = 10000;
 		mainLog.println(kernel.getSource());
+		mainLog.flush();
 		try {
 			int samplesProcessed = 0;
 			CLProgram program = context.createProgram(kernel.getSource());
-			long offset = config.sampleOffset * config.rngOffset;
 			List<CLBuffer<Byte>> resultBuffers = new ArrayList<>();
-
-			program.addInclude("include/");
-			program.addInclude("classes/include/");
+			//CLBuffer<Integer> pathLenghts = context.createIntBuffer(CLMem.Usage.Output, numberOfSamples);
+			Pointer<Integer> pathLengthsData = Pointer.allocateInts((long) numberOfSamples);
+			CLBuffer<Integer> pathLengths = context.createBuffer(CLMem.Usage.Output, pathLengthsData, true);
+			program.addInclude("src/gpu/");
+			program.addInclude("classes/gpu/");
 			program.build();
 			CLKernel programKernel = program.createKernel("main");
 			CLQueue queue = context.createDefaultProfilingQueue();
 			int localWorkSize = programKernel.getWorkGroupSize().get(currentDevice.getDevice()).intValue();
+			localWorkSize = 128;
 			int globalWorkSize = 0;
 
 			if (config.globalWorkSize > numberOfSamples) {
@@ -106,16 +111,18 @@ public class RuntimeContext
 			for (int i = 0; i < properties.size(); ++i) {
 				resultBuffers.add(context.createByteBuffer(CLMem.Usage.Output, numberOfSamples));
 			}
-
 			while (samplesProcessed < numberOfSamples) {
 				int currentGWSize = (int) Math.min(globalWorkSize, numberOfSamples - samplesProcessed);
-				programKernel.setArg(0, offset);
+				//programKernel.setArg(0, offset);
+
+				config.prngType.setKernelArg(programKernel, 0, samplesProcessed, globalWorkSize, localWorkSize);
 				programKernel.setArg(1, currentGWSize);
 				programKernel.setArg(2, samplesProcessed);
-
-				for (int i = 0; i < properties.size(); ++i) {
-					programKernel.setObjectArg(i + 3, resultBuffers.get(i));
-				}
+				programKernel.setArg(3, pathLengths);
+				/*
+					for (int i = 0; i < properties.size(); ++i) {
+						programKernel.setObjectArg(i + 4, resultBuffers.get(i));
+					}*/
 				long start = System.nanoTime();
 				/*
 				programKernel.enqueueNDRange(queue,
@@ -124,21 +131,36 @@ public class RuntimeContext
 				//local work size
 				new int[] { (int) localWorkSize });*/
 
-				programKernel.enqueueNDRange(queue,
+				CLEvent kernelCompletion = programKernel.enqueueNDRange(queue,
 				//global work size
-						new int[] { roundUp(localWorkSize, currentGWSize) });
+						new int[] { globalWorkSize }, new int[] { localWorkSize });
+				//new int[] { roundUp(localWorkSize, currentGWSize) });
+				kernelCompletion.waitFor();
+				mainLog.println((kernelCompletion.getProfilingCommandEnd() - kernelCompletion.getProfilingCommandStart()) / 100000);
 				queue.finish();
 				mainLog.println(String.format("%d samples done - time %d ms", roundUp(localWorkSize, currentGWSize), (System.nanoTime() - start) / 1000000));
-				offset += config.rngOffset * currentGWSize;
 				samplesProcessed += currentGWSize;
 			}
+			/*
 			for (int i = 0; i < resultBuffers.size(); ++i) {
 				NativeList<Byte> bytes = resultBuffers.get(i).read(queue).asList();
 				SamplerBoolean sampler = (SamplerBoolean) properties.get(i);
 				for (int j = 0; j < bytes.size(); ++j) {
 					sampler.addSample(bytes.get(j) == 1);
 				}
+			}*/
+			NativeList<Integer> lengths = pathLengths.read(queue).asList();
+			int minPathFound = 1000000;
+			int maxPathFound = 0;
+			long sum = 0;
+			for (Integer i : lengths) {
+				sum += i;
+				minPathFound = Math.min(minPathFound, i);
+				maxPathFound = Math.max(maxPathFound, i);
 			}
+			mainLog.println(((float) sum) / numberOfSamples);
+			mainLog.println(maxPathFound);
+			mainLog.println(minPathFound);
 			for (CLBuffer<Byte> buffer : resultBuffers) {
 				buffer.release();
 			}

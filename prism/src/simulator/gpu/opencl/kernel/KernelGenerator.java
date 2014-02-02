@@ -54,7 +54,6 @@ import simulator.gpu.opencl.kernel.memory.CLValue;
 import simulator.gpu.opencl.kernel.memory.CLVariable;
 import simulator.gpu.opencl.kernel.memory.CLVariable.Location;
 import simulator.gpu.opencl.kernel.memory.PointerType;
-import simulator.gpu.opencl.kernel.memory.RNGType;
 import simulator.gpu.opencl.kernel.memory.StdVariableType;
 import simulator.gpu.opencl.kernel.memory.StdVariableType.StdType;
 import simulator.gpu.opencl.kernel.memory.StructureType;
@@ -230,22 +229,18 @@ public abstract class KernelGenerator
 		helperMethods.put(KernelMethods.PERFORM_UPDATE, createNonsynUpdate());
 		helperMethods.put(KernelMethods.UPDATE_PROPERTIES, createPropertiesMethod());
 		Method currentMethod = new KernelMethod();
-		//generatorOffset for this set of threads
-		CLVariable generatorOffset = new CLVariable(new StdVariableType(StdType.UINT64), "generatorOffset");
-		currentMethod.addArg(generatorOffset);
+		PRNGType prngType = config.prngType;
+		currentMethod.addArg(prngType.getAdditionalInput());
 		//number of simulations in this iteration
 		CLVariable numberOfSimulations = new CLVariable(new StdVariableType(StdType.UINT32), "numberOfSimulations");
 		currentMethod.addArg(numberOfSimulations);
 		//offset in access into global array of results
 		CLVariable sampleNumber = new CLVariable(new StdVariableType(StdType.UINT32), "sampleNumber");
 		currentMethod.addArg(sampleNumber);
-		//global arrays of results
-		CLVariable samplingResults[] = new CLVariable[properties.size()];
-		for (int i = 0; i < properties.size(); ++i) {
-			samplingResults[i] = new CLVariable(new PointerType(new StdVariableType(StdType.CHAR)), String.format("samplingResults%d", i));
-			samplingResults[i].memLocation = Location.GLOBAL;
-			currentMethod.addArg(samplingResults[i]);
-		}
+		//offset in access into global array of results
+		CLVariable pathLengths = new CLVariable(new PointerType(new StdVariableType(StdType.UINT32)), "pathLenghts");
+		pathLengths.memLocation = Location.GLOBAL;
+		currentMethod.addArg(pathLengths);
 		//global ID of thread
 		CLVariable globalID = new CLVariable(new StdVariableType(StdType.UINT32), "globalID");
 		globalID.setInitValue(ExpressionGenerator.assignGlobalID());
@@ -269,28 +264,29 @@ public abstract class KernelGenerator
 		//selection
 		CLVariable selection = new CLVariable(new StdVariableType(StdType.FLOAT), "selection");
 		currentMethod.addLocalVar(selection);
+		//selection
+		CLVariable loopCounter = new CLVariable(new StdVariableType(StdType.UINT32), "i");
+		currentMethod.addLocalVar(loopCounter);
 		mainMethodDefineLocalVars(currentMethod);
 		CLVariable selectionSize = currentMethod.getLocalVar("selectionSize");
-		CLVariable rng = new CLVariable(new RNGType(), "rng");
 		currentMethod.addLocalVar(stateVector);
 		currentMethod.registerStateVector(stateVector);
-		currentMethod.addLocalVar(rng);
-		currentMethod.addExpression(String.format("if(%s >= %s) {\n return;\n}\n", globalID.varName, numberOfSimulations.varName));
-		currentMethod.addExpression(RNGType.initializeGenerator(rng, generatorOffset, Long.toString(config.rngOffset) + "L"));
-		ForLoop loop = new ForLoop("i", 0, config.maxPathLength);
+		//currentMethod.addExpression(String.format("if(%s >= %s) {\n return;\n}\n", globalID.varName, numberOfSimulations.varName));
+		currentMethod.addExpression(prngType.initializeGenerator());
+		ForLoop loop = new ForLoop(loopCounter, (long) 0, config.maxPathLength);
 		/*currentMethod.addExpression(new Expression(
 				"properties[0].valueKnown = false; printf(\"START: %d %d %d\\n\",stateVector.s,stateVector.d,properties[0].valueKnown);"));
 		*/
 		//ForLoop loop = new ForLoop("i", 0, 15);
 		Expression callCheckGuards = helperMethods.get(KernelMethods.CHECK_GUARDS).callMethod(stateVector.convertToPointer(), guards);
 		loop.addExpression(ExpressionGenerator.createAssignment(selectionSize, callCheckGuards));
-		loop.addExpression(RNGType.assignRandomFloat(rng, selection, selectionSize));
+		loop.addExpression(prngType.assignRandomFloat(selection, selectionSize));
 		loop.addExpression(mainMethodCallUpdate(currentMethod));
 		mainMethodUpdateTime(currentMethod, loop);
 		IfElse ifElse = new IfElse(mainMethodCallCheckingProperties(currentMethod));
-		//ifElse.addCommand(0, new Expression("printf(\"END: %d %d\\n\",i,properties[0].valueKnown);"));
 		ifElse.addCommand(0, new Expression("break;\n"));
 		loop.addExpression(ifElse);
+		//ifElse.addCommand(0, new Expression("printf(\"END: %d %d\\n\",i,properties[0].valueKnown);"));
 		/**
 		 * DTMC:
 		 * int transitions = 0;
@@ -309,13 +305,25 @@ public abstract class KernelGenerator
 		 * }
 		 */
 		currentMethod.addExpression(loop);
+		IfElse ifElse2 = new IfElse(new Expression("s == 7"));
+		ifElse2.addCommand(0, new Expression("break;\n"));
+		loop.addExpression(ifElse2);
 		//sampleNumber + globalID
 		Expression position = ExpressionGenerator.createBasicExpression(globalID, Operator.ADD, sampleNumber);
 		for (int i = 0; i < properties.size(); ++i) {
-			CLVariable result = samplingResults[i].varType.accessElement(samplingResults[i], position);
+			CLVariable result = pathLengths.varType.accessElement(pathLengths, position);
 			CLVariable property = propertiesArray.accessElement(ExpressionGenerator.fromString(i)).accessField("propertyState");
 			currentMethod.addExpression(ExpressionGenerator.createAssignment(result, property));
 		}
+		currentMethod.addExpression(prngType.deinitializeGenerator());
+		//CLVariable result = pathLenghts.accessElement(position);
+		//currentMethod.addExpression("printf(\"%d\\n\",globalID+sampleNumber);");
+		//currentMethod.addExpression(prngType.assignRandomInt(rng, result, 10));
+
+		if (prngType.getAdditionalDefinitions() != null) {
+			additionalDeclarations.addAll(prngType.getAdditionalDefinitions());
+		}
+		currentMethod.addInclude(prngType.getIncludes());
 		return currentMethod;
 	}
 
@@ -344,6 +352,7 @@ public abstract class KernelGenerator
 		CLVariable counter = new CLVariable(new StdVariableType(0, commands.length), "counter");
 		counter.setInitValue(StdVariableType.initialize(0));
 		currentMethod.addLocalVar(counter);
+
 		guardsMethodCreateLocalVars(currentMethod);
 		for (int i = 0; i < commands.length; ++i) {
 			guardsMethodCreateCondition(currentMethod, i, commands[i].getGuard().toString().replace("=", "=="));
@@ -353,6 +362,7 @@ public abstract class KernelGenerator
 		IfElse ifElse = new IfElse(ExpressionGenerator.createBasicExpression(counter, Operator.NE, Integer.toString(commands.length)));
 		ifElse.addCommand(0, ExpressionGenerator.createAssignment(position, Integer.toString(commands.length)));
 		currentMethod.addExpression(ifElse);
+		//currentMethod.addExpression(new Expression("guardsTab[0] = s; counter++;"));
 		guardsMethodReturnValue(currentMethod);
 		return currentMethod;
 	}

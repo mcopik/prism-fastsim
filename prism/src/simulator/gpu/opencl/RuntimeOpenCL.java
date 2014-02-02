@@ -26,6 +26,7 @@
 package simulator.gpu.opencl;
 
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 
 import parser.State;
@@ -37,6 +38,7 @@ import simulator.gpu.RuntimeFrameworkInterface;
 import simulator.gpu.automaton.AbstractAutomaton;
 import simulator.gpu.opencl.kernel.KernelConfig;
 import simulator.gpu.opencl.kernel.KernelException;
+import simulator.gpu.opencl.kernel.PRNGMersenneTwister;
 import simulator.sampler.Sampler;
 
 import com.nativelibs4java.opencl.CLDevice;
@@ -190,6 +192,9 @@ public class RuntimeOpenCL implements RuntimeFrameworkInterface
 			config.initialState = initialState;
 		}
 		config.maxPathLength = maxPathLength;
+		config.prngType = new PRNGMersenneTwister("rng");
+		Date date = new Date();
+		config.prngSeed = date.getTime();
 		try {
 			currentContexts = createContexts();
 			int sampleOffset = 0;

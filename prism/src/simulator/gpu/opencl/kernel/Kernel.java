@@ -71,6 +71,10 @@ public class Kernel
 	 */
 	private Method mainMethod = null;
 
+	public enum ArgsTypes {
+
+	}
+
 	private KernelGenerator methodsGenerator = null;
 	private Collection<Method> helperMethods = null;
 	private List<KernelComponent> globalDeclarations = new ArrayList<>();

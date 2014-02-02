@@ -55,7 +55,7 @@ public interface KernelComponent
 	/**
 	 * @return declaration source code (type definition, method definition)
 	 */
-	Expression getDeclaration();
+	KernelComponent getDeclaration();
 
 	/**
 	 * Accepts visitor to change internal state.

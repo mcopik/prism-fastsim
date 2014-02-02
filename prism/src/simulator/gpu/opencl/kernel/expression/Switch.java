@@ -67,7 +67,7 @@ public class Switch extends ComplexKernelComponent
 		}
 
 		@Override
-		public Expression getDeclaration()
+		public KernelComponent getDeclaration()
 		{
 			return null;
 		}
@@ -153,7 +153,7 @@ public class Switch extends ComplexKernelComponent
 	 * @see simulator.gpu.opencl.kernel.expression.ComplexKernelComponent#getDeclaration()
 	 */
 	@Override
-	public Expression getDeclaration()
+	public KernelComponent getDeclaration()
 	{
 		return null;
 	}
