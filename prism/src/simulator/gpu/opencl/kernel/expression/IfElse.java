@@ -130,12 +130,28 @@ public class IfElse extends ComplexKernelComponent
 	{
 		Preconditions.checkIndex(conditionNumber, body.size(), "Non-valid index of condition in IfElse!");
 		((Condition) body.get(conditionNumber)).commands.add(command);
+		if (command.hasIncludes()) {
+			necessaryIncludes.addAll(command.getIncludes());
+		}
 	}
 
 	public void addElse()
 	{
 		hasElse = true;
 		body.add(new Condition());
+	}
+
+	public void addExpression(KernelComponent expr)
+	{
+		addCommand(0, expr);
+		if (expr.hasIncludes()) {
+			necessaryIncludes.addAll(expr.getIncludes());
+		}
+	}
+
+	public void addExpression(String expr)
+	{
+		addExpression(new Expression(expr));
 	}
 
 	/* (non-Javadoc)

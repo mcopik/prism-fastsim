@@ -63,28 +63,28 @@ public abstract class PRNGType
 
 	public abstract int numbersPerRandomize();
 
-	public abstract Expression randomize() throws KernelException;
+	public abstract KernelComponent randomize() throws KernelException;
 
 	public Expression assignRandomInt(CLVariable dest, int max)
 	{
-		return assignRandomInt(0, dest, max);
+		return assignRandomInt(null, dest, max);
 	}
 
-	public abstract Expression assignRandomInt(int randNumber, CLVariable dest, int max);
+	public abstract Expression assignRandomInt(CLVariable randNumber, CLVariable dest, int max);
 
 	public Expression assignRandomFloat(CLVariable dest, CLVariable max)
 	{
-		return assignRandomFloat(0, dest, max);
+		return assignRandomFloat(null, dest, max);
 	}
 
-	public abstract Expression assignRandomFloat(int randNumber, CLVariable dest, CLVariable max);
+	public abstract Expression assignRandomFloat(CLVariable randNumber, CLVariable dest, CLVariable max);
 
-	public Expression assignRandomFloat(CLVariable dest)
+	public Expression assignRandomUnifFloat(CLVariable dest)
 	{
-		return assignRandomFloat(0, dest);
+		return assignRandomUnifFloat(null, dest);
 	}
 
-	public abstract Expression assignRandomFloat(int randNumber, CLVariable dest);
+	public abstract Expression assignRandomUnifFloat(CLVariable randNumber, CLVariable dest);
 
 	public List<KernelComponent> getAdditionalDefinitions()
 	{
@@ -96,5 +96,10 @@ public abstract class PRNGType
 		return additionalArgs;
 	}
 
-	public abstract void setKernelArg(CLKernel kernel, int argNumber, long sampleOffset, int globalWorkSize, int localWorkSize);
+	public abstract void setKernelArg(CLKernel kernel, int argNumber, int sampleOffset, int globalWorkSize, int localWorkSize);
+
+	public int kernelArgsNumber()
+	{
+		return 1;
+	}
 }

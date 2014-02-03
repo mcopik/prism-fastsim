@@ -149,6 +149,11 @@ public class Method extends ComplexKernelComponent
 		body.add(new Expression(String.format("return %s;", var.varName)));
 	}
 
+	public void addReturn(Expression expr)
+	{
+		body.add(new Expression(String.format("return %s;", expr)));
+	}
+
 	public boolean hasDefinedSVAccess()
 	{
 		return stateVectorAccess != null;

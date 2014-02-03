@@ -72,31 +72,31 @@ public class PRNGmwc64x extends PRNGType
 	}
 
 	@Override
-	public Expression randomize() throws KernelException
+	public KernelComponent randomize() throws KernelException
 	{
 		return null;
 	}
 
 	@Override
-	public Expression assignRandomInt(int randNumber, CLVariable dest, int max)
+	public Expression assignRandomInt(CLVariable randNumber, CLVariable dest, int max)
 	{
 		return ExpressionGenerator.createAssignment(dest, String.format("floor(((float)MWC64X_NextUint(&%s))*%d/%s)", varName, max, RNG_MAX));
 	}
 
 	@Override
-	public Expression assignRandomFloat(int randNumber, CLVariable dest)
+	public Expression assignRandomUnifFloat(CLVariable randNumber, CLVariable dest)
 	{
 		return ExpressionGenerator.createAssignment(dest, String.format("((float)MWC64X_NextUint(&%s))/%s", varName, RNG_MAX));
 	}
 
 	@Override
-	public Expression assignRandomFloat(int randNumber, CLVariable dest, CLVariable max)
+	public Expression assignRandomFloat(CLVariable randNumber, CLVariable dest, CLVariable max)
 	{
 		return ExpressionGenerator.createAssignment(dest, String.format("((float)MWC64X_NextUint(&%s))*%s/%s", varName, max.varName, RNG_MAX));
 	}
 
 	@Override
-	public void setKernelArg(CLKernel kernel, int argNumber, long sampleOffset, int globalWorkSize, int localWorkSize)
+	public void setKernelArg(CLKernel kernel, int argNumber, int sampleOffset, int globalWorkSize, int localWorkSize)
 	{
 		if (seed == -1) {
 			seed = (long) Math.floor(random.randomUnifDouble() * Long.MAX_VALUE);

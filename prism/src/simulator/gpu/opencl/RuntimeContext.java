@@ -116,9 +116,10 @@ public class RuntimeContext
 				//programKernel.setArg(0, offset);
 
 				config.prngType.setKernelArg(programKernel, 0, samplesProcessed, globalWorkSize, localWorkSize);
-				programKernel.setArg(1, currentGWSize);
-				programKernel.setArg(2, samplesProcessed);
-				programKernel.setArg(3, pathLengths);
+				int argOffset = config.prngType.kernelArgsNumber();
+				programKernel.setArg(argOffset, currentGWSize);
+				programKernel.setArg(1 + argOffset, samplesProcessed);
+				programKernel.setArg(2 + argOffset, pathLengths);
 				/*
 					for (int i = 0; i < properties.size(); ++i) {
 						programKernel.setObjectArg(i + 4, resultBuffers.get(i));

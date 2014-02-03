@@ -25,6 +25,9 @@
 //==============================================================================
 package simulator.gpu.opencl.kernel;
 
+import static simulator.gpu.opencl.kernel.expression.ExpressionGenerator.createAssignment;
+import static simulator.gpu.opencl.kernel.expression.ExpressionGenerator.createBasicExpression;
+
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.EnumMap;
@@ -231,6 +234,7 @@ public abstract class KernelGenerator
 		Method currentMethod = new KernelMethod();
 		PRNGType prngType = config.prngType;
 		currentMethod.addArg(prngType.getAdditionalInput());
+		//additionalDeclarations.addAll(prngType.getAdditionalDefinitions());
 		//number of simulations in this iteration
 		CLVariable numberOfSimulations = new CLVariable(new StdVariableType(StdType.UINT32), "numberOfSimulations");
 		currentMethod.addArg(numberOfSimulations);
@@ -273,14 +277,23 @@ public abstract class KernelGenerator
 		currentMethod.registerStateVector(stateVector);
 		//currentMethod.addExpression(String.format("if(%s >= %s) {\n return;\n}\n", globalID.varName, numberOfSimulations.varName));
 		currentMethod.addExpression(prngType.initializeGenerator());
+
 		ForLoop loop = new ForLoop(loopCounter, (long) 0, config.maxPathLength);
+
+		//randomize!
+		if (prngType.numbersPerRandomize() > 1) {
+			Expression condition = new Expression(String.format("%s %% %d", loopCounter.varName, prngType.numbersPerRandomize()));
+			IfElse ifElse = new IfElse(createBasicExpression(condition, Operator.EQ, StdVariableType.initialize(0)));
+			ifElse.addExpression(prngType.randomize());
+			loop.addExpression(ifElse);
+		}
 		/*currentMethod.addExpression(new Expression(
 				"properties[0].valueKnown = false; printf(\"START: %d %d %d\\n\",stateVector.s,stateVector.d,properties[0].valueKnown);"));
 		*/
 		//ForLoop loop = new ForLoop("i", 0, 15);
 		Expression callCheckGuards = helperMethods.get(KernelMethods.CHECK_GUARDS).callMethod(stateVector.convertToPointer(), guards);
-		loop.addExpression(ExpressionGenerator.createAssignment(selectionSize, callCheckGuards));
-		loop.addExpression(prngType.assignRandomFloat(selection, selectionSize));
+		loop.addExpression(createAssignment(selectionSize, callCheckGuards));
+		loop.addExpression(prngType.assignRandomFloat(loopCounter, selection, selectionSize));
 		loop.addExpression(mainMethodCallUpdate(currentMethod));
 		mainMethodUpdateTime(currentMethod, loop);
 		IfElse ifElse = new IfElse(mainMethodCallCheckingProperties(currentMethod));

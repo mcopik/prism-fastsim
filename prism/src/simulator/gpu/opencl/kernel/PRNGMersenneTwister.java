@@ -74,31 +74,31 @@ public class PRNGMersenneTwister extends PRNGType
 	}
 
 	@Override
-	public Expression randomize() throws KernelException
+	public KernelComponent randomize() throws KernelException
 	{
 		return null;
 	}
 
 	@Override
-	public Expression assignRandomInt(int randNumber, CLVariable dest, int max)
+	public Expression assignRandomInt(CLVariable randNumber, CLVariable dest, int max)
 	{
 		return ExpressionGenerator.createAssignment(dest, String.format("MT_random_interval(%s,0,%d)", varName, max));
 	}
 
 	@Override
-	public Expression assignRandomFloat(int randNumber, CLVariable dest, CLVariable max)
+	public Expression assignRandomFloat(CLVariable randNumber, CLVariable dest, CLVariable max)
 	{
 		return ExpressionGenerator.createAssignment(dest, String.format("MT_rndFloat(%s)*%s", varName, max.varName));
 	}
 
 	@Override
-	public Expression assignRandomFloat(int randNumber, CLVariable dest)
+	public Expression assignRandomUnifFloat(CLVariable randNumber, CLVariable dest)
 	{
 		return ExpressionGenerator.createAssignment(dest, String.format("MT_rndFloat(%s)", varName));
 	}
 
 	@Override
-	public void setKernelArg(CLKernel kernel, int argNumber, long sampleOffset, int globalWorkSize, int localWorkSize)
+	public void setKernelArg(CLKernel kernel, int argNumber, int sampleOffset, int globalWorkSize, int localWorkSize)
 	{
 		if (initBuffer == null) {
 			int[] initializeData = gpu.GPU.initializeMersenneTwister(globalWorkSize / localWorkSize, (int) random.randomUnifInt(Integer.MAX_VALUE));

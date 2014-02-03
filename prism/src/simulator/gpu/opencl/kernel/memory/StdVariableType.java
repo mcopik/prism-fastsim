@@ -29,6 +29,7 @@ import java.util.EnumSet;
 
 import prism.Preconditions;
 import simulator.gpu.automaton.PrismVariable;
+import simulator.gpu.opencl.kernel.KernelException;
 import simulator.gpu.opencl.kernel.expression.Expression;
 
 public class StdVariableType implements VariableInterface
@@ -77,25 +78,41 @@ public class StdVariableType implements VariableInterface
 	}
 
 	public enum StdType {
-		VOID, BOOL, CHAR, INT8, UINT8, INT16, UINT16, INT32, UINT32, FLOAT, DOUBLE, INT64, UINT64;
+		VOID, BOOL, INT8, UINT8, INT16, UINT16, INT32, UINT32, FLOAT, DOUBLE, INT64, UINT64;
 		public boolean isInteger()
 		{
 			return this != VOID && this != BOOL && this != FLOAT && this != DOUBLE;
 		}
+
+		public boolean isUnsigned()
+		{
+			return this == UINT8 || this == UINT16 || this == UINT32 || this == UINT64;
+		}
 	}
 
-	private static final EnumSet<StdType> typesWithDirectName = EnumSet.of(StdType.BOOL, StdType.CHAR, StdType.VOID, StdType.FLOAT, StdType.DOUBLE);
-
+	private static final EnumSet<StdType> typesWithDirectName = EnumSet.of(StdType.BOOL, StdType.VOID, StdType.FLOAT, StdType.DOUBLE);
+	private final int vectorSize;
 	public final StdType varType;
 
 	public StdVariableType(StdType type)
 	{
 		this.varType = type;
+		this.vectorSize = 1;
+	}
+
+	public StdVariableType(StdType type, int vectorSize) throws KernelException
+	{
+		if (!(vectorSize >= 1 && vectorSize <= 4) && vectorSize != 8 && vectorSize != 16) {
+			throw new KernelException(String.format("%d is not a valid size for vector type in OpenCL!", vectorSize));
+		}
+		this.varType = type;
+		this.vectorSize = vectorSize;
 	}
 
 	public StdVariableType(PrismVariable var)
 	{
 		varType = getIntType(var.bitsNumber, var.signFlag);
+		this.vectorSize = 1;
 	}
 
 	public StdVariableType(long minimal, long maximal)
@@ -103,6 +120,7 @@ public class StdVariableType implements VariableInterface
 		Preconditions.checkCondition(minimal <= maximal, "Minimal > maximal!");
 		long length = maximal - minimal;
 		varType = getIntType(Long.SIZE - Long.numberOfLeadingZeros(length), minimal < 0);
+		this.vectorSize = 1;
 	}
 
 	private StdType getIntType(long bitsNumber, boolean signFlag)
@@ -145,9 +163,40 @@ public class StdVariableType implements VariableInterface
 	public String getType()
 	{
 		if (typesWithDirectName.contains(varType)) {
-			return varType.toString().toLowerCase();
+			if (vectorSize > 1) {
+				return String.format("%s%d", varType.toString().toLowerCase(), vectorSize);
+			} else {
+				return varType.toString().toLowerCase();
+			}
 		} else {
-			return varType.toString().toLowerCase() + "_t";
+			String type = null;
+			switch (varType) {
+			case UINT8:
+			case INT8:
+				type = "char";
+				break;
+			case INT16:
+			case UINT16:
+				type = "short";
+				break;
+			case INT32:
+			case UINT32:
+				type = "int";
+				break;
+			case INT64:
+			case UINT64:
+				type = "long";
+				break;
+			default:
+				break;
+			}
+			if (varType.isUnsigned()) {
+				type = "u" + type;
+			}
+			if (vectorSize > 1) {
+				type += Integer.toString(vectorSize);
+			}
+			return type;
 		}
 	}
 
