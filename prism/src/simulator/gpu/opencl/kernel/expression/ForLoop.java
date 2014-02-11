@@ -33,7 +33,7 @@ public class ForLoop extends ComplexKernelComponent
 {
 	private Expression definition;
 	private CLVariable counter;
-	private String endValue = null;
+	private Expression endValue = null;
 	boolean decreasing = false;
 
 	public ForLoop(CLVariable counter, boolean decreasing)
@@ -48,7 +48,7 @@ public class ForLoop extends ComplexKernelComponent
 		this.counter = counter;
 		definition = ExpressionGenerator.createAssignment(counter, new Expression("0"));
 		counter.setInitValue(StdVariableType.initialize(startValue));
-		this.endValue = Long.toString(endValue);
+		this.endValue = new Expression(Long.toString(endValue));
 	}
 
 	public ForLoop(String counterName, long startValue, long endValue)
@@ -56,7 +56,7 @@ public class ForLoop extends ComplexKernelComponent
 		counter = new CLVariable(new StdVariableType(startValue, endValue), counterName);
 		counter.setInitValue(StdVariableType.initialize(startValue));
 		definition = counter.getDefinition();
-		this.endValue = Long.toString(endValue);
+		this.endValue = new Expression(Long.toString(endValue));
 	}
 
 	public ForLoop(String counterName, long startValue, long endValue, boolean decreasing)
@@ -64,12 +64,12 @@ public class ForLoop extends ComplexKernelComponent
 		if (decreasing) {
 			counter = new CLVariable(new StdVariableType(endValue, startValue), counterName);
 			counter.setInitValue(StdVariableType.initialize(endValue));
-			this.endValue = Long.toString(endValue);
+			this.endValue = new Expression(Long.toString(startValue));
 			decreasing = true;
 		} else {
 			counter = new CLVariable(new StdVariableType(startValue, endValue), counterName);
 			counter.setInitValue(StdVariableType.initialize(startValue));
-			this.endValue = Long.toString(endValue);
+			this.endValue = new Expression(Long.toString(endValue));
 		}
 	}
 
@@ -103,9 +103,9 @@ public class ForLoop extends ComplexKernelComponent
 		if (endValue != null) {
 			builder.append(definition);
 			if (decreasing) {
-				builder.append(ExpressionGenerator.createBasicExpression(counter, Operator.GT, endValue));
+				builder.append(ExpressionGenerator.createBasicExpression(counter.getSource(), Operator.GT, endValue));
 			} else {
-				builder.append(ExpressionGenerator.createBasicExpression(counter, Operator.LT, endValue));
+				builder.append(ExpressionGenerator.createBasicExpression(counter.getSource(), Operator.LT, endValue));
 			}
 		} else {
 			builder.append(";");

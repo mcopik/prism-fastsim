@@ -62,19 +62,15 @@ public class ExpressionGenerator
 
 	static public <T> Expression fromString(T object)
 	{
+		Preconditions.checkNotNull(object, "fromString() called on null reference!");
 		return new Expression(object.toString());
-	}
-
-	static public Expression createAssignment(CLVariable dest, String expr)
-	{
-		Expression ret = createBasicExpression(dest, Operator.AS, expr);
-		ret.exprString += ";";
-		return ret;
 	}
 
 	static public Expression createAssignment(CLVariable dest, Expression expr)
 	{
-		return createAssignment(dest, expr.getSource());
+		Expression ret = createBasicExpression(dest.getSource(), Operator.AS, expr);
+		ret.exprString += ";";
+		return ret;
 	}
 
 	static public Expression createAssignment(CLVariable dest, CLVariable source)
@@ -106,24 +102,28 @@ public class ExpressionGenerator
 		operatorsSource.put(Operator.MUL_AUGM, "/=");
 	}
 
-	static public Expression createBasicExpression(CLVariable var, Operator operator, CLValue var2)
+	//	static public Expression createBasicExpression(CLValue var, Operator operator, CLValue var2)
+	//	{
+	//		return ExpressionGenerator.createBasicExpression(var, operator, var2.getSource());
+	//	}
+	//
+	//	static public Expression createBasicExpression(Expression var, Operator operator, CLValue expr)
+	//	{
+	//		return new Expression(String.format("%s %s %s", var, operatorsSource.get(operator), expr.getSource()));
+	//	}
+	//
+	//	static public Expression createBasicExpression(CLValue var, Operator operator, String expr)
+	//	{
+	//		return new Expression(String.format("%s %s %s", var.getSource(), operatorsSource.get(operator), expr));
+	//	}
+	//
+	//	static public Expression createBasicExpression(CLValue var, Operator operator, Expression expr)
+	//	{
+	//		return ExpressionGenerator.createBasicExpression(var, operator, expr.getSource());
+	//	}
+	static public Expression createBasicExpression(Expression expr1, Operator operator, Expression expr2)
 	{
-		return ExpressionGenerator.createBasicExpression(var, operator, var2.getSource());
-	}
-
-	static public Expression createBasicExpression(Expression var, Operator operator, CLValue expr)
-	{
-		return new Expression(String.format("%s %s %s", var, operatorsSource.get(operator), expr.getSource()));
-	}
-
-	static public Expression createBasicExpression(CLVariable var, Operator operator, String expr)
-	{
-		return new Expression(String.format("%s %s %s", var.varName, operatorsSource.get(operator), expr));
-	}
-
-	static public Expression createBasicExpression(CLVariable var, Operator operator, Expression expr)
-	{
-		return ExpressionGenerator.createBasicExpression(var, operator, expr.getSource());
+		return new Expression(String.format("%s %s %s", expr1, operatorsSource.get(operator), expr2));
 	}
 
 	static public Expression createNegation(Expression var)
@@ -137,10 +137,16 @@ public class ExpressionGenerator
 		return new Expression(String.format("%s = %s ? %s : %s;", dest, condition, first, second));
 	}
 
-	static public String accessArrayElement(CLVariable var, int indice) throws KernelException
+	static public CLVariable accessArrayElement(CLVariable var, Expression indice) throws KernelException
 	{
-		if (var.varType instanceof ArrayType || var.varType instanceof PointerType) {
-			return String.format("%s[%d]", var.varName, indice);
+		if (var.varType instanceof ArrayType) {
+			return new CLVariable(((ArrayType) var.varType).getInternalType(),
+			//varName[indice]
+					String.format("%s[%s]", var.varName, indice));
+		} else if (var.varType instanceof PointerType) {
+			return new CLVariable(((PointerType) var.varType).getInternalType(),
+			//varName[indice]
+					String.format("%s[%s]", var.varName, indice));
 		} else {
 			throw new KernelException(String.format("Trying to access %d-ith position in variable %s which is not an array or a pointer!", indice, var.varName));
 		}
@@ -149,6 +155,12 @@ public class ExpressionGenerator
 	static public void addParentheses(Expression expr)
 	{
 		expr.exprString = String.format("(%s)", expr.exprString);
+	}
+
+	static public Expression addComma(Expression expr)
+	{
+		expr.exprString = expr.exprString + ";";
+		return expr;
 	}
 
 	static public Expression postIncrement(CLVariable var)

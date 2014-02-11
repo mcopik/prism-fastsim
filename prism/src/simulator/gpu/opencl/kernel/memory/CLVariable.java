@@ -67,7 +67,11 @@ public class CLVariable implements CLValue
 
 	public VariableInterface getPointer()
 	{
-		return new PointerType(varType);
+		if (varType.isArray()) {
+			return new ArrayType((ArrayType) varType);
+		} else {
+			return new PointerType(varType);
+		}
 	}
 
 	public CLVariable convertToPointer()

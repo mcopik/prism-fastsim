@@ -130,7 +130,7 @@ public class Kernel
 	{
 		MemoryTranslatorVisitor visitor = new MemoryTranslatorVisitor(stateVectorType);
 		for (PrismVariable var : model.getStateVector().getVars()) {
-			visitor.addTranslation(var.name, var.name);
+			visitor.addTranslation(var.name, methodsGenerator.translateSVField(var.name));
 		}
 		return visitor;
 	}
@@ -181,6 +181,7 @@ public class Kernel
 		for (KernelComponent expr : globalDeclarations) {
 			builder.append(expr.getSource()).append("\n");
 		}
+		System.out.println(builder.toString());
 		visitMethodsTranslator(createTranslatorVisitor());
 		declareMethods(builder);
 		defineMethods(builder);

@@ -58,6 +58,11 @@ public class PointerType implements VariableInterface
 		}
 	}
 
+	public VariableInterface getInternalType()
+	{
+		return internalType;
+	}
+
 	@Override
 	public boolean isArray()
 	{

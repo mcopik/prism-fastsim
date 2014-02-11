@@ -9,12 +9,13 @@ import java.util.List;
 import org.bridj.Pointer;
 
 import simulator.gpu.opencl.kernel.expression.Expression;
-import simulator.gpu.opencl.kernel.expression.ExpressionGenerator;
 import simulator.gpu.opencl.kernel.expression.Include;
 import simulator.gpu.opencl.kernel.expression.KernelComponent;
+import simulator.gpu.opencl.kernel.memory.CLValue;
 import simulator.gpu.opencl.kernel.memory.CLVariable;
 import simulator.gpu.opencl.kernel.memory.CLVariable.Location;
 import simulator.gpu.opencl.kernel.memory.PointerType;
+import simulator.gpu.opencl.kernel.memory.RValue;
 import simulator.gpu.opencl.kernel.memory.StdVariableType;
 import simulator.gpu.opencl.kernel.memory.StdVariableType.StdType;
 
@@ -80,21 +81,21 @@ public class PRNGMersenneTwister extends PRNGType
 	}
 
 	@Override
-	public Expression assignRandomInt(CLVariable randNumber, CLVariable dest, int max)
+	public CLValue getRandomInt(Expression randNumber, Expression max)
 	{
-		return ExpressionGenerator.createAssignment(dest, String.format("MT_random_interval(%s,0,%d)", varName, max));
+		return new RValue(new Expression(String.format("MT_random_interval(%s,0,%d)", varName, max.getSource())));
 	}
 
 	@Override
-	public Expression assignRandomFloat(CLVariable randNumber, CLVariable dest, CLVariable max)
+	public CLValue getRandomFloat(Expression randNumber, Expression max)
 	{
-		return ExpressionGenerator.createAssignment(dest, String.format("MT_rndFloat(%s)*%s", varName, max.varName));
+		return new RValue(new Expression(String.format("MT_rndFloat(%s)*%s", varName, max.getSource())));
 	}
 
 	@Override
-	public Expression assignRandomUnifFloat(CLVariable randNumber, CLVariable dest)
+	public CLValue getRandomUnifFloat(Expression randNumber)
 	{
-		return ExpressionGenerator.createAssignment(dest, String.format("MT_rndFloat(%s)", varName));
+		return new RValue(new Expression(String.format("MT_rndFloat(%s)", varName)));
 	}
 
 	@Override
@@ -103,6 +104,7 @@ public class PRNGMersenneTwister extends PRNGType
 		if (initBuffer == null) {
 			int[] initializeData = gpu.GPU.initializeMersenneTwister(globalWorkSize / localWorkSize, (int) random.randomUnifInt(Integer.MAX_VALUE));
 			Pointer<Integer> ptr = Pointer.allocateInts(initializeData.length);
+			ptr.setInts(initializeData);
 			CLContext context = kernel.getProgram().getContext();
 			initBuffer = context.createIntBuffer(CLMem.Usage.InputOutput, ptr, true);
 			kernel.setArg(0, initBuffer);

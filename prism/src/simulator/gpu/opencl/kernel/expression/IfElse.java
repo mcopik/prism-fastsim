@@ -114,11 +114,13 @@ public class IfElse extends ComplexKernelComponent
 
 	public IfElse(Expression ifCondition)
 	{
+		Preconditions.checkNotNull(ifCondition, "Trying to add null condition in IfElses!");
 		body.add(new Condition(Condition.Type.IF, ifCondition));
 	}
 
 	public void addElif(Expression condition)
 	{
+		Preconditions.checkNotNull(condition, "Trying to add null condition in IfElses!");
 		if (hasElse) {
 			body.add(body.size() - 1, new Condition(Condition.Type.ELIF, condition));
 		} else {
@@ -126,12 +128,13 @@ public class IfElse extends ComplexKernelComponent
 		}
 	}
 
-	public void addCommand(int conditionNumber, KernelComponent command)
+	public void addExpression(int conditionNumber, KernelComponent expr)
 	{
+		Preconditions.checkNotNull(expr, "Trying to add null reference to expression!");
 		Preconditions.checkIndex(conditionNumber, body.size(), "Non-valid index of condition in IfElse!");
-		((Condition) body.get(conditionNumber)).commands.add(command);
-		if (command.hasIncludes()) {
-			necessaryIncludes.addAll(command.getIncludes());
+		((Condition) body.get(conditionNumber)).commands.add(expr);
+		if (expr.hasIncludes()) {
+			necessaryIncludes.addAll(expr.getIncludes());
 		}
 	}
 
@@ -143,7 +146,8 @@ public class IfElse extends ComplexKernelComponent
 
 	public void addExpression(KernelComponent expr)
 	{
-		addCommand(0, expr);
+		Preconditions.checkNotNull(expr, "Trying to add null reference to expression!");
+		addExpression(0, expr);
 		if (expr.hasIncludes()) {
 			necessaryIncludes.addAll(expr.getIncludes());
 		}
@@ -151,6 +155,7 @@ public class IfElse extends ComplexKernelComponent
 
 	public void addExpression(String expr)
 	{
+		Preconditions.checkNotNull(expr, "Trying to add null reference to expression!");
 		addExpression(new Expression(expr));
 	}
 

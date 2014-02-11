@@ -4,11 +4,12 @@ import java.util.ArrayList;
 import java.util.List;
 
 import simulator.gpu.opencl.kernel.expression.Expression;
-import simulator.gpu.opencl.kernel.expression.ExpressionGenerator;
 import simulator.gpu.opencl.kernel.expression.ExpressionList;
 import simulator.gpu.opencl.kernel.expression.Include;
 import simulator.gpu.opencl.kernel.expression.KernelComponent;
+import simulator.gpu.opencl.kernel.memory.CLValue;
 import simulator.gpu.opencl.kernel.memory.CLVariable;
+import simulator.gpu.opencl.kernel.memory.RValue;
 import simulator.gpu.opencl.kernel.memory.StdVariableType;
 import simulator.gpu.opencl.kernel.memory.StdVariableType.StdType;
 
@@ -78,21 +79,21 @@ public class PRNGmwc64x extends PRNGType
 	}
 
 	@Override
-	public Expression assignRandomInt(CLVariable randNumber, CLVariable dest, int max)
+	public CLValue getRandomInt(Expression randNumber, Expression max)
 	{
-		return ExpressionGenerator.createAssignment(dest, String.format("floor(((float)MWC64X_NextUint(&%s))*%d/%s)", varName, max, RNG_MAX));
+		return new RValue(new Expression(String.format("floor(((float)MWC64X_NextUint(&%s))*%s/%s)", varName, max.getSource(), RNG_MAX)));
 	}
 
 	@Override
-	public Expression assignRandomUnifFloat(CLVariable randNumber, CLVariable dest)
+	public CLValue getRandomUnifFloat(Expression randNumber)
 	{
-		return ExpressionGenerator.createAssignment(dest, String.format("((float)MWC64X_NextUint(&%s))/%s", varName, RNG_MAX));
+		return new RValue(new Expression(String.format("((float)MWC64X_NextUint(&%s))/%s", varName, RNG_MAX)));
 	}
 
 	@Override
-	public Expression assignRandomFloat(CLVariable randNumber, CLVariable dest, CLVariable max)
+	public CLValue getRandomFloat(Expression randNumber, Expression max)
 	{
-		return ExpressionGenerator.createAssignment(dest, String.format("((float)MWC64X_NextUint(&%s))*%s/%s", varName, max.varName, RNG_MAX));
+		return new RValue(new Expression(String.format("((float)MWC64X_NextUint(&%s))*%s/%s", varName, max.getSource(), RNG_MAX)));
 	}
 
 	@Override

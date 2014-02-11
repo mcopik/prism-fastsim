@@ -79,10 +79,16 @@ public class ArrayType implements VariableInterface
 		this.length = length;
 	}
 
+	public ArrayType(ArrayType copy)
+	{
+		this.varType = copy.varType;
+		this.length = copy.length;
+	}
+
 	@Override
 	public String getType()
 	{
-		return varType.getType() + "[]";
+		return varType.getType() + "*";
 	}
 
 	@Override
@@ -113,6 +119,11 @@ public class ArrayType implements VariableInterface
 	public String declareVar(String varName)
 	{
 		return String.format("%s %s[%d]", varType.getType(), varName, length);
+	}
+
+	public VariableInterface getInternalType()
+	{
+		return varType;
 	}
 
 	public CLValue initializeArray(CLValue[] values)

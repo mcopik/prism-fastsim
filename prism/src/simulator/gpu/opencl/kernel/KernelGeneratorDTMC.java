@@ -25,6 +25,11 @@
 //==============================================================================
 package simulator.gpu.opencl.kernel;
 
+import static simulator.gpu.opencl.kernel.expression.ExpressionGenerator.createAssignment;
+import static simulator.gpu.opencl.kernel.expression.ExpressionGenerator.createBasicExpression;
+import static simulator.gpu.opencl.kernel.expression.ExpressionGenerator.fromString;
+import static simulator.gpu.opencl.kernel.expression.ExpressionGenerator.postIncrement;
+
 import java.util.List;
 
 import prism.Preconditions;
@@ -54,30 +59,25 @@ public class KernelGeneratorDTMC extends KernelGenerator
 	public void mainMethodDefineLocalVars(Method currentMethod) throws KernelException
 	{
 		//time
-		CLVariable time = new CLVariable(new StdVariableType(0, config.maxPathLength), "time");
-		time.setInitValue(StdVariableType.initialize(0));
-		currentMethod.addLocalVar(time);
+		varTime = new CLVariable(new StdVariableType(0, config.maxPathLength), "time");
+		varTime.setInitValue(StdVariableType.initialize(0));
+		currentMethod.addLocalVar(varTime);
 		//number of transitions
-		CLVariable selectionSize = new CLVariable(new StdVariableType(0, model.commandsNumber()), "selectionSize");
-		selectionSize.setInitValue(StdVariableType.initialize(0));
-		currentMethod.addLocalVar(selectionSize);
+		varSelectionSize = new CLVariable(new StdVariableType(0, model.commandsNumber()), "selectionSize");
+		varSelectionSize.setInitValue(StdVariableType.initialize(0));
+		currentMethod.addLocalVar(varSelectionSize);
 	}
 
 	@Override
-	protected KernelComponent mainMethodCallUpdate(Method currentMethod)
+	protected void mainMethodUpdateTimeBefore(Method currentMethod, ComplexKernelComponent parent)
 	{
-		Method update = helperMethods.get(KernelMethods.PERFORM_UPDATE);
-		CLVariable sv = currentMethod.getLocalVar("stateVector");
-		CLVariable selection = currentMethod.getLocalVar("selection");
-		CLVariable selectionSize = currentMethod.getLocalVar("selectionSize");
-		CLVariable guardsTab = currentMethod.getLocalVar("guardsTab");
-		return update.callMethod(sv.convertToPointer(), guardsTab, selection, selectionSize);
+		parent.addExpression(postIncrement(currentMethod.getLocalVar("time")).add(";"));
 	}
 
 	@Override
-	protected void mainMethodUpdateTime(Method currentMethod, ComplexKernelComponent parent)
+	protected void mainMethodUpdateTimeAfter(Method currentMethod, ComplexKernelComponent parent)
 	{
-		parent.addExpression(ExpressionGenerator.postIncrement(currentMethod.getLocalVar("time")).add(";"));
+		//don't need to do anything!
 	}
 
 	@Override
@@ -110,7 +110,7 @@ public class KernelGeneratorDTMC extends KernelGenerator
 		Preconditions.checkNotNull(counter, "");
 		CLVariable tabPos = guardsTab.varType.accessElement(guardsTab, ExpressionGenerator.postIncrement(counter));
 		IfElse ifElse = new IfElse(new Expression(guard));
-		ifElse.addCommand(0, ExpressionGenerator.createAssignment(tabPos, Integer.toString(position)));
+		ifElse.addExpression(0, createAssignment(tabPos, fromString(position)));
 		currentMethod.addExpression(ifElse);
 	}
 
@@ -136,10 +136,10 @@ public class KernelGeneratorDTMC extends KernelGenerator
 		currentMethod.addExpression(ExpressionGenerator.createAssignment(selection, ExpressionGenerator.functionCall("floor", sum.getName())));
 
 		// selectionSum = numberOfCommands * ( selectionSum - selection/numberOfCommands);
-		Expression divideSelection = ExpressionGenerator.createBasicExpression(selection.cast("float"), Operator.DIV, number);
-		Expression subSum = ExpressionGenerator.createBasicExpression(sum, Operator.SUB, divideSelection);
+		Expression divideSelection = createBasicExpression(selection.cast("float"), Operator.DIV, number.getSource());
+		Expression subSum = createBasicExpression(sum.getSource(), Operator.SUB, divideSelection);
 		ExpressionGenerator.addParentheses(subSum);
-		Expression asSum = ExpressionGenerator.createBasicExpression(number, Operator.MUL, subSum);
+		Expression asSum = createBasicExpression(number.getSource(), Operator.MUL, subSum);
 		currentMethod.addExpression(ExpressionGenerator.createAssignment(sum, asSum));
 		currentMethod.addExpression(ExpressionGenerator.createAssignment(selection, guardsTab.getName()));
 	}
@@ -159,7 +159,7 @@ public class KernelGeneratorDTMC extends KernelGenerator
 		CLVariable sum = currentMethod.getArg("selectionSum");
 		CLVariable number = currentMethod.getArg("numberOfCommands");
 		CLVariable selection = currentMethod.getLocalVar("selection");
-		String selectionExpression = String.format("floor(%s)", ExpressionGenerator.createBasicExpression(sum, Operator.MUL, number).getSource());
+		String selectionExpression = String.format("floor(%s)", createBasicExpression(sum.getSource(), Operator.MUL, number.getSource()).toString());
 		selection.setInitValue(new Expression(selectionExpression));
 	}
 
@@ -184,5 +184,11 @@ public class KernelGeneratorDTMC extends KernelGenerator
 	{
 		// TODO Auto-generated method stub
 		return null;
+	}
+
+	@Override
+	protected int mainMethodRandomsPerIteration()
+	{
+		return 1;
 	}
 }

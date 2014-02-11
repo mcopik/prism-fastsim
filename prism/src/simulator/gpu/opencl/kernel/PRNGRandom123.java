@@ -9,14 +9,15 @@ import java.util.List;
 import org.bridj.Pointer;
 
 import simulator.gpu.opencl.kernel.expression.Expression;
-import simulator.gpu.opencl.kernel.expression.ExpressionGenerator;
 import simulator.gpu.opencl.kernel.expression.ExpressionList;
 import simulator.gpu.opencl.kernel.expression.Include;
 import simulator.gpu.opencl.kernel.expression.KernelComponent;
 import simulator.gpu.opencl.kernel.expression.Method;
+import simulator.gpu.opencl.kernel.memory.CLValue;
 import simulator.gpu.opencl.kernel.memory.CLVariable;
 import simulator.gpu.opencl.kernel.memory.CLVariable.Location;
 import simulator.gpu.opencl.kernel.memory.PointerType;
+import simulator.gpu.opencl.kernel.memory.RValue;
 import simulator.gpu.opencl.kernel.memory.StdVariableType;
 import simulator.gpu.opencl.kernel.memory.StdVariableType.StdType;
 
@@ -126,39 +127,39 @@ public class PRNGRandom123 extends PRNGType
 	 * @see simulator.gpu.opencl.kernel.PRNGType#assignRandomInt(int, simulator.gpu.opencl.kernel.memory.CLVariable, int)
 	 */
 	@Override
-	public Expression assignRandomInt(CLVariable randNumber, CLVariable dest, int max)
+	public CLValue getRandomInt(Expression randNumber, Expression max)
 	{
-		return ExpressionGenerator.createAssignment(dest, String.format("rand.v[%s%%2]*%d/%s;",
+		return new RValue(new Expression(String.format("rand.v[%s]*%s/%s",
 		//counter
-				randNumber.varName,
+				randNumber.getSource(),
 				//current max for int
-				max,
+				max.getSource(),
 				//random max
-				RNG_MAX));
+				RNG_MAX)));
 	}
 
 	/* (non-Javadoc)
 	 * @see simulator.gpu.opencl.kernel.PRNGType#assignRandomFloat(int, simulator.gpu.opencl.kernel.memory.CLVariable, simulator.gpu.opencl.kernel.memory.CLVariable)
 	 */
 	@Override
-	public Expression assignRandomFloat(CLVariable randNumber, CLVariable dest, CLVariable max)
+	public CLValue getRandomFloat(Expression randNumber, Expression max)
 	{
-		return ExpressionGenerator.createAssignment(dest, String.format("u01fixedpt_closed_open_32_24(rand.v[%s%%2])*%s;",
+		return new RValue(new Expression(String.format("u01fixedpt_closed_open_32_24(rand.v[%s])*%s",
 		//counter
-				randNumber.varName,
+				randNumber.getSource(),
 				//random max
-				max.varName));
+				max.getSource())));
 	}
 
 	/* (non-Javadoc)
 	 * @see simulator.gpu.opencl.kernel.PRNGType#assignRandomFloat(int, simulator.gpu.opencl.kernel.memory.CLVariable)
 	 */
 	@Override
-	public Expression assignRandomUnifFloat(CLVariable randNumber, CLVariable dest)
+	public CLValue getRandomUnifFloat(Expression randNumber)
 	{
-		return ExpressionGenerator.createAssignment(dest, String.format("u01fixedpt_closed_open_32_24(rand.v[%s%%2]);",
+		return new RValue(new Expression(String.format("u01fixedpt_closed_open_32_24(rand.v[%s])",
 		//counter
-				randNumber.varName));
+				randNumber.getSource())));
 	}
 
 	/* (non-Javadoc)

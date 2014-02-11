@@ -9,6 +9,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import prism.Preconditions;
 import simulator.gpu.opencl.kernel.KernelException;
 import simulator.gpu.opencl.kernel.memory.CLVariable;
 import simulator.gpu.opencl.kernel.memory.UDType;
@@ -49,6 +50,7 @@ public abstract class ComplexKernelComponent implements KernelComponent
 	 */
 	public void addExpression(KernelComponent expr)
 	{
+		Preconditions.checkNotNull(expr, "Trying to add null reference to expression!");
 		body.add(expr);
 		if (expr.hasIncludes()) {
 			necessaryIncludes.addAll(expr.getIncludes());
@@ -57,6 +59,7 @@ public abstract class ComplexKernelComponent implements KernelComponent
 
 	public void addExpression(String expr)
 	{
+		Preconditions.checkNotNull(expr, "Trying to add null reference to expression!");
 		body.add(new Expression(expr));
 	}
 

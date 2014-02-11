@@ -31,6 +31,7 @@ import simulator.RandomNumberGenerator;
 import simulator.gpu.opencl.kernel.expression.Expression;
 import simulator.gpu.opencl.kernel.expression.Include;
 import simulator.gpu.opencl.kernel.expression.KernelComponent;
+import simulator.gpu.opencl.kernel.memory.CLValue;
 import simulator.gpu.opencl.kernel.memory.CLVariable;
 
 import com.nativelibs4java.opencl.CLKernel;
@@ -65,26 +66,26 @@ public abstract class PRNGType
 
 	public abstract KernelComponent randomize() throws KernelException;
 
-	public Expression assignRandomInt(CLVariable dest, int max)
+	public CLValue getRandomInt(Expression max)
 	{
-		return assignRandomInt(null, dest, max);
+		return getRandomInt(null, max);
 	}
 
-	public abstract Expression assignRandomInt(CLVariable randNumber, CLVariable dest, int max);
+	public abstract CLValue getRandomInt(Expression randNumber, Expression max);
 
-	public Expression assignRandomFloat(CLVariable dest, CLVariable max)
+	public CLValue getRandomFloat(Expression max)
 	{
-		return assignRandomFloat(null, dest, max);
+		return getRandomFloat(null, max);
 	}
 
-	public abstract Expression assignRandomFloat(CLVariable randNumber, CLVariable dest, CLVariable max);
+	public abstract CLValue getRandomFloat(Expression randNumber, Expression max);
 
-	public Expression assignRandomUnifFloat(CLVariable dest)
+	public CLValue getRandomUnifFloat()
 	{
-		return assignRandomUnifFloat(null, dest);
+		return getRandomUnifFloat(null);
 	}
 
-	public abstract Expression assignRandomUnifFloat(CLVariable randNumber, CLVariable dest);
+	public abstract CLValue getRandomUnifFloat(Expression randNumber);
 
 	public List<KernelComponent> getAdditionalDefinitions()
 	{
