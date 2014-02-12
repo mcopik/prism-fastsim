@@ -25,6 +25,7 @@
 //==============================================================================
 package simulator.gpu.opencl.kernel;
 
+import static simulator.gpu.opencl.kernel.expression.ExpressionGenerator.accessArrayElement;
 import static simulator.gpu.opencl.kernel.expression.ExpressionGenerator.addComma;
 import static simulator.gpu.opencl.kernel.expression.ExpressionGenerator.addParentheses;
 import static simulator.gpu.opencl.kernel.expression.ExpressionGenerator.createAssignment;
@@ -34,6 +35,7 @@ import static simulator.gpu.opencl.kernel.expression.ExpressionGenerator.postInc
 
 import java.util.List;
 
+import parser.ast.ExpressionLiteral;
 import prism.Preconditions;
 import simulator.gpu.automaton.AbstractAutomaton;
 import simulator.gpu.automaton.update.Rate;
@@ -43,7 +45,6 @@ import simulator.gpu.opencl.kernel.expression.ExpressionGenerator;
 import simulator.gpu.opencl.kernel.expression.ExpressionGenerator.Operator;
 import simulator.gpu.opencl.kernel.expression.ForLoop;
 import simulator.gpu.opencl.kernel.expression.IfElse;
-import simulator.gpu.opencl.kernel.expression.KernelComponent;
 import simulator.gpu.opencl.kernel.expression.Method;
 import simulator.gpu.opencl.kernel.expression.Switch;
 import simulator.gpu.opencl.kernel.memory.CLValue;
@@ -83,16 +84,18 @@ public class KernelGeneratorCTMC extends KernelGenerator
 		varTime.setInitValue(StdVariableType.initialize(0.0f));
 		currentMethod.addLocalVar(varTime);
 		//updated time
-		varUpdatedTime = new CLVariable(new StdVariableType(StdType.FLOAT), "updatedTime");
-		varUpdatedTime.setInitValue(StdVariableType.initialize(0.0f));
-		currentMethod.addLocalVar(varUpdatedTime);
+		if (saveTimeUpdate) {
+			varUpdatedTime = new CLVariable(new StdVariableType(StdType.FLOAT), "updatedTime");
+			varUpdatedTime.setInitValue(StdVariableType.initialize(0.0f));
+			currentMethod.addLocalVar(varUpdatedTime);
+		}
 		//number of transitions
-		varSelectionSize = new CLVariable(new StdVariableType(0, model.commandsNumber()), "selectionSize");
+		varSelectionSize = new CLVariable(new StdVariableType(StdType.FLOAT), "selectionSize");
 		varSelectionSize.setInitValue(StdVariableType.initialize(0));
 		currentMethod.addLocalVar(varSelectionSize);
 		if (model.synchCmdsNumber() != 0) {
 			//number of transitions
-			varSynSelectionSize = new CLVariable(new StdVariableType(0, model.synchCmdsNumber()), "synSelectionSize");
+			varSynSelectionSize = new CLVariable(new StdVariableType(StdType.FLOAT), "synSelectionSize");
 			varSynSelectionSize.setInitValue(StdVariableType.initialize(0));
 			currentMethod.addLocalVar(varSynSelectionSize);
 		}
@@ -127,6 +130,7 @@ public class KernelGeneratorCTMC extends KernelGenerator
 		Expression sumExpr = createBasicExpression(sum.getSource(), Operator.ADD_AUGM, fromString(commands[position].getRateSum()));
 		sumExpr.add(";");
 		ifElse.addExpression(0, sumExpr);
+		ifElse.addExpression(0, new Expression("if(get_global_id(0) < 5)printf(\"" + guard + " %d %f\\n\",get_global_id(0),sum);"));
 		currentMethod.addExpression(ifElse);
 	}
 
@@ -145,8 +149,7 @@ public class KernelGeneratorCTMC extends KernelGenerator
 		CLVariable guardsTab = currentMethod.getArg("guardsTab");
 		CLVariable newSum = currentMethod.getLocalVar("newSum");
 		CLVariable selectionSum = currentMethod.getArg("selectionSum");
-		CLVariable sum = new CLVariable(new StdVariableType(StdType.FLOAT), "sum");
-		currentMethod.addLocalVar(sum);
+		CLVariable sum = currentMethod.getLocalVar("sum");
 		ForLoop loop = new ForLoop(selection, false);
 		Switch _switch = new Switch(guardsTab.varType.accessElement(guardsTab, selection.getName()));
 		for (int i = 0; i < commands.length; ++i) {
@@ -184,6 +187,9 @@ public class KernelGeneratorCTMC extends KernelGenerator
 		CLVariable newSum = new CLVariable(new StdVariableType(StdType.FLOAT), "newSum");
 		newSum.setInitValue(StdVariableType.initialize(0.0f));
 		currentMethod.addLocalVar(newSum);
+		CLVariable sum = new CLVariable(new StdVariableType(StdType.FLOAT), "sum");
+		sum.setInitValue(StdVariableType.initialize(0.0f));
+		currentMethod.addLocalVar(sum);
 		//selection
 		CLVariable selection = currentMethod.getLocalVar("selection");
 		selection.setInitValue(StdVariableType.initialize(0));
@@ -192,18 +198,75 @@ public class KernelGeneratorCTMC extends KernelGenerator
 	@Override
 	protected void propertiesMethodTimeArg(Method currentMethod) throws KernelException
 	{
-		varTime = new CLVariable(new StdVariableType(StdType.FLOAT), "time");
+		CLVariable varTime = new CLVariable(new StdVariableType(StdType.FLOAT), "time");
 		currentMethod.addArg(varTime);
 		if (saveTimeUpdate) {
-			varUpdatedTime = new CLVariable(new StdVariableType(StdType.FLOAT), "updated_time");
+			CLVariable varUpdatedTime = new CLVariable(new StdVariableType(StdType.FLOAT), "updated_time");
 			currentMethod.addArg(varUpdatedTime);
 		}
 	}
 
 	@Override
-	protected KernelComponent propertiesMethodAddBoundedUntil(Method currentMethod, SamplerBoolean property, CLVariable propertyVar)
+	protected void propertiesMethodAddBoundedUntil(Method currentMethod, ComplexKernelComponent parent, SamplerBoolean property, CLVariable propertyVar)
 	{
-		return null;
+		//		CLVariable time = currentMethod.getArg("time");
+		//		CLVariable updTime = currentMethod.getArg("updated_time");
+		//		SamplerBoundedUntilCont prop = (SamplerBoundedUntilCont) property;
+		//		/**
+		//		 * if(updated_time > upper_bound)
+		//		 */
+		//		IfElse ifElse = new IfElse(createBasicExpression(updTime.getSource(), Operator.GT, fromString(prop.getUpperBound())));
+		//		/**
+		//		 * if(right_side == true) -> true
+		//		 * else -> false
+		//		 */
+		//		IfElse rhsCheck = createPropertyCondition(propertyVar, false, prop.getRightSide().toString(), true);
+		//		createPropertyCondition(rhsCheck, propertyVar, false, null, false);
+		//		ifElse.addExpression(rhsCheck);
+		//		/**
+		//		 * else if(updated_time < low_bound)
+		//		 */
+		//		ifElse.addElif(createBasicExpression(updTime.getSource(), Operator.LE,
+		//		// updated_time < lb
+		//				fromString(prop.getLowBound())));
+		//		/**
+		//		 * if(left_side == false) -> false
+		//		 */
+		//		if (!(prop.getLeftSide() instanceof ExpressionLiteral)) {
+		//			IfElse lhsCheck = createPropertyCondition(propertyVar, true, prop.getLeftSide().toString(), false);
+		//			ifElse.addExpression(1, lhsCheck);
+		//		}
+		//		ifElse.addElse();
+		//		/**
+		//		 * if(right_side == true) -> true
+		//		 * else if(left_side == false) -> false
+		//		 */
+		//		IfElse betweenBounds = createPropertyCondition(propertyVar, false, prop.getRightSide().toString(), true);
+		//		if (!(prop.getLeftSide() instanceof ExpressionLiteral)) {
+		//			createPropertyCondition(betweenBounds, propertyVar, true, prop.getLeftSide().toString(), false);
+		//		}
+		//		ifElse.addExpression(2, betweenBounds);
+		//		parent.addExpression(ifElse);
+		CLVariable updTime = currentMethod.getArg("updated_time");
+		SamplerBoundedUntilCont prop = (SamplerBoundedUntilCont) property;
+		/**
+		 * if(updated_time > upper_bound)
+		 */
+		IfElse ifElse = new IfElse(createBasicExpression(updTime.getSource(), Operator.GT, fromString(prop.getUpperBound())));
+		/**
+		 * if(right_side == true) -> true
+		 * else -> false
+		 */
+		IfElse rhsCheck = createPropertyCondition(propertyVar, false, prop.getRightSide().toString(), true);
+		createPropertyCondition(rhsCheck, propertyVar, false, null, false);
+		ifElse.addExpression(rhsCheck);
+		/**
+		 * else if(updated_time < low_bound)
+		 */
+		ifElse.addElif(new Expression("updated_time > 2.0 && time < 3.0"));
+		IfElse rhsCheck2 = createPropertyCondition(propertyVar, false, prop.getRightSide().toString(), true);
+		ifElse.addExpression(1, rhsCheck2);
+		parent.addExpression(ifElse);
 	}
 
 	@Override
@@ -219,7 +282,7 @@ public class KernelGeneratorCTMC extends KernelGenerator
 		if (varSynSelectionSize != null && varSelectionSize != null) {
 			sum = createBasicExpression(varSelectionSize.getSource(), Operator.ADD, varSynSelectionSize.getSource());
 			addParentheses(sum);
-		} else if (varSynSelectionSize != null) {
+		} else if (varSynSelectionSize == null) {
 			sum = varSelectionSize.getSource();
 		} else {
 			sum = varSynSelectionSize.getSource();
@@ -244,23 +307,54 @@ public class KernelGeneratorCTMC extends KernelGenerator
 	}
 
 	@Override
-	protected Expression mainMethodCallCheckingProperties(Method currentMethod)
-	{
-		CLVariable propertiesArray = currentMethod.getLocalVar("properties");
-		Expression call = null;
-		if (saveTimeUpdate) {
-			call = helperMethods.get(KernelMethods.UPDATE_PROPERTIES).callMethod(varStateVector.convertToPointer(), propertiesArray, varTime, varUpdatedTime);
-		} else {
-			call = helperMethods.get(KernelMethods.UPDATE_PROPERTIES).callMethod(varStateVector.convertToPointer(), propertiesArray, varTime);
-		}
-		String source = call.getSource();
-		return new Expression(source.substring(0, source.indexOf(';')));
-	}
-
-	@Override
 	protected int mainMethodRandomsPerIteration()
 	{
 		return 2;
+	}
+
+	@Override
+	protected void mainMethodFirstUpdateProperties(ComplexKernelComponent parent)
+	{
+		/**
+		 * For the case of bounded until in CTMC, we have to check initial state at time 0.
+		 */
+		for (int i = 0; i < properties.size(); ++i) {
+			if (properties.get(i) instanceof SamplerBoundedUntilCont) {
+				SamplerBoundedUntilCont prop = (SamplerBoundedUntilCont) properties.get(i);
+				CLVariable propertyVar = accessArrayElement(varPropertiesArray, fromString(i));
+				if (prop.getLowBound() == 0.0) {
+					IfElse ifElse = createPropertyCondition(propertyVar, false, prop.getRightSide().toString(), true);
+					parent.addExpression(ifElse);
+				}
+				/**
+				 * we do not have to check left side if it is constant 'true'
+				 */
+				else if (!(prop.getLeftSide() instanceof ExpressionLiteral)) {
+					IfElse ifElse = createPropertyCondition(propertyVar, true, prop.getLeftSide().toString(), false);
+					parent.addExpression(ifElse);
+				}
+			}
+		}
+	}
+
+	@Override
+	protected void mainMethodUpdateProperties(ComplexKernelComponent parent)
+	{
+		Expression call = null;
+		if (saveTimeUpdate) {
+			call = helperMethods.get(KernelMethods.UPDATE_PROPERTIES)
+					.callMethod(varStateVector.convertToPointer(), varPropertiesArray, varTime, varUpdatedTime);
+		} else {
+			call = helperMethods.get(KernelMethods.UPDATE_PROPERTIES).callMethod(varStateVector.convertToPointer(), varPropertiesArray, varTime);
+		}
+		String source = call.getSource();
+		IfElse ifElse = new IfElse(new Expression(source.substring(0, source.indexOf(';'))));
+		ifElse.addExpression(
+				0,
+				new Expression(
+						"if(get_global_id(0) < 5)printf(\"%f %f %f %d %d\\n\",time,updatedTime,selectionSize,stateVector.__STATE_VECTOR_q,properties[0].propertyState);\n"));
+		ifElse.addExpression(0, new Expression("break;\n"));
+		parent.addExpression(ifElse);
 	}
 
 }

@@ -101,6 +101,9 @@ public class RuntimeContext
 			}
 			program.addInclude("src/gpu/");
 			program.addInclude("classes/gpu/");
+			program.addInclude("classes/gpu/Random123");
+			program.addInclude("gpu/Random123");
+			program.addInclude("gpu");
 			program.build();
 			CLKernel programKernel = program.createKernel("main");
 			CLQueue queue = context.createDefaultProfilingQueue();
@@ -153,13 +156,15 @@ public class RuntimeContext
 				mainLog.flush();
 				samplesProcessed += currentGWSize;
 			}
-
 			for (int i = 0; i < resultBuffers.size(); ++i) {
+				float sum = 0.0f;
 				NativeList<Byte> bytes = resultBuffers.get(i).read(queue).asList();
 				SamplerBoolean sampler = (SamplerBoolean) properties.get(i);
 				for (int j = 0; j < bytes.size(); ++j) {
 					sampler.addSample(bytes.get(j) == 1);
+					sum += bytes.get(j);
 				}
+				mainLog.println(sum / 1000000);
 			}
 			NativeList<Integer> lengths = pathLengths.read(queue).asList();
 			int minPathFound = 1000000;

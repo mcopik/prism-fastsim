@@ -26,9 +26,12 @@
 package simulator.gpu.opencl.kernel;
 
 import static simulator.gpu.opencl.kernel.expression.ExpressionGenerator.accessArrayElement;
+import static simulator.gpu.opencl.kernel.expression.ExpressionGenerator.accessStructureField;
+import static simulator.gpu.opencl.kernel.expression.ExpressionGenerator.addParentheses;
 import static simulator.gpu.opencl.kernel.expression.ExpressionGenerator.convertPrismAction;
 import static simulator.gpu.opencl.kernel.expression.ExpressionGenerator.createAssignment;
 import static simulator.gpu.opencl.kernel.expression.ExpressionGenerator.createBasicExpression;
+import static simulator.gpu.opencl.kernel.expression.ExpressionGenerator.createNegation;
 import static simulator.gpu.opencl.kernel.expression.ExpressionGenerator.fromString;
 
 import java.util.ArrayList;
@@ -325,7 +328,7 @@ public abstract class KernelGenerator
 		 * initialize generator
 		 */
 		currentMethod.addExpression(prngType.initializeGenerator());
-
+		mainMethodFirstUpdateProperties(currentMethod);
 		ForLoop loop = new ForLoop(varPathLength, (long) 0, config.maxPathLength);
 		/**
 		 * Check how much numbers are generated with each randomize().
@@ -378,6 +381,10 @@ public abstract class KernelGenerator
 		 */
 		mainMethodUpdateTimeBefore(currentMethod, loop);
 		/**
+		 * if all properties are known, then we can end iterating
+		 */
+		mainMethodUpdateProperties(loop);
+		/**
 		 * call update method; 
 		 * most complex case - both nonsyn and synchronized updates
 		 */
@@ -387,7 +394,7 @@ public abstract class KernelGenerator
 		/**
 		 * only synchronized updates
 		 */
-		else if (varSelectionSize != null) {
+		else if (varSelectionSize == null) {
 			mainMethodCallSynUpdate(loop);
 		}
 		/**
@@ -396,12 +403,6 @@ public abstract class KernelGenerator
 		else {
 			mainMethodCallNonsynUpdate(loop);
 		}
-		/**
-		 * if all properties are known, then we can end iterating
-		 */
-		IfElse ifElse = new IfElse(mainMethodCallCheckingProperties(currentMethod));
-		ifElse.addExpression(0, new Expression("break;\n"));
-		loop.addExpression(ifElse);
 		/**
 		 * DTMC:
 		 * int transitions = 0;
@@ -451,8 +452,9 @@ public abstract class KernelGenerator
 		//selection
 		CLVariable selection = new CLVariable(new StdVariableType(StdType.FLOAT), "selection");
 		Expression sum = createBasicExpression(varSelectionSize.getSource(), Operator.ADD, varSynSelectionSize.getSource());
+		addParentheses(sum);
 		selection.setInitValue(config.prngType.getRandomFloat(fromString(0), sum));
-		parent.addExpression(selection.getDeclaration());
+		parent.addExpression(selection.getDefinition());
 		Expression condition = createBasicExpression(selection.getSource(), Operator.LT, varSelectionSize.getSource());
 		IfElse ifElse = new IfElse(condition);
 		/**
@@ -493,11 +495,13 @@ public abstract class KernelGenerator
 				random));
 	}
 
+	protected abstract void mainMethodFirstUpdateProperties(ComplexKernelComponent parent);
+
+	protected abstract void mainMethodUpdateProperties(ComplexKernelComponent currentMethod);
+
 	protected abstract void mainMethodUpdateTimeBefore(Method currentMethod, ComplexKernelComponent parent);
 
 	protected abstract void mainMethodUpdateTimeAfter(Method currentMethod, ComplexKernelComponent parent);
-
-	protected abstract Expression mainMethodCallCheckingProperties(Method currentMethod);
 
 	protected Method createNonsynGuardsMethod() throws KernelException
 	{
@@ -568,13 +572,13 @@ public abstract class KernelGenerator
 			Update update = commands[i].getUpdate();
 			Rate rate = new Rate(update.getRate(0));
 			if (update.getActionsNumber() > 1) {
-				IfElse ifElse = new IfElse(createBasicExpression(selectionSum.getSource(), Operator.LT, fromString(rate)));
+				IfElse ifElse = new IfElse(createBasicExpression(selectionSum.getSource(), Operator.LT, fromString(convertRate(rate))));
 				if (!update.isActionTrue(0)) {
 					ifElse.addExpression(0, convertPrismAction(update.getAction(0)));
 				}
 				for (int j = 1; j < update.getActionsNumber(); ++j) {
 					rate.addRate(update.getRate(j));
-					ifElse.addElif(createBasicExpression(selectionSum.getSource(), Operator.LT, fromString(rate)));
+					ifElse.addElif(createBasicExpression(selectionSum.getSource(), Operator.LT, fromString(convertRate(rate))));
 					if (!update.isActionTrue(j)) {
 						ifElse.addExpression(j, convertPrismAction(update.getAction(j)));
 					}
@@ -589,6 +593,8 @@ public abstract class KernelGenerator
 			}
 		}
 		currentMethod.addExpression(_switch);
+		currentMethod.addExpression(new Expression(
+				"if(get_global_id(0) < 5)printf(\"%d %d %d %f \\n\",(*sv).__STATE_VECTOR_q,((*sv).__STATE_VECTOR_q/10) > 0.01,selection,selectionSum);\n"));
 		return currentMethod;
 	}
 
@@ -600,8 +606,7 @@ public abstract class KernelGenerator
 
 	protected Method createPropertiesMethod() throws KernelException
 	{
-		Method currentMethod = new Method("updateNonsynGuards", new StdVariableType(StdType.VOID));
-		currentMethod = new Method("checkProperties", new StdVariableType(StdType.BOOL));
+		Method currentMethod = new Method("checkProperties", new StdVariableType(StdType.BOOL));
 		//StateVector * sv
 		CLVariable sv = new CLVariable(varStateVector.getPointer(), "sv");
 		currentMethod.addArg(sv);
@@ -619,20 +624,21 @@ public abstract class KernelGenerator
 		currentMethod.addLocalVar(allKnown);
 		for (int i = 0; i < properties.size(); ++i) {
 			Sampler property = properties.get(i);
-			CLVariable currentProperty = propertyState.varType.accessElement(propertyState, counter.getName());
-			CLVariable valueKnown = currentProperty.varType.accessField(currentProperty.varName, "valueKnown");
+			CLVariable currentProperty = accessArrayElement(propertyState, counter.getName());
+			CLVariable valueKnown = accessStructureField(currentProperty, "valueKnown");
 			if (!(property instanceof SamplerBoolean)) {
 				throw new KernelException("Currently rewards are not supported!");
 			}
-			IfElse ifElse = new IfElse(ExpressionGenerator.createNegation(valueKnown.getName()));
+			IfElse ifElse = new IfElse(createNegation(valueKnown.getName()));
 			ifElse.addExpression(0, createAssignment(allKnown, fromString("false")));
 			if (property instanceof SamplerNext) {
-				ifElse.addExpression(0, propertiesMethodAddNext(currentMethod, (SamplerNext) property, currentProperty));
+				propertiesMethodAddNext(ifElse, (SamplerNext) property, currentProperty);
 			} else if (property instanceof SamplerUntil) {
-				ifElse.addExpression(0, propertiesMethodAddUntil(currentMethod, (SamplerUntil) property, currentProperty));
+				propertiesMethodAddUntil(ifElse, (SamplerUntil) property, currentProperty);
 			} else {
-				ifElse.addExpression(0, propertiesMethodAddBoundedUntil(currentMethod, (SamplerBoolean) property, currentProperty));
+				propertiesMethodAddBoundedUntil(currentMethod, ifElse, (SamplerBoolean) property, currentProperty);
 			}
+			ifElse.addExpression(0, createAssignment(allKnown, valueKnown));
 			currentMethod.addExpression(ifElse);
 		}
 		currentMethod.addReturn(allKnown);
@@ -641,36 +647,66 @@ public abstract class KernelGenerator
 
 	protected abstract void propertiesMethodTimeArg(Method currentMethod) throws KernelException;
 
-	protected KernelComponent propertiesMethodAddNext(Method currentMethod, SamplerNext property, CLVariable propertyVar)
+	protected void propertiesMethodAddNext(ComplexKernelComponent parent, SamplerNext property, CLVariable propertyVar)
 	{
-		CLVariable valueKnown = propertyVar.varType.accessField(propertyVar.varName, "valueKnown");
-		CLVariable propertyState = propertyVar.varType.accessField(propertyVar.varName, "propertyState");
-		IfElse ifElse = new IfElse(propertiesMethodCreateExpression(property.getExpression().toString()));
-		ifElse.addExpression(0, createAssignment(propertyState, fromString("true")));
-		ifElse.addExpression(0, createAssignment(valueKnown, fromString("true")));
-		ifElse.addElse();
-		ifElse.addExpression(1, createAssignment(propertyState, fromString("false")));
-		ifElse.addExpression(1, createAssignment(valueKnown, fromString("true")));
-		return ifElse;
+		IfElse ifElse = createPropertyCondition(propertyVar, false, property.getExpression().toString(), true);
+		createPropertyCondition(ifElse, propertyVar, false, null, false);
+		parent.addExpression(ifElse);
 	}
 
-	protected KernelComponent propertiesMethodAddUntil(Method currentMethod, SamplerUntil property, CLVariable propertyVar)
+	protected void propertiesMethodAddUntil(ComplexKernelComponent parent, SamplerUntil property, CLVariable propertyVar)
 	{
-
-		CLVariable valueKnown = propertyVar.varType.accessField(propertyVar.varName, "valueKnown");
-		CLVariable propertyState = propertyVar.varType.accessField(propertyVar.varName, "propertyState");
-		IfElse ifElse = new IfElse(propertiesMethodCreateExpression(property.getRightSide().toString()));
-		ifElse.addExpression(0, createAssignment(propertyState, fromString("true")));
-		ifElse.addExpression(0, createAssignment(valueKnown, fromString("true")));
+		IfElse ifElse = createPropertyCondition(propertyVar, false, property.getRightSide().toString(), true);
+		/**
+		 * in F/G it is true
+		 */
 		if (!(property.getLeftSide() instanceof ExpressionLiteral)) {
-			ifElse.addElif(ExpressionGenerator.createNegation(propertiesMethodCreateExpression(property.getLeftSide().toString())));
-			ifElse.addExpression(1, createAssignment(propertyState, fromString("false")));
-			ifElse.addExpression(1, createAssignment(valueKnown, fromString("true")));
+			createPropertyCondition(ifElse, propertyVar, true, property.getLeftSide().toString(), false);
 		}
+		parent.addExpression(ifElse);
+	}
+
+	protected abstract void propertiesMethodAddBoundedUntil(Method currentMethod, ComplexKernelComponent parent, SamplerBoolean property, CLVariable propertyVar);
+
+	protected IfElse createPropertyCondition(CLVariable propertyVar, boolean negation, String condition, boolean propertyValue)
+	{
+		IfElse ifElse = null;
+		if (!negation) {
+			ifElse = new IfElse(propertiesMethodCreateExpression(condition));
+		} else {
+			ifElse = new IfElse(createNegation(propertiesMethodCreateExpression(condition)));
+		}
+		CLVariable valueKnown = accessStructureField(propertyVar, "valueKnown");
+		CLVariable propertyState = accessStructureField(propertyVar, "propertyState");
+		if (propertyValue) {
+			ifElse.addExpression(0, createAssignment(propertyState, fromString("true")));
+		} else {
+			ifElse.addExpression(0, createAssignment(propertyState, fromString("false")));
+		}
+		ifElse.addExpression(0, createAssignment(valueKnown, fromString("true")));
 		return ifElse;
 	}
 
-	protected abstract KernelComponent propertiesMethodAddBoundedUntil(Method currentMethod, SamplerBoolean property, CLVariable propertyVar);
+	protected void createPropertyCondition(IfElse ifElse, CLVariable propertyVar, boolean negation, String condition, boolean propertyValue)
+	{
+		if (condition != null) {
+			if (!negation) {
+				ifElse.addElif(propertiesMethodCreateExpression(condition));
+			} else {
+				ifElse.addElif(createNegation(propertiesMethodCreateExpression(condition)));
+			}
+		} else {
+			ifElse.addElse();
+		}
+		CLVariable valueKnown = accessStructureField(propertyVar, "valueKnown");
+		CLVariable propertyState = accessStructureField(propertyVar, "propertyState");
+		if (propertyValue) {
+			ifElse.addExpression(ifElse.size() - 1, createAssignment(propertyState, fromString("true")));
+		} else {
+			ifElse.addExpression(ifElse.size() - 1, createAssignment(propertyState, fromString("false")));
+		}
+		ifElse.addExpression(ifElse.size() - 1, createAssignment(valueKnown, fromString("true")));
+	}
 
 	protected Expression propertiesMethodCreateExpression(String expr)
 	{
@@ -686,5 +722,19 @@ public abstract class KernelGenerator
 	public String translateSVField(String varName)
 	{
 		return String.format("%s%s", STATE_VECTOR_PREFIX, varName);
+	}
+
+	protected String convertRate(Rate rate)
+	{
+		StringBuilder builder = new StringBuilder(rate.toString());
+		PrismVariable vars[] = model.getStateVector().getVars();
+		int index = 0;
+		for (int i = 0; i < vars.length; ++i) {
+			while ((index = builder.indexOf(vars[i].name, index)) != -1) {
+				builder.replace(index, index + vars[i].name.length(), String.format("((float)%s)", vars[i].name));
+				index += vars[i].name.length() + 9;
+			}
+		}
+		return builder.toString();
 	}
 }

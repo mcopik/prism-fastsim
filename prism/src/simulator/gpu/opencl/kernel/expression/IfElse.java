@@ -81,7 +81,9 @@ public class IfElse extends ComplexKernelComponent
 		@Override
 		public void accept(VisitorInterface v)
 		{
-			condition.accept(v);
+			if (type != Type.ELSE) {
+				condition.accept(v);
+			}
 			for (KernelComponent command : commands) {
 				command.accept(v);
 			}
@@ -142,6 +144,11 @@ public class IfElse extends ComplexKernelComponent
 	{
 		hasElse = true;
 		body.add(new Condition());
+	}
+
+	public int size()
+	{
+		return body.size();
 	}
 
 	public void addExpression(KernelComponent expr)

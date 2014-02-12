@@ -26,9 +26,12 @@
 
 package simulator.sampler;
 
-import simulator.*;
-import prism.*;
-import parser.ast.*;
+import parser.ast.Expression;
+import parser.ast.ExpressionTemporal;
+import prism.PrismException;
+import prism.PrismLangException;
+import simulator.Path;
+import simulator.TransitionList;
 
 /**
  * Construct a sampler for a (continuous-time) bounded until property.
@@ -68,7 +71,7 @@ public class SamplerBoundedUntilCont extends SamplerBoolean
 		// If the answer is already known we should do nothing
 		if (valueKnown)
 			return true;
-		
+
 		// For continuous-time bounded until, we may need to look back at previous state.
 		// So, treat first/subsequent calls to update() differently. 
 
@@ -137,14 +140,34 @@ public class SamplerBoundedUntilCont extends SamplerBoolean
 				}
 			}
 		}
-		
+
 		return valueKnown;
 	}
-	
+
 	@Override
 	public boolean needsBoundedNumSteps()
 	{
 		// Always bounded (although we don't know the exact num steps, just the time bound)
 		return true;
+	}
+
+	public Expression getLeftSide()
+	{
+		return left.deepCopy();
+	}
+
+	public Expression getRightSide()
+	{
+		return right.deepCopy();
+	}
+
+	public double getLowBound()
+	{
+		return lb;
+	}
+
+	public double getUpperBound()
+	{
+		return ub;
 	}
 }

@@ -85,9 +85,9 @@ public class PRNGRandom123 extends PRNGType
 		CLVariable state = ADDITIONAL_ARGS.get(0);
 		String counter;
 		if (!seedUseGlobalMemory) {
-			counter = String.format("threefry2x32_ctr_t ctr = {{0,globalID+%s.s0}};", state.varName);
+			counter = String.format("threefry2x32_ctr_t ctr = {{0,sampleNumber+globalID+%s.s0}};", state.varName);
 		} else {
-			counter = String.format("threefry2x32_ctr_t ctr = {{0,globalID+%s[0]}};", state.varName);
+			counter = String.format("threefry2x32_ctr_t ctr = {{0,sampleNumber+globalID+%s[0]}};", state.varName);
 		}
 		list.addExpression(new Expression(counter));
 		String key;

@@ -107,4 +107,24 @@ public class SamplerBoundedUntilDisc extends SamplerBoolean
 		// Always bounded
 		return true;
 	}
+
+	public Expression getLeftSide()
+	{
+		return left.deepCopy();
+	}
+
+	public Expression getRightSide()
+	{
+		return right.deepCopy();
+	}
+
+	public int getLowBound()
+	{
+		return lb;
+	}
+
+	public int getUpperBound()
+	{
+		return ub;
+	}
 }

@@ -39,7 +39,6 @@ import simulator.gpu.opencl.kernel.expression.Expression;
 import simulator.gpu.opencl.kernel.expression.ExpressionGenerator;
 import simulator.gpu.opencl.kernel.expression.ExpressionGenerator.Operator;
 import simulator.gpu.opencl.kernel.expression.IfElse;
-import simulator.gpu.opencl.kernel.expression.KernelComponent;
 import simulator.gpu.opencl.kernel.expression.Method;
 import simulator.gpu.opencl.kernel.memory.CLVariable;
 import simulator.gpu.opencl.kernel.memory.StdVariableType;
@@ -66,6 +65,7 @@ public class KernelGeneratorDTMC extends KernelGenerator
 		varSelectionSize = new CLVariable(new StdVariableType(0, model.commandsNumber()), "selectionSize");
 		varSelectionSize.setInitValue(StdVariableType.initialize(0));
 		currentMethod.addLocalVar(varSelectionSize);
+		//TODO: synchronized size
 	}
 
 	@Override
@@ -78,16 +78,6 @@ public class KernelGeneratorDTMC extends KernelGenerator
 	protected void mainMethodUpdateTimeAfter(Method currentMethod, ComplexKernelComponent parent)
 	{
 		//don't need to do anything!
-	}
-
-	@Override
-	protected Expression mainMethodCallCheckingProperties(Method currentMethod)
-	{
-		CLVariable sv = currentMethod.getLocalVar("stateVector");
-		CLVariable propertiesArray = currentMethod.getLocalVar("properties");
-		Expression call = helperMethods.get(KernelMethods.UPDATE_PROPERTIES).callMethod(sv.convertToPointer(), propertiesArray);
-		String source = call.getSource();
-		return new Expression(source.substring(0, source.indexOf(';')));
 	}
 
 	@Override
@@ -180,15 +170,28 @@ public class KernelGeneratorDTMC extends KernelGenerator
 	}
 
 	@Override
-	protected KernelComponent propertiesMethodAddBoundedUntil(Method currentMethod, SamplerBoolean property, CLVariable propertyVar)
+	protected void propertiesMethodAddBoundedUntil(Method currentMethod, ComplexKernelComponent parent, SamplerBoolean property, CLVariable propertyVar)
 	{
-		// TODO Auto-generated method stub
-		return null;
+
 	}
 
 	@Override
 	protected int mainMethodRandomsPerIteration()
 	{
 		return 1;
+	}
+
+	@Override
+	protected void mainMethodFirstUpdateProperties(ComplexKernelComponent parent)
+	{
+		//in case of DTMC, there is nothing to do
+	}
+
+	@Override
+	protected void mainMethodUpdateProperties(ComplexKernelComponent parent)
+	{
+		Expression call = helperMethods.get(KernelMethods.UPDATE_PROPERTIES).callMethod(varStateVector.convertToPointer(), varPropertiesArray);
+		String source = call.getSource();
+		parent.addExpression(new Expression(source.substring(0, source.indexOf(';'))));
 	}
 }

@@ -26,8 +26,8 @@
 package simulator.gpu.opencl.kernel.memory;
 
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -78,7 +78,7 @@ public class StructureType implements VariableInterface, UDType
 		}
 	}
 
-	private Map<String, CLVariable> fields = new HashMap<>();
+	private Map<String, CLVariable> fields = new LinkedHashMap<>();
 	public final String typeName;
 
 	public StructureType(String typeName)

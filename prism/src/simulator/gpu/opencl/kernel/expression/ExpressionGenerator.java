@@ -32,7 +32,6 @@ import prism.Pair;
 import prism.Preconditions;
 import simulator.gpu.automaton.PrismVariable;
 import simulator.gpu.automaton.update.Action;
-import simulator.gpu.opencl.kernel.KernelException;
 import simulator.gpu.opencl.kernel.memory.ArrayType;
 import simulator.gpu.opencl.kernel.memory.CLValue;
 import simulator.gpu.opencl.kernel.memory.CLVariable;
@@ -137,18 +136,17 @@ public class ExpressionGenerator
 		return new Expression(String.format("%s = %s ? %s : %s;", dest, condition, first, second));
 	}
 
-	static public CLVariable accessArrayElement(CLVariable var, Expression indice) throws KernelException
+	static public CLVariable accessArrayElement(CLVariable var, Expression indice)
 	{
+		Preconditions.checkCondition(var.varType.isArray(), String.format("Var %s is not an array!", var.varName));
 		if (var.varType instanceof ArrayType) {
 			return new CLVariable(((ArrayType) var.varType).getInternalType(),
 			//varName[indice]
 					String.format("%s[%s]", var.varName, indice));
-		} else if (var.varType instanceof PointerType) {
+		} else {
 			return new CLVariable(((PointerType) var.varType).getInternalType(),
 			//varName[indice]
 					String.format("%s[%s]", var.varName, indice));
-		} else {
-			throw new KernelException(String.format("Trying to access %d-ith position in variable %s which is not an array or a pointer!", indice, var.varName));
 		}
 	}
 
