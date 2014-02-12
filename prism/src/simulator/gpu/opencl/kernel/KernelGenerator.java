@@ -384,6 +384,7 @@ public abstract class KernelGenerator
 		 * if all properties are known, then we can end iterating
 		 */
 		mainMethodUpdateProperties(loop);
+		loop.addExpression(new Expression("if(get_global_id(0) < 10)printf(\"%d %f %f \",get_global_id(0),time,updatedTime);\n"));
 		/**
 		 * call update method; 
 		 * most complex case - both nonsyn and synchronized updates
@@ -523,7 +524,8 @@ public abstract class KernelGenerator
 
 		guardsMethodCreateLocalVars(currentMethod);
 		for (int i = 0; i < commands.length; ++i) {
-			guardsMethodCreateCondition(currentMethod, i, commands[i].getGuard().toString().replace("=", "=="));
+			//TODO: create method
+			guardsMethodCreateCondition(currentMethod, i, commands[i].getGuard().toString().replace("=", "==").replace("&", "&&"));
 		}
 		//signature last guard
 		CLVariable position = guards.varType.accessElement(guards, new Expression(counter.varName));
@@ -566,7 +568,8 @@ public abstract class KernelGenerator
 		updateMethodAdditionalArgs(currentMethod);
 		updateMethodLocalVars(currentMethod);
 		updateMethodPerformSelection(currentMethod);
-		Switch _switch = new Switch(new Expression(selection.varName));
+		CLVariable guardsTabSelection = accessArrayElement(varGuardsTab, selection.getSource());
+		Switch _switch = new Switch(guardsTabSelection.getSource());
 		int switchCounter = 0;
 		for (int i = 0; i < commands.length; ++i) {
 			Update update = commands[i].getUpdate();
@@ -594,7 +597,7 @@ public abstract class KernelGenerator
 		}
 		currentMethod.addExpression(_switch);
 		currentMethod.addExpression(new Expression(
-				"if(get_global_id(0) < 5)printf(\"%d %d %d %f \\n\",(*sv).__STATE_VECTOR_q,((*sv).__STATE_VECTOR_q/10) > 0.01,selection,selectionSum);\n"));
+				"if(get_global_id(0) < 10)printf(\"%f %d %d %d\\n\",selectionSum,selection,guardsTab[0],(*sv).__STATE_VECTOR_q);\n"));
 		return currentMethod;
 	}
 

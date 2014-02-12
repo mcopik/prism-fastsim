@@ -130,7 +130,7 @@ public class KernelGeneratorCTMC extends KernelGenerator
 		Expression sumExpr = createBasicExpression(sum.getSource(), Operator.ADD_AUGM, fromString(commands[position].getRateSum()));
 		sumExpr.add(";");
 		ifElse.addExpression(0, sumExpr);
-		ifElse.addExpression(0, new Expression("if(get_global_id(0) < 5)printf(\"" + guard + " %d %f\\n\",get_global_id(0),sum);"));
+		//ifElse.addExpression(0, new Expression("if(get_global_id(0) < 5)printf(\"" + guard + " %d %f\\n\",get_global_id(0),sum);"));
 		currentMethod.addExpression(ifElse);
 	}
 
@@ -263,7 +263,7 @@ public class KernelGeneratorCTMC extends KernelGenerator
 		/**
 		 * else if(updated_time < low_bound)
 		 */
-		ifElse.addElif(new Expression("updated_time > 2.0 && time < 3.0"));
+		ifElse.addElif(new Expression("updated_time > 3.0 && time < 5.0"));
 		IfElse rhsCheck2 = createPropertyCondition(propertyVar, false, prop.getRightSide().toString(), true);
 		ifElse.addExpression(1, rhsCheck2);
 		parent.addExpression(ifElse);
@@ -352,7 +352,7 @@ public class KernelGeneratorCTMC extends KernelGenerator
 		ifElse.addExpression(
 				0,
 				new Expression(
-						"if(get_global_id(0) < 5)printf(\"%f %f %f %d %d\\n\",time,updatedTime,selectionSize,stateVector.__STATE_VECTOR_q,properties[0].propertyState);\n"));
+						"if(get_global_id(0) < 10)printf(\"%f %f %f %d %d\\n\",time,updatedTime,selectionSize,stateVector.__STATE_VECTOR_q,properties[0].propertyState);\n"));
 		ifElse.addExpression(0, new Expression("break;\n"));
 		parent.addExpression(ifElse);
 	}
