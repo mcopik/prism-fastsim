@@ -134,6 +134,7 @@ public class IfElse extends ComplexKernelComponent
 	{
 		Preconditions.checkNotNull(expr, "Trying to add null reference to expression!");
 		Preconditions.checkIndex(conditionNumber, body.size(), "Non-valid index of condition in IfElse!");
+		correctExpression(expr);
 		((Condition) body.get(conditionNumber)).commands.add(expr);
 		if (expr.hasIncludes()) {
 			necessaryIncludes.addAll(expr.getIncludes());
@@ -154,6 +155,7 @@ public class IfElse extends ComplexKernelComponent
 	public void addExpression(KernelComponent expr)
 	{
 		Preconditions.checkNotNull(expr, "Trying to add null reference to expression!");
+		correctExpression(expr);
 		addExpression(0, expr);
 		if (expr.hasIncludes()) {
 			necessaryIncludes.addAll(expr.getIncludes());

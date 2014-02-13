@@ -99,7 +99,7 @@ public class ExpressionGenerator
 		operatorsSource.put(Operator.ADD_AUGM, "+=");
 		operatorsSource.put(Operator.SUB_AUGM, "-=");
 		operatorsSource.put(Operator.MUL_AUGM, "*=");
-		operatorsSource.put(Operator.MUL_AUGM, "/=");
+		operatorsSource.put(Operator.DIV_AUGM, "/=");
 	}
 
 	//	static public Expression createBasicExpression(CLValue var, Operator operator, CLValue var2)

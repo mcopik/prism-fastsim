@@ -28,6 +28,8 @@ package simulator.gpu.opencl.kernel;
 import static simulator.gpu.opencl.kernel.expression.ExpressionGenerator.accessArrayElement;
 import static simulator.gpu.opencl.kernel.expression.ExpressionGenerator.addComma;
 import static simulator.gpu.opencl.kernel.expression.ExpressionGenerator.addParentheses;
+import static simulator.gpu.opencl.kernel.expression.ExpressionGenerator.convertPrismGuard;
+import static simulator.gpu.opencl.kernel.expression.ExpressionGenerator.convertPrismRate;
 import static simulator.gpu.opencl.kernel.expression.ExpressionGenerator.createAssignment;
 import static simulator.gpu.opencl.kernel.expression.ExpressionGenerator.createBasicExpression;
 import static simulator.gpu.opencl.kernel.expression.ExpressionGenerator.fromString;
@@ -39,6 +41,7 @@ import java.util.List;
 import parser.ast.ExpressionLiteral;
 import prism.Preconditions;
 import simulator.gpu.automaton.AbstractAutomaton;
+import simulator.gpu.automaton.command.Command;
 import simulator.gpu.automaton.command.SynchronizedCommand;
 import simulator.gpu.automaton.update.Rate;
 import simulator.gpu.opencl.kernel.expression.ComplexKernelComponent;
@@ -425,6 +428,35 @@ public class KernelGeneratorCTMC extends KernelGenerator
 			type.addVariable(array);
 			synchronizedStates.put(cmd.synchLabel, type);
 		}
+	}
+
+	@Override
+	protected Method guardsSynCreateMethod(String label, int maxCommandsNumber)
+	{
+		Method currentMethod = new Method(label, new StdVariableType(StdType.FLOAT));
+		return currentMethod;
+	}
+
+	@Override
+	protected CLVariable guardsSynLabelVar(int maxCommandsNumber)
+	{
+		return new CLVariable(new StdVariableType(StdType.FLOAT), "labelSize");
+	}
+
+	@Override
+	protected CLVariable guardsSynCurrentVar(int maxCommandsNumber)
+	{
+		return new CLVariable(new StdVariableType(StdType.FLOAT), "currentSize");
+	}
+
+	@Override
+	protected void guardsSynAddGuard(ComplexKernelComponent parent, Command cmd, CLVariable size)
+	{
+		IfElse ifElse = new IfElse(new Expression(convertPrismGuard(svVars, cmd.getGuard().toString())));
+		ifElse.addElif(createBasicExpression(size.getSource(), Operator.ADD_AUGM,
+		//converted rate
+				new Expression(convertPrismRate(svVars, cmd.getRateSum()))));
+		parent.addExpression(ifElse);
 	}
 
 }

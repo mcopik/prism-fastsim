@@ -83,6 +83,7 @@ public abstract class KernelGenerator
 	protected CLVariable varPathLength = null;
 	protected CLVariable varSynSelectionSize = null;
 	protected CLVariable varGuardsTab = null;
+	protected CLVariable[] varSynchronizedStates = null;
 	protected CLVariable varPropertiesArray = null;
 
 	protected enum KernelMethods {
@@ -175,6 +176,7 @@ public abstract class KernelGenerator
 	protected List<Method> synchronizedUpdates = null;
 	protected KernelMethod mainMethod = null;
 	protected PRNGType prngType = null;
+	protected PrismVariable[] svVars = null;
 
 	/**
 	 * 
@@ -188,6 +190,7 @@ public abstract class KernelGenerator
 		this.properties = properties;
 		this.config = config;
 		this.prngType = config.prngType;
+		this.svVars = model.getStateVector().getVars();
 		importStateVector();
 		int synSize = model.synchCmdsNumber();
 		int size = model.commandsNumber();
@@ -224,22 +227,20 @@ public abstract class KernelGenerator
 				additionalDeclarations.add(type.getDefinition());
 			}
 		}
-		if (synchronizedGuards != null) {
-			for (Method method : synchronizedGuards) {
-				additionalDeclarations.add(method);
-			}
-		}
-		if (synchronizedUpdates != null) {
-			for (Method method : synchronizedUpdates) {
-				additionalDeclarations.add(method);
-			}
-		}
 		return additionalDeclarations;
 	}
 
 	public Collection<Method> getHelperMethods()
 	{
-		return helperMethods.values();
+		List<Method> ret = new ArrayList<>();
+		ret.addAll(helperMethods.values());
+		if (synchronizedGuards != null) {
+			ret.addAll(synchronizedGuards);
+		}
+		if (synchronizedUpdates != null) {
+			ret.addAll(synchronizedUpdates);
+		}
+		return ret;
 	}
 
 	protected void importStateVector()
@@ -329,7 +330,17 @@ public abstract class KernelGenerator
 		//guardsTab
 		varGuardsTab = new CLVariable(new ArrayType(new StdVariableType(0, commands.length), commands.length), "guardsTab");
 		currentMethod.addLocalVar(varGuardsTab);
-		//TODO: guardsTab in synchronized
+		//synchronized state
+		if (synchronizedStates != null) {
+			varSynchronizedStates = new CLVariable[synchronizedStates.size()];
+			int counter = 0;
+			for (Map.Entry<String, StructureType> types : synchronizedStates.entrySet()) {
+				varSynchronizedStates[counter] = new CLVariable(types.getValue(),
+				//synchState_label
+						String.format("synchState_%s", types.getKey()));
+				currentMethod.addLocalVar(varSynchronizedStates[counter++]);
+			}
+		}
 		//pathLength
 		varPathLength = new CLVariable(new StdVariableType(StdType.UINT32), "pathLength");
 		currentMethod.addLocalVar(varPathLength);
@@ -341,7 +352,8 @@ public abstract class KernelGenerator
 		 */
 		helperMethods.put(KernelMethods.CHECK_GUARDS, createNonsynGuardsMethod());
 		helperMethods.put(KernelMethods.PERFORM_UPDATE, createNonsynUpdate());
-		if (synCommands == null) {
+		if (synCommands != null) {
+			createGuardsMethodSyn();
 			//			helperMethods.put(KernelMethods.CHECK_GUARDS_SYN, createSynGuardsMethod());
 			//			helperMethods.put(KernelMethods.PERFORM_UPDATE_SYN, createSynUpdate());
 		}
@@ -383,7 +395,15 @@ public abstract class KernelGenerator
 				varStateVector.convertToPointer(), varGuardsTab);
 		loop.addExpression(createAssignment(varSelectionSize, callCheckGuards));
 		if (synCommands != null) {
-			//TODO: call synchronized check guards
+			loop.addExpression(createAssignment(varSynSelectionSize, fromString(0)));
+			for (int i = 0; i < synCommands.length; ++i) {
+				Expression callMethod = synchronizedGuards.get(i).callMethod(
+				//&stateVector
+						varStateVector.convertToPointer(),
+						//synchState
+						varSynchronizedStates[i].convertToPointer());
+				loop.addExpression(createBasicExpression(varSynSelectionSize.getSource(), Operator.ADD_AUGM, callMethod));
+			}
 		}
 		/**
 		 * if(selectionSize + synSelectionSize == 0) -> deadlock, break
@@ -559,6 +579,65 @@ public abstract class KernelGenerator
 	protected abstract void guardsMethodCreateCondition(Method currentMethod, int position, String guard);
 
 	protected abstract void guardsMethodReturnValue(Method currentMethod);
+
+	protected void createGuardsMethodSyn()
+	{
+		synchronizedGuards = new ArrayList<>();
+		for (SynchronizedCommand cmd : synCommands) {
+			//synchronized state
+			CLVariable synState = new CLVariable(new PointerType(synchronizedStates.get(cmd.synchLabel)), "synState");
+			int max = cmd.getMaxCommandsNum();
+			Method current = guardsSynCreateMethod(String.format("guardCheck__%s", cmd.synchLabel), max);
+			CLVariable stateVector = new CLVariable(varStateVector.getPointer(), "sv");
+			//size for whole label
+			CLVariable labelSize = guardsSynLabelVar(max);
+			labelSize.setInitValue(StdVariableType.initialize(0));
+			//size for current module
+			CLVariable currentSize = guardsSynCurrentVar(max);
+			currentSize.setInitValue(StdVariableType.initialize(0));
+			CLVariable saveSize = synState.accessField("moduleSize");
+			try {
+				current.addArg(stateVector);
+				current.addArg(synState);
+				current.addLocalVar(labelSize);
+				current.addLocalVar(currentSize);
+			} catch (KernelException e) {
+				throw new RuntimeException(e);
+			}
+			current.registerStateVector(stateVector);
+			//first module
+			for (int i = 0; i < cmd.getCommandNumber(0); ++i) {
+				guardsSynAddGuard(current, cmd.getCommand(0, i), currentSize);
+			}
+			current.addExpression(createAssignment(saveSize.accessElement(fromString(0)), currentSize));
+			current.addExpression(createAssignment(labelSize, currentSize));
+			//rest
+			for (int i = 1; i < cmd.getModulesNum(); ++i) {
+				IfElse ifElse = new IfElse(createBasicExpression(labelSize.getSource(), Operator.NE, fromString(0)));
+				ifElse.addExpression(createAssignment(currentSize, fromString(0)));
+				for (int j = 0; j < cmd.getCommandNumber(i); ++j) {
+					guardsSynAddGuard(ifElse, cmd.getCommand(i, j), currentSize);
+				}
+				ifElse.addExpression(createBasicExpression(labelSize.getSource(),
+				// cmds_for_label *= cmds_for_module;
+						Operator.MUL_AUGM, currentSize.getSource()));
+				ifElse.addExpression(createAssignment(saveSize.accessElement(fromString(i)), currentSize));
+				current.addExpression(ifElse);
+			}
+			saveSize = synState.accessField("size");
+			current.addExpression(createAssignment(saveSize, labelSize));
+			current.addReturn(labelSize);
+			synchronizedGuards.add(current);
+		}
+	}
+
+	protected abstract Method guardsSynCreateMethod(String label, int maxCommandsNumber);
+
+	protected abstract CLVariable guardsSynLabelVar(int maxCommandsNumber);
+
+	protected abstract CLVariable guardsSynCurrentVar(int maxCommandsNumber);
+
+	protected abstract void guardsSynAddGuard(ComplexKernelComponent parent, Command cmd, CLVariable size);
 
 	protected Method createNonsynUpdate() throws KernelException
 	{

@@ -51,9 +51,26 @@ public abstract class ComplexKernelComponent implements KernelComponent
 	public void addExpression(KernelComponent expr)
 	{
 		Preconditions.checkNotNull(expr, "Trying to add null reference to expression!");
+		correctExpression(expr);
 		body.add(expr);
 		if (expr.hasIncludes()) {
 			necessaryIncludes.addAll(expr.getIncludes());
+		}
+	}
+
+	protected void correctExpression(KernelComponent expr)
+	{
+		if (expr instanceof Expression) {
+			Expression expression = (Expression) expr;
+			int len = expression.exprString.length() - 1;
+			while (len >= 0 && expression.exprString.charAt(len) != ';' &&
+			//remove all whitespaces
+					Character.isWhitespace(expression.exprString.charAt(len))) {
+				--len;
+			}
+			if (len >= 0 && expression.exprString.charAt(len) != ';') {
+				ExpressionGenerator.addComma(expression);
+			}
 		}
 	}
 

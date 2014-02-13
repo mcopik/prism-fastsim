@@ -27,6 +27,7 @@ package simulator.gpu.opencl.kernel;
 
 import static simulator.gpu.opencl.kernel.expression.ExpressionGenerator.addComma;
 import static simulator.gpu.opencl.kernel.expression.ExpressionGenerator.addParentheses;
+import static simulator.gpu.opencl.kernel.expression.ExpressionGenerator.convertPrismGuard;
 import static simulator.gpu.opencl.kernel.expression.ExpressionGenerator.createAssignment;
 import static simulator.gpu.opencl.kernel.expression.ExpressionGenerator.createBasicExpression;
 import static simulator.gpu.opencl.kernel.expression.ExpressionGenerator.fromString;
@@ -38,6 +39,7 @@ import java.util.List;
 import parser.ast.ExpressionLiteral;
 import prism.Preconditions;
 import simulator.gpu.automaton.AbstractAutomaton;
+import simulator.gpu.automaton.command.Command;
 import simulator.gpu.automaton.command.SynchronizedCommand;
 import simulator.gpu.opencl.kernel.expression.ComplexKernelComponent;
 import simulator.gpu.opencl.kernel.expression.Expression;
@@ -58,6 +60,7 @@ import simulator.sampler.SamplerBoundedUntilDisc;
 
 public class KernelGeneratorDTMC extends KernelGenerator
 {
+	protected int maximalNumberOfSynchsUpdates = 0;
 
 	public KernelGeneratorDTMC(AbstractAutomaton model, List<Sampler> properties, KernelConfig config)
 	{
@@ -75,7 +78,15 @@ public class KernelGeneratorDTMC extends KernelGenerator
 		varSelectionSize = new CLVariable(new StdVariableType(0, model.commandsNumber()), "selectionSize");
 		varSelectionSize.setInitValue(StdVariableType.initialize(0));
 		currentMethod.addLocalVar(varSelectionSize);
-		//TODO: synchronized size
+		//number of synchronized transitions
+		if (synCommands != null) {
+			for (SynchronizedCommand cmd : synCommands) {
+				maximalNumberOfSynchsUpdates += cmd.getMaxCommandsNum();
+			}
+			varSynSelectionSize = new CLVariable(new StdVariableType(0, maximalNumberOfSynchsUpdates - 1), "selectionSynSize");
+			varSynSelectionSize.setInitValue(StdVariableType.initialize(0));
+			currentMethod.addLocalVar(varSynSelectionSize);
+		}
 	}
 
 	@Override
@@ -93,6 +104,7 @@ public class KernelGeneratorDTMC extends KernelGenerator
 	@Override
 	protected void guardsMethodCreateLocalVars(Method currentMethod) throws KernelException
 	{
+		//don't need to do anything!
 	}
 
 	@Override
@@ -311,13 +323,42 @@ public class KernelGeneratorDTMC extends KernelGenerator
 				if (cmdNumber > max) {
 					max = cmdNumber;
 				}
-				sum *= cmdNumber;
 			}
+			sum = cmd.getMaxCommandsNum();
+			maximalNumberOfSynchsUpdates += sum;
 			size = new CLVariable(new StdVariableType(0, sum), "size");
 			array = new CLVariable(new ArrayType(new StdVariableType(0, max), cmd.getModulesNum()), "moduleSize");
 			type.addVariable(size);
 			type.addVariable(array);
 			synchronizedStates.put(cmd.synchLabel, type);
 		}
+	}
+
+	@Override
+	protected Method guardsSynCreateMethod(String label, int maxCommandsNumber)
+	{
+		Method currentMethod = new Method(label, new StdVariableType(0, maxCommandsNumber));
+		return currentMethod;
+	}
+
+	@Override
+	protected CLVariable guardsSynLabelVar(int maxCommandsNumber)
+	{
+		return new CLVariable(new StdVariableType(0, maxCommandsNumber), "labelSize");
+	}
+
+	@Override
+	protected CLVariable guardsSynCurrentVar(int maxCommandsNumber)
+	{
+		return new CLVariable(new StdVariableType(0, maxCommandsNumber), "currentSize");
+	}
+
+	@Override
+	protected void guardsSynAddGuard(ComplexKernelComponent parent, Command cmd, CLVariable size)
+	{
+		Expression guard = new Expression(convertPrismGuard(svVars, cmd.getGuard().toString()));
+		parent.addExpression(createBasicExpression(size.getSource(), Operator.ADD_AUGM,
+		//converted guard
+				guard));
 	}
 }
