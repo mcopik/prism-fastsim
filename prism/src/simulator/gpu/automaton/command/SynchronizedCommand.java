@@ -60,7 +60,7 @@ public class SynchronizedCommand implements CommandInterface
 		}
 	}
 
-	private String synchLabel;
+	public final String synchLabel;
 	private Map<String, ModuleGroup> synchronizedCommands = new TreeMap<>();
 
 	public SynchronizedCommand(String label)

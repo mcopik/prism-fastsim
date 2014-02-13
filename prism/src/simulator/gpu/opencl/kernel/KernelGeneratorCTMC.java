@@ -209,44 +209,6 @@ public class KernelGeneratorCTMC extends KernelGenerator
 	@Override
 	protected void propertiesMethodAddBoundedUntil(Method currentMethod, ComplexKernelComponent parent, SamplerBoolean property, CLVariable propertyVar)
 	{
-		//		CLVariable time = currentMethod.getArg("time");
-		//		CLVariable updTime = currentMethod.getArg("updated_time");
-		//		SamplerBoundedUntilCont prop = (SamplerBoundedUntilCont) property;
-		//		/**
-		//		 * if(updated_time > upper_bound)
-		//		 */
-		//		IfElse ifElse = new IfElse(createBasicExpression(updTime.getSource(), Operator.GT, fromString(prop.getUpperBound())));
-		//		/**
-		//		 * if(right_side == true) -> true
-		//		 * else -> false
-		//		 */
-		//		IfElse rhsCheck = createPropertyCondition(propertyVar, false, prop.getRightSide().toString(), true);
-		//		createPropertyCondition(rhsCheck, propertyVar, false, null, false);
-		//		ifElse.addExpression(rhsCheck);
-		//		/**
-		//		 * else if(updated_time < low_bound)
-		//		 */
-		//		ifElse.addElif(createBasicExpression(updTime.getSource(), Operator.LE,
-		//		// updated_time < lb
-		//				fromString(prop.getLowBound())));
-		//		/**
-		//		 * if(left_side == false) -> false
-		//		 */
-		//		if (!(prop.getLeftSide() instanceof ExpressionLiteral)) {
-		//			IfElse lhsCheck = createPropertyCondition(propertyVar, true, prop.getLeftSide().toString(), false);
-		//			ifElse.addExpression(1, lhsCheck);
-		//		}
-		//		ifElse.addElse();
-		//		/**
-		//		 * if(right_side == true) -> true
-		//		 * else if(left_side == false) -> false
-		//		 */
-		//		IfElse betweenBounds = createPropertyCondition(propertyVar, false, prop.getRightSide().toString(), true);
-		//		if (!(prop.getLeftSide() instanceof ExpressionLiteral)) {
-		//			createPropertyCondition(betweenBounds, propertyVar, true, prop.getLeftSide().toString(), false);
-		//		}
-		//		ifElse.addExpression(2, betweenBounds);
-		//		parent.addExpression(ifElse);
 		CLVariable updTime = currentMethod.getArg("updated_time");
 		SamplerBoundedUntilCont prop = (SamplerBoundedUntilCont) property;
 		/**
@@ -263,10 +225,47 @@ public class KernelGeneratorCTMC extends KernelGenerator
 		/**
 		 * else if(updated_time < low_bound)
 		 */
-		ifElse.addElif(new Expression("updated_time > 3.0 && time < 5.0"));
-		IfElse rhsCheck2 = createPropertyCondition(propertyVar, false, prop.getRightSide().toString(), true);
-		ifElse.addExpression(1, rhsCheck2);
+		ifElse.addElif(createBasicExpression(updTime.getSource(), Operator.LE,
+		// updated_time < lb
+				fromString(prop.getLowBound())));
+		/**
+		 * if(left_side == false) -> false
+		 */
+		if (!(prop.getLeftSide() instanceof ExpressionLiteral)) {
+			IfElse lhsCheck = createPropertyCondition(propertyVar, true, prop.getLeftSide().toString(), false);
+			ifElse.addExpression(1, lhsCheck);
+		}
+		ifElse.addElse();
+		/**
+		 * if(right_side == true) -> true
+		 * else if(left_side == false) -> false
+		 */
+		IfElse betweenBounds = createPropertyCondition(propertyVar, false, prop.getRightSide().toString(), true);
+		if (!(prop.getLeftSide() instanceof ExpressionLiteral)) {
+			createPropertyCondition(betweenBounds, propertyVar, true, prop.getLeftSide().toString(), false);
+		}
+		ifElse.addExpression(2, betweenBounds);
 		parent.addExpression(ifElse);
+		//		CLVariable updTime = currentMethod.getArg("updated_time");
+		//		SamplerBoundedUntilCont prop = (SamplerBoundedUntilCont) property;
+		//		/**
+		//		 * if(updated_time > upper_bound)
+		//		 */
+		//		IfElse ifElse = new IfElse(createBasicExpression(updTime.getSource(), Operator.GT, fromString(prop.getUpperBound())));
+		//		/**
+		//		 * if(right_side == true) -> true
+		//		 * else -> false
+		//		 */
+		//		IfElse rhsCheck = createPropertyCondition(propertyVar, false, prop.getRightSide().toString(), true);
+		//		createPropertyCondition(rhsCheck, propertyVar, false, null, false);
+		//		ifElse.addExpression(rhsCheck);
+		//		/**
+		//		 * else if(updated_time < low_bound)
+		//		 */
+		//		ifElse.addElif(new Expression("updated_time > 3.0 && time < 5.0"));
+		//		IfElse rhsCheck2 = createPropertyCondition(propertyVar, false, prop.getRightSide().toString(), true);
+		//		ifElse.addExpression(1, rhsCheck2);
+		//		parent.addExpression(ifElse);
 	}
 
 	@Override
@@ -337,6 +336,56 @@ public class KernelGeneratorCTMC extends KernelGenerator
 		}
 	}
 
+	protected void mainMethodCallBothUpdates(ComplexKernelComponent parent)
+	{
+		//selection
+		CLVariable selection = new CLVariable(new StdVariableType(StdType.FLOAT), "selection");
+		Expression sum = createBasicExpression(varSelectionSize.getSource(), Operator.ADD, varSynSelectionSize.getSource());
+		addParentheses(sum);
+		selection.setInitValue(config.prngType.getRandomFloat(fromString(0), sum));
+		parent.addExpression(selection.getDefinition());
+		Expression condition = createBasicExpression(selection.getSource(), Operator.LT,
+		//< nonSynchronizedRate
+				varSelectionSize.getSource());
+		IfElse ifElse = new IfElse(condition);
+		/**
+		 * if(selection < selectionSize/sum)
+		 * callNonsynUpdate(..)
+		 */
+		Method update = helperMethods.get(KernelMethods.PERFORM_UPDATE);
+		ifElse.addExpression(update.callMethod(
+		//stateVector
+				varStateVector.convertToPointer(),
+				//non-synchronized guards tab
+				varGuardsTab,
+				//select 
+				selection));
+		/**
+		 * else
+		 * callSynUpdate()
+		 */
+		//TODO: call synchronized update
+		parent.addExpression(ifElse);
+	}
+
+	protected void mainMethodCallSynUpdate(ComplexKernelComponent parent)
+	{
+		//TODO: call synchronized update
+	}
+
+	protected void mainMethodCallNonsynUpdate(ComplexKernelComponent parent)
+	{
+		Method update = helperMethods.get(KernelMethods.PERFORM_UPDATE);
+		CLValue random = config.prngType.getRandomFloat(fromString(0), varSelectionSize.getSource());
+		parent.addExpression(update.callMethod(
+		//stateVector
+				varStateVector.convertToPointer(),
+				//non-synchronized guards tab
+				varGuardsTab,
+				//random float [0,1]
+				random));
+	}
+
 	@Override
 	protected void mainMethodUpdateProperties(ComplexKernelComponent parent)
 	{
@@ -349,10 +398,10 @@ public class KernelGeneratorCTMC extends KernelGenerator
 		}
 		String source = call.getSource();
 		IfElse ifElse = new IfElse(new Expression(source.substring(0, source.indexOf(';'))));
-		ifElse.addExpression(
-				0,
-				new Expression(
-						"if(get_global_id(0) < 10)printf(\"%f %f %f %d %d\\n\",time,updatedTime,selectionSize,stateVector.__STATE_VECTOR_q,properties[0].propertyState);\n"));
+		//		ifElse.addExpression(
+		//				0,
+		//				new Expression(
+		//						"if(get_global_id(0) < 10)printf(\"%f %f %f %d %d\\n\",time,updatedTime,selectionSize,stateVector.__STATE_VECTOR_q,properties[0].propertyState);\n"));
 		ifElse.addExpression(0, new Expression("break;\n"));
 		parent.addExpression(ifElse);
 	}

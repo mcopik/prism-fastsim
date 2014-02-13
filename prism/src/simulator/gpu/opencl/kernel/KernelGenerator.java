@@ -166,6 +166,8 @@ public abstract class KernelGenerator
 	protected List<Sampler> properties = null;
 	protected List<KernelComponent> additionalDeclarations = new ArrayList<>();
 	protected EnumMap<KernelMethods, Method> helperMethods = new EnumMap<>(KernelMethods.class);
+	protected List<Method> synchronizedGuards = new ArrayList<>();
+	protected List<Method> synchronizedUpdates = new ArrayList<>();
 	protected KernelMethod mainMethod = null;
 	protected PRNGType prngType = null;
 
@@ -384,7 +386,7 @@ public abstract class KernelGenerator
 		 * if all properties are known, then we can end iterating
 		 */
 		mainMethodUpdateProperties(loop);
-		loop.addExpression(new Expression("if(get_global_id(0) < 10)printf(\"%d %f %f \",get_global_id(0),time,updatedTime);\n"));
+		//loop.addExpression(new Expression("if(get_global_id(0) < 10)printf(\"%d %f %f \",get_global_id(0),time,updatedTime);\n"));
 		/**
 		 * call update method; 
 		 * most complex case - both nonsyn and synchronized updates
@@ -483,18 +485,7 @@ public abstract class KernelGenerator
 		//TODO: call synchronized update
 	}
 
-	protected void mainMethodCallNonsynUpdate(ComplexKernelComponent parent)
-	{
-		Method update = helperMethods.get(KernelMethods.PERFORM_UPDATE);
-		CLValue random = config.prngType.getRandomFloat(fromString(0), varSelectionSize.getSource());
-		parent.addExpression(update.callMethod(
-		//stateVector
-				varStateVector.convertToPointer(),
-				//non-synchronized guards tab
-				varGuardsTab,
-				//select 
-				random));
-	}
+	protected abstract void mainMethodCallNonsynUpdate(ComplexKernelComponent parent);
 
 	protected abstract void mainMethodFirstUpdateProperties(ComplexKernelComponent parent);
 
@@ -596,8 +587,9 @@ public abstract class KernelGenerator
 			}
 		}
 		currentMethod.addExpression(_switch);
-		currentMethod.addExpression(new Expression(
-				"if(get_global_id(0) < 10)printf(\"%f %d %d %d\\n\",selectionSum,selection,guardsTab[0],(*sv).__STATE_VECTOR_q);\n"));
+		//		currentMethod
+		//				.addExpression(new Expression(
+		//						"if(get_global_id(0) < 10)printf(\"%f %d %d %d %d %d\\n\",selectionSum,selection,numberOfCommands,(*sv).__STATE_VECTOR_q),(*sv).__STATE_VECTOR_s2),(*sv).__STATE_VECTOR_s2);\n"));
 		return currentMethod;
 	}
 

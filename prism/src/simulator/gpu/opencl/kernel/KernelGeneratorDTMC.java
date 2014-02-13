@@ -25,6 +25,8 @@
 //==============================================================================
 package simulator.gpu.opencl.kernel;
 
+import static simulator.gpu.opencl.kernel.expression.ExpressionGenerator.addComma;
+import static simulator.gpu.opencl.kernel.expression.ExpressionGenerator.addParentheses;
 import static simulator.gpu.opencl.kernel.expression.ExpressionGenerator.createAssignment;
 import static simulator.gpu.opencl.kernel.expression.ExpressionGenerator.createBasicExpression;
 import static simulator.gpu.opencl.kernel.expression.ExpressionGenerator.fromString;
@@ -32,6 +34,7 @@ import static simulator.gpu.opencl.kernel.expression.ExpressionGenerator.postInc
 
 import java.util.List;
 
+import parser.ast.ExpressionLiteral;
 import prism.Preconditions;
 import simulator.gpu.automaton.AbstractAutomaton;
 import simulator.gpu.opencl.kernel.expression.ComplexKernelComponent;
@@ -40,8 +43,11 @@ import simulator.gpu.opencl.kernel.expression.ExpressionGenerator;
 import simulator.gpu.opencl.kernel.expression.ExpressionGenerator.Operator;
 import simulator.gpu.opencl.kernel.expression.IfElse;
 import simulator.gpu.opencl.kernel.expression.Method;
+import simulator.gpu.opencl.kernel.memory.CLValue;
 import simulator.gpu.opencl.kernel.memory.CLVariable;
+import simulator.gpu.opencl.kernel.memory.RValue;
 import simulator.gpu.opencl.kernel.memory.StdVariableType;
+import simulator.gpu.opencl.kernel.memory.StdVariableType.StdType;
 import simulator.sampler.Sampler;
 import simulator.sampler.SamplerBoolean;
 import simulator.sampler.SamplerBoundedUntilDisc;
@@ -71,7 +77,7 @@ public class KernelGeneratorDTMC extends KernelGenerator
 	@Override
 	protected void mainMethodUpdateTimeBefore(Method currentMethod, ComplexKernelComponent parent)
 	{
-		parent.addExpression(postIncrement(currentMethod.getLocalVar("time")).add(";"));
+		parent.addExpression(addComma(postIncrement(currentMethod.getLocalVar("time"))));
 	}
 
 	@Override
@@ -121,9 +127,10 @@ public class KernelGeneratorDTMC extends KernelGenerator
 		CLVariable selection = currentMethod.getLocalVar("selection");
 		CLVariable guardsTab = currentMethod.getArg("guardsTab");
 		guardsTab = guardsTab.varType.accessElement(guardsTab, selection.getName());
-
+		//currentMethod.addExpression(new Expression(
+		//	"if(get_global_id(0)<10)printf(\"before %f %d %d %f\\n\",selectionSum,selection,numberOfCommands,((float)selection) / numberOfCommands);"));
 		// selection = floor(selectionSum)
-		currentMethod.addExpression(ExpressionGenerator.createAssignment(selection, ExpressionGenerator.functionCall("floor", sum.getName())));
+		//currentMethod.addExpression(ExpressionGenerator.createAssignment(selection, ExpressionGenerator.functionCall("floor", sum.getName())));
 
 		// selectionSum = numberOfCommands * ( selectionSum - selection/numberOfCommands);
 		Expression divideSelection = createBasicExpression(selection.cast("float"), Operator.DIV, number.getSource());
@@ -131,7 +138,8 @@ public class KernelGeneratorDTMC extends KernelGenerator
 		ExpressionGenerator.addParentheses(subSum);
 		Expression asSum = createBasicExpression(number.getSource(), Operator.MUL, subSum);
 		currentMethod.addExpression(ExpressionGenerator.createAssignment(sum, asSum));
-		currentMethod.addExpression(ExpressionGenerator.createAssignment(selection, guardsTab.getName()));
+		//currentMethod.addExpression(new Expression("if(get_global_id(0)<10)printf(\"after %f %d %d\\n\",selectionSum,selection,numberOfCommands);"));
+		//currentMethod.addExpression(ExpressionGenerator.createAssignment(selection, guardsTab.getName()));
 	}
 
 	@Override
@@ -172,13 +180,94 @@ public class KernelGeneratorDTMC extends KernelGenerator
 	@Override
 	protected void propertiesMethodAddBoundedUntil(Method currentMethod, ComplexKernelComponent parent, SamplerBoolean property, CLVariable propertyVar)
 	{
-
+		CLVariable time = currentMethod.getArg("time");
+		SamplerBoundedUntilDisc prop = (SamplerBoundedUntilDisc) property;
+		/**
+		 * if(time > upper_bound)
+		 */
+		IfElse ifElse = new IfElse(createBasicExpression(time.getSource(), Operator.GE, fromString(prop.getUpperBound())));
+		/**
+		 * if(right_side == true) -> true
+		 * else -> false
+		 */
+		IfElse rhsCheck = createPropertyCondition(propertyVar, false, prop.getRightSide().toString(), true);
+		createPropertyCondition(rhsCheck, propertyVar, false, null, false);
+		ifElse.addExpression(rhsCheck);
+		/**
+		 * Else -> check RHS and LHS
+		 */
+		ifElse.addElse();
+		/**
+		 * if(right_side == true) -> true
+		 * else if(left_side == false) -> false
+		 */
+		IfElse betweenBounds = createPropertyCondition(propertyVar, false, prop.getRightSide().toString(), true);
+		if (!(prop.getLeftSide() instanceof ExpressionLiteral)) {
+			createPropertyCondition(betweenBounds, propertyVar, true, prop.getLeftSide().toString(), false);
+		}
+		ifElse.addExpression(1, betweenBounds);
+		parent.addExpression(ifElse);
 	}
 
 	@Override
 	protected int mainMethodRandomsPerIteration()
 	{
 		return 1;
+	}
+
+	protected void mainMethodCallBothUpdates(ComplexKernelComponent parent)
+	{
+		//selection
+		CLVariable selection = new CLVariable(new StdVariableType(StdType.FLOAT), "selection");
+		Expression sum = createBasicExpression(varSelectionSize.getSource(), Operator.ADD, varSynSelectionSize.getSource());
+		addParentheses(sum);
+		selection.setInitValue(config.prngType.getRandomUnifFloat(fromString(0)));
+		parent.addExpression(selection.getDefinition());
+		Expression condition = createBasicExpression(selection.getSource(), Operator.LT,
+		//nonSyn/(syn+nonSyn)
+				createBasicExpression(varSelectionSize.cast("float"), Operator.DIV, sum));
+		IfElse ifElse = new IfElse(condition);
+		/**
+		 * if(selection < selectionSize/sum)
+		 * callNonsynUpdate(..)
+		 */
+		Method update = helperMethods.get(KernelMethods.PERFORM_UPDATE);
+		ifElse.addExpression(update.callMethod(
+		//stateVector
+				varStateVector.convertToPointer(),
+				//non-synchronized guards tab
+				varGuardsTab,
+				//select 
+				selection,
+				//numberOfSynchs
+				new RValue(sum)));
+		/**
+		 * else
+		 * callSynUpdate()
+		 */
+		//TODO: call synchronized update
+		parent.addExpression(ifElse);
+	}
+
+	protected void mainMethodCallSynUpdate(ComplexKernelComponent parent)
+	{
+		//TODO: call synchronized update
+	}
+
+	protected void mainMethodCallNonsynUpdate(ComplexKernelComponent parent)
+	{
+		Method update = helperMethods.get(KernelMethods.PERFORM_UPDATE);
+		Expression rndNumber = new Expression(String.format("%s%%%d", varPathLength.getSource().toString(), config.prngType.numbersPerRandomize()));
+		CLValue random = config.prngType.getRandomUnifFloat(rndNumber);
+		parent.addExpression(update.callMethod(
+		//stateVector
+				varStateVector.convertToPointer(),
+				//non-synchronized guards tab
+				varGuardsTab,
+				//random float [0,1]
+				random,
+				//number of commands
+				varSelectionSize));
 	}
 
 	@Override
@@ -190,8 +279,15 @@ public class KernelGeneratorDTMC extends KernelGenerator
 	@Override
 	protected void mainMethodUpdateProperties(ComplexKernelComponent parent)
 	{
-		Expression call = helperMethods.get(KernelMethods.UPDATE_PROPERTIES).callMethod(varStateVector.convertToPointer(), varPropertiesArray);
+		Expression call = null;
+		call = helperMethods.get(KernelMethods.UPDATE_PROPERTIES).callMethod(varStateVector.convertToPointer(), varPropertiesArray, varTime);
 		String source = call.getSource();
-		parent.addExpression(new Expression(source.substring(0, source.indexOf(';'))));
+		IfElse ifElse = new IfElse(new Expression(source.substring(0, source.indexOf(';'))));
+		//		ifElse.addExpression(
+		//				0,
+		//				new Expression(
+		//						"if(get_global_id(0) < 10)printf(\"%f %f %f %d %d\\n\",time,updatedTime,selectionSize,stateVector.__STATE_VECTOR_q,properties[0].propertyState);\n"));
+		ifElse.addExpression(0, new Expression("break;\n"));
+		parent.addExpression(ifElse);
 	}
 }
