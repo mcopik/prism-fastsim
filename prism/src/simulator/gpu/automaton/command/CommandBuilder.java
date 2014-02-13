@@ -67,7 +67,7 @@ public class CommandBuilder
 			if (synchronizedCommands.containsKey(synch)) {
 				synCmd = synchronizedCommands.get(synch);
 			} else {
-				synCmd = new SynchronizedCommand(currentModule);
+				synCmd = new SynchronizedCommand(synch);
 				synchronizedCommands.put(synch, synCmd);
 			}
 			synCmd.addCommand(currentModule, cmd);

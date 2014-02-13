@@ -216,6 +216,10 @@ public class RuntimeOpenCL implements RuntimeFrameworkInterface
 		for (RuntimeContext context : currentContexts) {
 			context.runSimulation(numberOfSamples, mainLog);
 		}
+		for (RuntimeContext context : currentContexts) {
+			context.context.release();
+			//context.currentDevice.getDevice().release();
+		}
 	}
 
 	@Override

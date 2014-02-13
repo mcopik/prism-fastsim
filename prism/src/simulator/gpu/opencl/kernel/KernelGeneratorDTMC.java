@@ -32,22 +32,26 @@ import static simulator.gpu.opencl.kernel.expression.ExpressionGenerator.createB
 import static simulator.gpu.opencl.kernel.expression.ExpressionGenerator.fromString;
 import static simulator.gpu.opencl.kernel.expression.ExpressionGenerator.postIncrement;
 
+import java.util.HashMap;
 import java.util.List;
 
 import parser.ast.ExpressionLiteral;
 import prism.Preconditions;
 import simulator.gpu.automaton.AbstractAutomaton;
+import simulator.gpu.automaton.command.SynchronizedCommand;
 import simulator.gpu.opencl.kernel.expression.ComplexKernelComponent;
 import simulator.gpu.opencl.kernel.expression.Expression;
 import simulator.gpu.opencl.kernel.expression.ExpressionGenerator;
 import simulator.gpu.opencl.kernel.expression.ExpressionGenerator.Operator;
 import simulator.gpu.opencl.kernel.expression.IfElse;
 import simulator.gpu.opencl.kernel.expression.Method;
+import simulator.gpu.opencl.kernel.memory.ArrayType;
 import simulator.gpu.opencl.kernel.memory.CLValue;
 import simulator.gpu.opencl.kernel.memory.CLVariable;
 import simulator.gpu.opencl.kernel.memory.RValue;
 import simulator.gpu.opencl.kernel.memory.StdVariableType;
 import simulator.gpu.opencl.kernel.memory.StdVariableType.StdType;
+import simulator.gpu.opencl.kernel.memory.StructureType;
 import simulator.sampler.Sampler;
 import simulator.sampler.SamplerBoolean;
 import simulator.sampler.SamplerBoundedUntilDisc;
@@ -289,5 +293,31 @@ public class KernelGeneratorDTMC extends KernelGenerator
 		//						"if(get_global_id(0) < 10)printf(\"%f %f %f %d %d\\n\",time,updatedTime,selectionSize,stateVector.__STATE_VECTOR_q,properties[0].propertyState);\n"));
 		ifElse.addExpression(0, new Expression("break;\n"));
 		parent.addExpression(ifElse);
+	}
+
+	@Override
+	protected void createSynchronizedStructures()
+	{
+		synchronizedStates = new HashMap<>();
+		CLVariable size;// = new CLVariable("size",new StdVariableType(0, maximal)
+		CLVariable array;
+		long sum = 1, max = 0;
+		int cmdNumber = 0;
+		for (SynchronizedCommand cmd : synCommands) {
+			StructureType type = new StructureType(String.format("SynState__%s", cmd.synchLabel));
+
+			for (int i = 0; i < cmd.getModulesNum(); ++i) {
+				cmdNumber = cmd.getCommandNumber(i);
+				if (cmdNumber > max) {
+					max = cmdNumber;
+				}
+				sum *= cmdNumber;
+			}
+			size = new CLVariable(new StdVariableType(0, sum), "size");
+			array = new CLVariable(new ArrayType(new StdVariableType(0, max), cmd.getModulesNum()), "moduleSize");
+			type.addVariable(size);
+			type.addVariable(array);
+			synchronizedStates.put(cmd.synchLabel, type);
+		}
 	}
 }

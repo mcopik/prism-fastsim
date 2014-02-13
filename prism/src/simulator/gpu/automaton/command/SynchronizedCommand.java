@@ -26,9 +26,9 @@
 package simulator.gpu.automaton.command;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.TreeMap;
 
 import prism.PrismException;
 import simulator.gpu.automaton.Guard;
@@ -61,7 +61,8 @@ public class SynchronizedCommand implements CommandInterface
 	}
 
 	public final String synchLabel;
-	private Map<String, ModuleGroup> synchronizedCommands = new TreeMap<>();
+	private Map<String, ModuleGroup> synchronizedCommands = new HashMap<>();
+	private List<String> moduleNames = new ArrayList<>();
 
 	public SynchronizedCommand(String label)
 	{
@@ -76,6 +77,9 @@ public class SynchronizedCommand implements CommandInterface
 	public void addCommand(String moduleName, Command cmd)
 	{
 		getModule(moduleName).addCommand(cmd);
+		if (moduleNames.size() != synchronizedCommands.size()) {
+			moduleNames.add(moduleName);
+		}
 	}
 
 	private ModuleGroup getModule(String moduleName)
@@ -90,14 +94,14 @@ public class SynchronizedCommand implements CommandInterface
 		return group;
 	}
 
-	public Command getCommand(int module, int command) throws PrismException
+	public Command getCommand(int module, int command)
 	{
-		return synchronizedCommands.get(module).cmds.get(command);
+		return synchronizedCommands.get(moduleNames.get(module)).cmds.get(command);
 	}
 
-	public int getCommandNumber(int module) throws PrismException
+	public int getCommandNumber(int module)
 	{
-		return synchronizedCommands.get(module).getCommandsNum();
+		return synchronizedCommands.get(moduleNames.get(module)).getCommandsNum();
 	}
 
 	@Override

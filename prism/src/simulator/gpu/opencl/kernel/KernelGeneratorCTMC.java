@@ -33,11 +33,13 @@ import static simulator.gpu.opencl.kernel.expression.ExpressionGenerator.createB
 import static simulator.gpu.opencl.kernel.expression.ExpressionGenerator.fromString;
 import static simulator.gpu.opencl.kernel.expression.ExpressionGenerator.postIncrement;
 
+import java.util.HashMap;
 import java.util.List;
 
 import parser.ast.ExpressionLiteral;
 import prism.Preconditions;
 import simulator.gpu.automaton.AbstractAutomaton;
+import simulator.gpu.automaton.command.SynchronizedCommand;
 import simulator.gpu.automaton.update.Rate;
 import simulator.gpu.opencl.kernel.expression.ComplexKernelComponent;
 import simulator.gpu.opencl.kernel.expression.Expression;
@@ -47,10 +49,12 @@ import simulator.gpu.opencl.kernel.expression.ForLoop;
 import simulator.gpu.opencl.kernel.expression.IfElse;
 import simulator.gpu.opencl.kernel.expression.Method;
 import simulator.gpu.opencl.kernel.expression.Switch;
+import simulator.gpu.opencl.kernel.memory.ArrayType;
 import simulator.gpu.opencl.kernel.memory.CLValue;
 import simulator.gpu.opencl.kernel.memory.CLVariable;
 import simulator.gpu.opencl.kernel.memory.StdVariableType;
 import simulator.gpu.opencl.kernel.memory.StdVariableType.StdType;
+import simulator.gpu.opencl.kernel.memory.StructureType;
 import simulator.sampler.Sampler;
 import simulator.sampler.SamplerBoolean;
 import simulator.sampler.SamplerBoundedUntilCont;
@@ -404,6 +408,23 @@ public class KernelGeneratorCTMC extends KernelGenerator
 		//						"if(get_global_id(0) < 10)printf(\"%f %f %f %d %d\\n\",time,updatedTime,selectionSize,stateVector.__STATE_VECTOR_q,properties[0].propertyState);\n"));
 		ifElse.addExpression(0, new Expression("break;\n"));
 		parent.addExpression(ifElse);
+	}
+
+	@Override
+	protected void createSynchronizedStructures()
+	{
+		synchronizedStates = new HashMap<>();
+		CLVariable size;
+		CLVariable array;
+		for (SynchronizedCommand cmd : synCommands) {
+			StructureType type = new StructureType(String.format("SynState__%s", cmd.synchLabel));
+
+			size = new CLVariable(new StdVariableType(StdType.FLOAT), "size");
+			array = new CLVariable(new ArrayType(new StdVariableType(StdType.FLOAT), cmd.getModulesNum()), "moduleSize");
+			type.addVariable(size);
+			type.addVariable(array);
+			synchronizedStates.put(cmd.synchLabel, type);
+		}
 	}
 
 }

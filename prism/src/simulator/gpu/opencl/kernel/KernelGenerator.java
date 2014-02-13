@@ -41,6 +41,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.EnumMap;
 import java.util.List;
+import java.util.Map;
 
 import parser.ast.ExpressionLiteral;
 import simulator.gpu.automaton.AbstractAutomaton;
@@ -161,6 +162,7 @@ public abstract class KernelGenerator
 	 *  bool[] flags;
 	 *  }
 	 */
+	protected Map<String, StructureType> synchronizedStates = null;
 	protected StructureType synCmdState = null;
 	protected AbstractAutomaton model = null;
 	protected KernelConfig config = null;
@@ -169,8 +171,8 @@ public abstract class KernelGenerator
 	protected List<Sampler> properties = null;
 	protected List<KernelComponent> additionalDeclarations = new ArrayList<>();
 	protected EnumMap<KernelMethods, Method> helperMethods = new EnumMap<>(KernelMethods.class);
-	protected List<Method> synchronizedGuards = new ArrayList<>();
-	protected List<Method> synchronizedUpdates = new ArrayList<>();
+	protected List<Method> synchronizedGuards = null;
+	protected List<Method> synchronizedUpdates = null;
 	protected KernelMethod mainMethod = null;
 	protected PRNGType prngType = null;
 
@@ -202,8 +204,13 @@ public abstract class KernelGenerator
 				synCommands[synCounter++] = (SynchronizedCommand) cmd;
 			}
 		}
+		if (synSize != 0) {
+			createSynchronizedStructures();
+		}
 		additionalDeclarations.add(PROPERTY_STATE_STRUCTURE.getDefinition());
 	}
+
+	protected abstract void createSynchronizedStructures();
 
 	public StructureType getSVType()
 	{
@@ -212,6 +219,21 @@ public abstract class KernelGenerator
 
 	public List<KernelComponent> getAdditionalDeclarations()
 	{
+		if (synchronizedStates != null) {
+			for (StructureType type : synchronizedStates.values()) {
+				additionalDeclarations.add(type.getDefinition());
+			}
+		}
+		if (synchronizedGuards != null) {
+			for (Method method : synchronizedGuards) {
+				additionalDeclarations.add(method);
+			}
+		}
+		if (synchronizedUpdates != null) {
+			for (Method method : synchronizedUpdates) {
+				additionalDeclarations.add(method);
+			}
+		}
 		return additionalDeclarations;
 	}
 
