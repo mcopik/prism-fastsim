@@ -29,7 +29,6 @@ import java.util.ArrayList;
 import java.util.List;
 
 import org.bridj.NativeList;
-import org.bridj.Pointer;
 
 import prism.PrismLog;
 import simulator.gpu.automaton.AbstractAutomaton;
@@ -93,17 +92,22 @@ public class RuntimeContext
 			CLProgram program = context.createProgram(kernel.getSource());
 			List<CLBuffer<Byte>> resultBuffers = new ArrayList<>();
 			//CLBuffer<Integer> pathLenghts = context.createIntBuffer(CLMem.Usage.Output, numberOfSamples);
-			Pointer<Integer> pathLengthsData = Pointer.allocateInts((long) numberOfSamples);
-			CLBuffer<Integer> pathLengths = context.createBuffer(CLMem.Usage.Output, pathLengthsData, true);
+			//Pointer<Integer> pathLengthsData = Pointer.allocateInts((long) numberOfSamples);
+			//CLBuffer<Integer> pathLengths = context.createBuffer(CLMem.Usage.InputOutput, pathLengthsData, true);
+			CLBuffer<Integer> pathLengths = context.createIntBuffer(CLMem.Usage.Output, numberOfSamples);
 			for (int i = 0; i < properties.size(); ++i) {
-				Pointer<Byte> result = Pointer.allocateBytes((long) numberOfSamples);
-				resultBuffers.add(context.createBuffer(CLMem.Usage.Output, result, false));
+				//Pointer<Byte> result = Pointer.allocateBytes((long) numberOfSamples);
+				//resultBuffers.add(context.createBuffer(CLMem.Usage.InputOutput, result, true));
+				resultBuffers.add(context.createByteBuffer(CLMem.Usage.Output, numberOfSamples));
 			}
 			program.addInclude("src/gpu/");
-			program.addInclude("classes/gpu/");
-			program.addInclude("classes/gpu/Random123");
+			//			program.addInclude("classes/gpu/");
+			//			program.addInclude("classes/gpu/Random123");
+			//			program.addInclude("gpu/Random123");
+			//			program.addInclude("gpu/Random123/features");
+			program.addInclude("gpu/Random123/features");
 			program.addInclude("gpu/Random123");
-			program.addInclude("gpu");
+			program.addInclude("gpu/");
 			program.build();
 			CLKernel programKernel = program.createKernel("main");
 			CLQueue queue = context.createDefaultProfilingQueue();
@@ -122,6 +126,7 @@ public class RuntimeContext
 			long allTime = 0;
 			while (samplesProcessed < numberOfSamples) {
 				int currentGWSize = (int) Math.min(globalWorkSize, numberOfSamples - samplesProcessed);
+				int samplesToProcess = currentGWSize;
 				if (currentGWSize != globalWorkSize) {
 					currentGWSize = roundUp(localWorkSize, currentGWSize);
 				}
@@ -129,7 +134,7 @@ public class RuntimeContext
 				mainLog.println(String.format("GW %d LW %d", currentGWSize, localWorkSize));
 				config.prngType.setKernelArg(programKernel, 0, samplesProcessed, globalWorkSize, localWorkSize);
 				int argOffset = config.prngType.kernelArgsNumber();
-				programKernel.setArg(argOffset, currentGWSize);
+				programKernel.setArg(argOffset, samplesToProcess);
 				programKernel.setArg(1 + argOffset, samplesProcessed);
 				programKernel.setArg(2 + argOffset, pathLengths);
 				for (int i = 0; i < properties.size(); ++i) {

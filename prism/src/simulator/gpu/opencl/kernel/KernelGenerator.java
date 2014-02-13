@@ -328,7 +328,7 @@ public abstract class KernelGenerator
 		/**
 		 * reject samples with globalID greater than numberOfSimulations
 		 */
-		//currentMethod.addExpression(String.format("if(%s >= %s) {\n return;\n}\n", globalID.varName, numberOfSimulations.varName));
+		currentMethod.addExpression(String.format("if(%s > %s) {\n return;\n}\n", globalID.varName, numberOfSimulations.varName));
 		/**
 		 * initialize generator
 		 */
