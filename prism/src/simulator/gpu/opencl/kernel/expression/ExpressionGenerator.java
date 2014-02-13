@@ -32,6 +32,7 @@ import prism.Pair;
 import prism.Preconditions;
 import simulator.gpu.automaton.PrismVariable;
 import simulator.gpu.automaton.update.Action;
+import simulator.gpu.automaton.update.Rate;
 import simulator.gpu.opencl.kernel.memory.ArrayType;
 import simulator.gpu.opencl.kernel.memory.CLValue;
 import simulator.gpu.opencl.kernel.memory.CLVariable;
@@ -191,5 +192,70 @@ public class ExpressionGenerator
 			builder.append("\n");
 		}
 		return new Expression(builder.toString());
+	}
+
+	static public String convertPrismRate(PrismVariable[] stateVector, Rate rate)
+	{
+		StringBuilder builder = new StringBuilder(rate.toString());
+		int index = 0;
+		for (int i = 0; i < stateVector.length; ++i) {
+			//			while ((index = builder.indexOf(stateVector[i].name, index)) != -1) {
+			//				builder.replace(index, index + stateVector[i].name.length(), String.format("((float)%s)", stateVector[i].name));
+			//				index += stateVector[i].name.length() + 9;
+			//			}
+			builderReplaceMostCommon(builder, stateVector[i].name, String.format("((float)%s)", stateVector[i].name));
+		}
+		return builder.toString();
+	}
+
+	static public Expression convertPrismProperty(String expr)
+	{
+		String newExpr = expr.replace("=", "==").replace("&", "&&").replace("|", "||");
+		if (expr.charAt(0) == ('!')) {
+			return new Expression(String.format("!(%s)", newExpr.substring(1)));
+		} else {
+			return new Expression(newExpr);
+		}
+
+	}
+
+	static public String convertPrismGuard(PrismVariable[] vars, String expr)
+	{
+		StringBuilder builder = new StringBuilder(expr);
+		for (int i = 0; i < vars.length; ++i) {
+			builderReplaceMostCommon(builder, vars[i].name, String.format("((float)%s)", vars[i].name));
+		}
+		builderReplace(builder, "=", "==");
+		builderReplace(builder, "|", "||");
+		builderReplace(builder, "&", "&&");
+		if (builder.charAt(0) == ('!')) {
+			return String.format("!(%s)", builder.substring(1));
+		} else {
+			return builder.toString();
+		}
+	}
+
+	static private void builderReplace(StringBuilder builder, String first, String second)
+	{
+		int index = 0;
+		while ((index = builder.indexOf(first, index)) != -1) {
+			builder.replace(index, index + first.length(), second);
+			index += second.length();
+		}
+	}
+
+	static private void builderReplaceMostCommon(StringBuilder builder, String first, String second)
+	{
+		int index = 0;
+		while ((index = builder.indexOf(first, index)) != -1) {
+			//if there is something, then it should be longer variable
+			if (builder.length() == index + 1
+					|| (!Character.isAlphabetic(builder.charAt(index + first.length())) && !Character.isDigit(builder.charAt(index + first.length())))) {
+				builder.replace(index, index + first.length(), second);
+				index += second.length();
+			} else {
+				index += first.length();
+			}
+		}
 	}
 }

@@ -29,6 +29,9 @@ import static simulator.gpu.opencl.kernel.expression.ExpressionGenerator.accessA
 import static simulator.gpu.opencl.kernel.expression.ExpressionGenerator.accessStructureField;
 import static simulator.gpu.opencl.kernel.expression.ExpressionGenerator.addParentheses;
 import static simulator.gpu.opencl.kernel.expression.ExpressionGenerator.convertPrismAction;
+import static simulator.gpu.opencl.kernel.expression.ExpressionGenerator.convertPrismGuard;
+import static simulator.gpu.opencl.kernel.expression.ExpressionGenerator.convertPrismProperty;
+import static simulator.gpu.opencl.kernel.expression.ExpressionGenerator.convertPrismRate;
 import static simulator.gpu.opencl.kernel.expression.ExpressionGenerator.createAssignment;
 import static simulator.gpu.opencl.kernel.expression.ExpressionGenerator.createBasicExpression;
 import static simulator.gpu.opencl.kernel.expression.ExpressionGenerator.createNegation;
@@ -512,11 +515,10 @@ public abstract class KernelGenerator
 		CLVariable counter = new CLVariable(new StdVariableType(0, commands.length), "counter");
 		counter.setInitValue(StdVariableType.initialize(0));
 		currentMethod.addLocalVar(counter);
-
+		PrismVariable[] vars = model.getStateVector().getVars();
 		guardsMethodCreateLocalVars(currentMethod);
 		for (int i = 0; i < commands.length; ++i) {
-			//TODO: create method
-			guardsMethodCreateCondition(currentMethod, i, commands[i].getGuard().toString().replace("=", "==").replace("&", "&&"));
+			guardsMethodCreateCondition(currentMethod, i, convertPrismGuard(vars, commands[i].getGuard().toString()));
 		}
 		//signature last guard
 		CLVariable position = guards.varType.accessElement(guards, new Expression(counter.varName));
@@ -562,17 +564,18 @@ public abstract class KernelGenerator
 		CLVariable guardsTabSelection = accessArrayElement(varGuardsTab, selection.getSource());
 		Switch _switch = new Switch(guardsTabSelection.getSource());
 		int switchCounter = 0;
+		PrismVariable[] vars = model.getStateVector().getVars();
 		for (int i = 0; i < commands.length; ++i) {
 			Update update = commands[i].getUpdate();
 			Rate rate = new Rate(update.getRate(0));
 			if (update.getActionsNumber() > 1) {
-				IfElse ifElse = new IfElse(createBasicExpression(selectionSum.getSource(), Operator.LT, fromString(convertRate(rate))));
+				IfElse ifElse = new IfElse(createBasicExpression(selectionSum.getSource(), Operator.LT, fromString(convertPrismRate(vars, rate))));
 				if (!update.isActionTrue(0)) {
 					ifElse.addExpression(0, convertPrismAction(update.getAction(0)));
 				}
 				for (int j = 1; j < update.getActionsNumber(); ++j) {
 					rate.addRate(update.getRate(j));
-					ifElse.addElif(createBasicExpression(selectionSum.getSource(), Operator.LT, fromString(convertRate(rate))));
+					ifElse.addElif(createBasicExpression(selectionSum.getSource(), Operator.LT, fromString(convertPrismRate(vars, rate))));
 					if (!update.isActionTrue(j)) {
 						ifElse.addExpression(j, convertPrismAction(update.getAction(j)));
 					}
@@ -667,9 +670,9 @@ public abstract class KernelGenerator
 	{
 		IfElse ifElse = null;
 		if (!negation) {
-			ifElse = new IfElse(propertiesMethodCreateExpression(condition));
+			ifElse = new IfElse(convertPrismProperty(condition));
 		} else {
-			ifElse = new IfElse(createNegation(propertiesMethodCreateExpression(condition)));
+			ifElse = new IfElse(createNegation(convertPrismProperty(condition)));
 		}
 		CLVariable valueKnown = accessStructureField(propertyVar, "valueKnown");
 		CLVariable propertyState = accessStructureField(propertyVar, "propertyState");
@@ -686,9 +689,9 @@ public abstract class KernelGenerator
 	{
 		if (condition != null) {
 			if (!negation) {
-				ifElse.addElif(propertiesMethodCreateExpression(condition));
+				ifElse.addElif(convertPrismProperty(condition));
 			} else {
-				ifElse.addElif(createNegation(propertiesMethodCreateExpression(condition)));
+				ifElse.addElif(createNegation(convertPrismProperty(condition)));
 			}
 		} else {
 			ifElse.addElse();
@@ -703,33 +706,8 @@ public abstract class KernelGenerator
 		ifElse.addExpression(ifElse.size() - 1, createAssignment(valueKnown, fromString("true")));
 	}
 
-	protected Expression propertiesMethodCreateExpression(String expr)
-	{
-		String newExpr = expr.replace("=", "==").replace("&", "&&").replace("|", "||");
-		if (expr.charAt(0) == ('!')) {
-			return new Expression(String.format("!(%s)", newExpr.substring(1)));
-		} else {
-			return new Expression(newExpr);
-		}
-
-	}
-
 	public String translateSVField(String varName)
 	{
 		return String.format("%s%s", STATE_VECTOR_PREFIX, varName);
-	}
-
-	protected String convertRate(Rate rate)
-	{
-		StringBuilder builder = new StringBuilder(rate.toString());
-		PrismVariable vars[] = model.getStateVector().getVars();
-		int index = 0;
-		for (int i = 0; i < vars.length; ++i) {
-			while ((index = builder.indexOf(vars[i].name, index)) != -1) {
-				builder.replace(index, index + vars[i].name.length(), String.format("((float)%s)", vars[i].name));
-				index += vars[i].name.length() + 9;
-			}
-		}
-		return builder.toString();
 	}
 }
