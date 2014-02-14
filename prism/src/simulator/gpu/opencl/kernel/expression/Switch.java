@@ -128,6 +128,7 @@ public class Switch extends ComplexKernelComponent
 	public void addCommand(int conditionNumber, KernelComponent command)
 	{
 		Preconditions.checkIndex(conditionNumber, body.size(), "Non-valid index of condition in Switch!");
+		correctExpression(command);
 		((Case) body.get(conditionNumber)).commands.add(command);
 	}
 
