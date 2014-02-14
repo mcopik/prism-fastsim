@@ -248,13 +248,15 @@ public class ExpressionGenerator
 		int index = 0;
 		while ((index = builder.indexOf(first, index)) != -1) {
 			//if there is something, then it should be longer variable
-			if (builder.length() == index + 1
+			if (builder.length() == index + first.length()
 					|| (!Character.isAlphabetic(builder.charAt(index + first.length())) && !Character.isDigit(builder.charAt(index + first.length())))) {
 				builder.replace(index, index + first.length(), second);
 				index += second.length();
 			} else {
 				index += first.length();
 			}
+			//for safety
+			index = Math.min(index, builder.length() - 1);
 		}
 	}
 }

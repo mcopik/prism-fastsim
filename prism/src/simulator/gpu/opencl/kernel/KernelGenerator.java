@@ -178,6 +178,8 @@ public abstract class KernelGenerator
 	protected KernelMethod mainMethod = null;
 	protected PRNGType prngType = null;
 	protected PrismVariable[] svVars = null;
+	protected boolean hasSynchronized = false;
+	protected boolean hasNonSynchronized = false;
 
 	/**
 	 * 
@@ -197,8 +199,12 @@ public abstract class KernelGenerator
 		int size = model.commandsNumber();
 		if (synSize != 0) {
 			synCommands = new SynchronizedCommand[synSize];
+			hasSynchronized = true;
 		}
-		commands = new Command[size - synSize];
+		if (size - synSize != 0) {
+			commands = new Command[size - synSize];
+			hasNonSynchronized = true;
+		}
 		int normalCounter = 0, synCounter = 0;
 		for (int i = 0; i < size; ++i) {
 			CommandInterface cmd = model.getCommand(i);
@@ -208,7 +214,7 @@ public abstract class KernelGenerator
 				synCommands[synCounter++] = (SynchronizedCommand) cmd;
 			}
 		}
-		if (synSize != 0) {
+		if (hasSynchronized) {
 			createSynchronizedStructures();
 		}
 		additionalDeclarations.add(PROPERTY_STATE_STRUCTURE.getDefinition());
@@ -331,11 +337,13 @@ public abstract class KernelGenerator
 			initValues[i] = initValue;
 		}
 		varPropertiesArray.setInitValue(propertiesArrayType.initializeArray(initValues));
-		//guardsTab
-		varGuardsTab = new CLVariable(new ArrayType(new StdVariableType(0, commands.length), commands.length), "guardsTab");
-		currentMethod.addLocalVar(varGuardsTab);
+		//non-synchronized guard tab
+		if (hasNonSynchronized) {
+			varGuardsTab = new CLVariable(new ArrayType(new StdVariableType(0, commands.length), commands.length), "guardsTab");
+			currentMethod.addLocalVar(varGuardsTab);
+		}
 		//synchronized state
-		if (synchronizedStates != null) {
+		if (hasSynchronized) {
 			varSynchronizedStates = new CLVariable[synchronizedStates.size()];
 			int counter = 0;
 			for (Map.Entry<String, StructureType> types : synchronizedStates.entrySet()) {
@@ -354,8 +362,10 @@ public abstract class KernelGenerator
 		/**
 		 * Create helpers method.
 		 */
-		helperMethods.put(KernelMethods.CHECK_GUARDS, createNonsynGuardsMethod());
-		helperMethods.put(KernelMethods.PERFORM_UPDATE, createNonsynUpdate());
+		if (commands != null) {
+			helperMethods.put(KernelMethods.CHECK_GUARDS, createNonsynGuardsMethod());
+			helperMethods.put(KernelMethods.PERFORM_UPDATE, createNonsynUpdate());
+		}
 		if (synCommands != null) {
 			createGuardsMethodSyn();
 			createUpdateMethodSyn();
@@ -395,11 +405,13 @@ public abstract class KernelGenerator
 		/**
 		 * check which guards are active
 		 */
-		Expression callCheckGuards = helperMethods.get(KernelMethods.CHECK_GUARDS).callMethod(
-		//(stateVector,guardsTab)
-				varStateVector.convertToPointer(), varGuardsTab);
-		loop.addExpression(createAssignment(varSelectionSize, callCheckGuards));
-		if (synCommands != null) {
+		if (hasNonSynchronized) {
+			Expression callCheckGuards = helperMethods.get(KernelMethods.CHECK_GUARDS).callMethod(
+			//(stateVector,guardsTab)
+					varStateVector.convertToPointer(), varGuardsTab);
+			loop.addExpression(createAssignment(varSelectionSize, callCheckGuards));
+		}
+		if (hasSynchronized) {
 			loop.addExpression(createAssignment(varSynSelectionSize, fromString(0)));
 			for (int i = 0; i < synCommands.length; ++i) {
 				Expression callMethod = synchronizedGuards.get(i).callMethod(
@@ -424,6 +436,8 @@ public abstract class KernelGenerator
 		IfElse deadlockState = new IfElse(createBasicExpression(sum, Operator.EQ, fromString(0)));
 		deadlockState.addExpression(new Expression("break;\n"));
 		loop.addExpression(deadlockState);
+		//		loop.addExpression(new Expression(
+		//				"if(globalID<5)printf(\"selection gID %d %d %d %d %d %d %d %d\\n\",globalID,stateVector.__STATE_VECTOR_x1,stateVector.__STATE_VECTOR_x2,stateVector.__STATE_VECTOR_x3,stateVector.__STATE_VECTOR_x4,stateVector.__STATE_VECTOR_x5,stateVector.__STATE_VECTOR_x6,stateVector.__STATE_VECTOR_x7);"));
 		/**
 		 * update time -> in case of CTMC and bounded until we need two time values:
 		 * 1) entering state
@@ -441,13 +455,13 @@ public abstract class KernelGenerator
 		 * call update method; 
 		 * most complex case - both nonsyn and synchronized updates
 		 */
-		if (varSelectionSize != null & varSynSelectionSize != null) {
+		if (hasNonSynchronized && hasSynchronized) {
 			mainMethodCallBothUpdates(loop);
 		}
 		/**
 		 * only synchronized updates
 		 */
-		else if (varSelectionSize == null) {
+		else if (hasSynchronized) {
 			mainMethodCallSynUpdate(loop);
 		}
 		/**
@@ -477,6 +491,9 @@ public abstract class KernelGenerator
 		 * For CTMC&bounded until -> update current time.
 		 */
 		mainMethodUpdateTimeAfter(currentMethod, loop);
+		//		loop.addExpression(new Expression(
+		//				"if(globalID<5)printf(\"end loop gID %d %d %d %d %d %d %d %d\\n\",globalID,stateVector.__STATE_VECTOR_x1,stateVector.__STATE_VECTOR_x2,stateVector.__STATE_VECTOR_x3,stateVector.__STATE_VECTOR_x4,stateVector.__STATE_VECTOR_x5,stateVector.__STATE_VECTOR_x6,stateVector.__STATE_VECTOR_x7);"));
+
 		currentMethod.addExpression(loop);
 		//sampleNumber + globalID
 		Expression position = createBasicExpression(globalID.getSource(), Operator.ADD, sampleNumber.getSource());
@@ -745,6 +762,10 @@ public abstract class KernelGenerator
 			ifElse.addExpression(0, createAssignment(allKnown, valueKnown));
 			currentMethod.addExpression(ifElse);
 		}
+		//		currentMethod
+		//				.addExpression(new Expression(
+		//						"if(get_global_id(0)<5)printf(\"selection gID %d ret %d %d %d %d %d %d %d %d\\n\",get_global_id(0),allKnown,(*sv).__STATE_VECTOR_x1,(*sv).__STATE_VECTOR_x2,(*sv).__STATE_VECTOR_x3,(*sv).__STATE_VECTOR_x4,(*sv).__STATE_VECTOR_x5,(*sv).__STATE_VECTOR_x6,(*sv).__STATE_VECTOR_x7);"));
+
 		currentMethod.addReturn(allKnown);
 		return currentMethod;
 	}

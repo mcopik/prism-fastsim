@@ -51,7 +51,6 @@ import simulator.gpu.opencl.kernel.expression.ComplexKernelComponent;
 import simulator.gpu.opencl.kernel.expression.Expression;
 import simulator.gpu.opencl.kernel.expression.ExpressionGenerator;
 import simulator.gpu.opencl.kernel.expression.ExpressionGenerator.Operator;
-import simulator.gpu.opencl.kernel.expression.ExpressionList;
 import simulator.gpu.opencl.kernel.expression.ForLoop;
 import simulator.gpu.opencl.kernel.expression.IfElse;
 import simulator.gpu.opencl.kernel.expression.Method;
@@ -71,6 +70,7 @@ import simulator.sampler.SamplerBoundedUntilDisc;
 public class KernelGeneratorDTMC extends KernelGenerator
 {
 	protected int maximalNumberOfSynchsUpdates = 0;
+	protected boolean timingProperty = false;
 
 	public KernelGeneratorDTMC(AbstractAutomaton model, List<Sampler> properties, KernelConfig config)
 	{
@@ -190,14 +190,13 @@ public class KernelGeneratorDTMC extends KernelGenerator
 	@Override
 	protected void propertiesMethodTimeArg(Method currentMethod) throws KernelException
 	{
-		boolean necessaryFlag = false;
 		for (Sampler sampler : properties) {
 			if (sampler instanceof SamplerBoundedUntilDisc) {
-				necessaryFlag = true;
+				timingProperty = true;
 				break;
 			}
 		}
-		if (necessaryFlag) {
+		if (timingProperty) {
 			CLVariable time = new CLVariable(new StdVariableType(0, config.maxPathLength), "time");
 			currentMethod.addArg(time);
 		}
@@ -275,6 +274,7 @@ public class KernelGeneratorDTMC extends KernelGenerator
 		 * else
 		 * callSynUpdate()
 		 */
+		//TODO: add case for one
 		ifElse.addElse();
 		CLVariable counter = new CLVariable(new StdVariableType(0, synCommands.length), "synSelection");
 		counter.setInitValue(StdVariableType.initialize(0));
@@ -329,18 +329,60 @@ public class KernelGeneratorDTMC extends KernelGenerator
 				"if(globalID<5)printf(\"%d %d %d %d\\n\",globalID,stateVector.__STATE_VECTOR_q,stateVector.__STATE_VECTOR_s,stateVector.__STATE_VECTOR_s2);"));
 	}
 
-	private ExpressionList mainMethodSynUpdate(Expression numberOfCommands)
-	{
-		ExpressionList list = new ExpressionList();
-		CLVariable counter = new CLVariable(new StdVariableType(0, maximalNumberOfSynchsUpdates), "synSelection");
-		counter.setInitValue(StdVariableType.initialize(0));
-		list.addExpression(counter.getDefinition());
-		return list;
-	}
-
 	protected void mainMethodCallSynUpdate(ComplexKernelComponent parent)
 	{
-		parent.addExpression(mainMethodSynUpdate(varSynSelectionSize.getSource()));
+		CLVariable selection = new CLVariable(new StdVariableType(StdType.FLOAT), "selection");
+		Expression rndNumber = new Expression(String.format("%s%%%d", varPathLength.getSource().toString(), config.prngType.numbersPerRandomize()));
+		selection.setInitValue(config.prngType.getRandomUnifFloat(rndNumber));
+		parent.addExpression(selection.getDefinition());
+		parent.addExpression(new Expression("if(globalID<5)printf(\"selection %d %f\\n\",globalID,selection);"));
+		CLVariable counter = new CLVariable(new StdVariableType(0, synCommands.length), "synSelection");
+		counter.setInitValue(StdVariableType.initialize(0));
+		CLVariable synSum = new CLVariable(new StdVariableType(0, maximalNumberOfSynchsUpdates), "synSum");
+		synSum.setInitValue(StdVariableType.initialize(0));
+		parent.addExpression(counter.getDefinition());
+		parent.addExpression(synSum.getDefinition());
+		ForLoop loop = new ForLoop(counter, 0, synCommands.length);
+		Switch _switch = new Switch(counter);
+		for (int i = 0; i < synCommands.length; ++i) {
+			CLVariable currentSize = varSynchronizedStates[i].accessField("size");
+			_switch.addCase(fromString(i));
+			_switch.addCommand(i, createBasicExpression(synSum.getSource(), Operator.ADD_AUGM,
+			// synSum += synchState__label.size;
+					currentSize.getSource()));
+		}
+		loop.addExpression(_switch);
+		IfElse checkSelection = new IfElse(createBasicExpression(selection.getSource(), Operator.LT,
+		//probability < synSum/sum
+				createBasicExpression(synSum.cast("float"), Operator.DIV, varSynSelectionSize.getSource())));
+		_switch = new Switch(counter);
+		Expression probUpdate = createBasicExpression(selection.getSource(), Operator.MUL, varSynSelectionSize.getSource());
+		probUpdate = createBasicExpression(probUpdate, Operator.SUB, synSum.getSource());
+		for (int i = 0; i < synCommands.length; ++i) {
+			CLVariable currentSize = varSynchronizedStates[i].accessField("size");
+			_switch.addCase(fromString(i));
+			_switch.addCommand(i, createBasicExpression(synSum.getSource(), Operator.SUB_AUGM,
+			// synSum += synchState__label.size;
+					currentSize.getSource()));
+			_switch.addCommand(i, createAssignment(selection, probUpdate));
+			_switch.addCommand(i, createBasicExpression(selection.getSource(), Operator.DIV_AUGM, currentSize.getSource()));
+		}
+		checkSelection.addExpression(_switch);
+		checkSelection.addExpression("break;\n");
+		loop.addExpression(checkSelection);
+		parent.addExpression(loop);
+		_switch = new Switch(counter);
+		for (int i = 0; i < synCommands.length; ++i) {
+			_switch.addCase(fromString(i));
+			_switch.addCommand(i, synchronizedUpdates.get(i).callMethod(
+			//&stateVector
+					varStateVector.convertToPointer(),
+					//&synchState__label
+					varSynchronizedStates[i].convertToPointer(),
+					//probability
+					selection));
+		}
+		parent.addExpression(_switch);
 	}
 
 	protected void mainMethodCallNonsynUpdate(ComplexKernelComponent parent)
@@ -369,7 +411,11 @@ public class KernelGeneratorDTMC extends KernelGenerator
 	protected void mainMethodUpdateProperties(ComplexKernelComponent parent)
 	{
 		Expression call = null;
-		call = helperMethods.get(KernelMethods.UPDATE_PROPERTIES).callMethod(varStateVector.convertToPointer(), varPropertiesArray, varTime);
+		if (timingProperty) {
+			call = helperMethods.get(KernelMethods.UPDATE_PROPERTIES).callMethod(varStateVector.convertToPointer(), varPropertiesArray, varTime);
+		} else {
+			call = helperMethods.get(KernelMethods.UPDATE_PROPERTIES).callMethod(varStateVector.convertToPointer(), varPropertiesArray);
+		}
 		String source = call.getSource();
 		IfElse ifElse = new IfElse(new Expression(source.substring(0, source.indexOf(';'))));
 		//		ifElse.addExpression(
@@ -478,37 +524,40 @@ public class KernelGeneratorDTMC extends KernelGenerator
 				throw new RuntimeException(e);
 			}
 			current.registerStateVector(stateVector);
-			current.addExpression(new Expression("if(get_global_id(0)<5)printf(\"" + cmd.synchLabel + " %f %d\\n\",prop,guard);"));
-			Expression guardUpdate = null, probUpdate = null, moduleSize = null;
+			current.addExpression(new Expression("if(get_global_id(0)<5)printf(\"" + cmd.synchLabel + " %f\\n\",prop);"));
+			Expression guardUpdate = null, probUpdate = null;
+			CLVariable moduleSize = null;
 			//for-each module
 			for (int i = 0; i < cmd.getModulesNum(); ++i) {
-				moduleSize = fromString(cmd.getCommandNumber(i));
+				//moduleSize = fromString(cmd.getCommandNumber(i));
+				moduleSize = synState.accessField("moduleSize").accessElement(fromString(i));
 				/**
 				 * compute current guard in update
 				 */
 				guardUpdate = functionCall("floor",
 				//probability * module_size
-						createBasicExpression(propability.getSource(), Operator.MUL, moduleSize));
+						createBasicExpression(propability.getSource(), Operator.MUL, moduleSize.getSource()));
 				current.addExpression(createAssignment(guard, guardUpdate));
 				/**
 				 * recompute probability to an [0,1) in selected guard
 				 */
 				probUpdate = createBasicExpression(
 				//probability * module_size
-						createBasicExpression(propability.getSource(), Operator.MUL, moduleSize), Operator.SUB,
+						createBasicExpression(propability.getSource(), Operator.MUL, moduleSize.getSource()), Operator.SUB,
 						//guard
 						guard.getSource());
 				current.addExpression(createAssignment(propability, probUpdate));
+				//current.addExpression(new Expression("if(get_global_id(0)<5)printf(\"" + cmd.synchLabel + " %f %d %d\\n\",prop,guard,(*sv).__STATE_VECTOR_q);"));
 				/**
 				 * call selected update
 				 */
 				current.addExpression(update.callMethod(stateVector, StdVariableType.initialize(i), guard, propability.convertToPointer()));
+
+				//current.addExpression(new Expression("if(get_global_id(0)<5)printf(\"" + cmd.synchLabel + " %f %d %d\\n\",prop,guard,(*sv).__STATE_VECTOR_q);"));
 				/**
 				 * totalSize /= 1 is useless
 				 */
-				if (cmd.getCommandNumber(i) != 1) {
-					current.addExpression(createBasicExpression(totalSize.getSource(), Operator.DIV_AUGM, moduleSize));
-				}
+				current.addExpression(createBasicExpression(totalSize.getSource(), Operator.DIV_AUGM, moduleSize.getSource()));
 			}
 			synchronizedUpdates.add(current);
 		}
@@ -554,17 +603,17 @@ public class KernelGeneratorDTMC extends KernelGenerator
 				if (update.getActionsNumber() > 1) {
 					IfElse ifElse = new IfElse(createBasicExpression(probability.getSource(), Operator.LT, fromString(convertPrismRate(svVars, rate))));
 					if (!update.isActionTrue(0)) {
-						ifElse.addExpression(0, convertPrismAction(update.getAction(0)));
 						ifElse.addExpression(0, updateSynProbabilityRecompute(probability, null, rate));
+						ifElse.addExpression(0, convertPrismAction(update.getAction(0)));
 					}
 					for (int k = 1; k < update.getActionsNumber(); ++k) {
 						Rate previous = new Rate(rate);
 						rate.addRate(update.getRate(k));
 						ifElse.addElif(createBasicExpression(probability.getSource(), Operator.LT, fromString(convertPrismRate(svVars, rate))));
+						ifElse.addExpression(k, updateSynProbabilityRecompute(probability, previous, update.getRate(k)));
 						if (!update.isActionTrue(k)) {
 							ifElse.addExpression(k, convertPrismAction(update.getAction(k)));
 						}
-						ifElse.addExpression(k, updateSynProbabilityRecompute(probability, previous, update.getRate(k)));
 					}
 					internalSwitch.addCommand(j, ifElse);
 				} else {
