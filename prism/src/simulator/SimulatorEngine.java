@@ -1693,7 +1693,7 @@ public class SimulatorEngine implements ModelCheckInterface
 					//	break;
 				}
 				i++;
-				System.out.println(String.format("sample %d, iteration %d", iters, i));
+				//System.out.println(String.format("sample %d, iteration %d", iters, i));
 			}
 
 			// TODO: Detect deadlocks so we can report a warning

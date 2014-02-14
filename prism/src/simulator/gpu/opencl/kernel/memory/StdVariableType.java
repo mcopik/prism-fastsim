@@ -111,7 +111,7 @@ public class StdVariableType implements VariableInterface
 
 	public StdVariableType(PrismVariable var)
 	{
-		varType = getIntType(var.bitsNumber, var.signFlag);
+		varType = getIntType(var.bitsNumber, var.signFlag, var.initValue);
 		this.vectorSize = 1;
 	}
 
@@ -119,12 +119,15 @@ public class StdVariableType implements VariableInterface
 	{
 		Preconditions.checkCondition(minimal <= maximal, "Minimal > maximal!");
 		long length = maximal - minimal;
-		varType = getIntType(Long.SIZE - Long.numberOfLeadingZeros(length), minimal < 0);
+		varType = getIntType(Long.SIZE - Long.numberOfLeadingZeros(length), minimal < 0, minimal);
 		this.vectorSize = 1;
 	}
 
-	private StdType getIntType(long bitsNumber, boolean signFlag)
+	private StdType getIntType(long bitsNumber, boolean signFlag, long init)
 	{
+		//for situations like [1,2], where bitsNumber gives bool -> 1 bit
+		long value = (long) Math.pow(2, bitsNumber) + Math.abs(init);
+		bitsNumber = Long.SIZE - Long.numberOfLeadingZeros(value);
 		if (bitsNumber == 1) {
 			return StdType.BOOL;
 		} else if (bitsNumber <= 8) {

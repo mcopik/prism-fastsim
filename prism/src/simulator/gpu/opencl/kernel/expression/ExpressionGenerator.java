@@ -206,16 +206,16 @@ public class ExpressionGenerator
 		}
 		for (Pair<PrismVariable, parser.ast.Expression> expr : action.expressions) {
 			if (expr.second instanceof ExpressionFunc) {
-				//TODO : function in operand?
+				//TODO : function in operand? + two builders
 				ExpressionFunc func = (ExpressionFunc) expr.second;
 				builder.append(expr.first.name).append(" = ").append(func.getName()).append('(');
 				for (int i = 0; i < func.getNumOperands(); ++i) {
 					String newExpr = convertActionWithSV(translations, func.getOperand(i).toString());
 					//no change? cast to float for overloading functions e.g. min to (float,float), not (float,int)l
 					if (newExpr.equals(func.getOperand(i).toString())) {
-						builder.append("((float)").append(newExpr).append(")");
+						builder.append("((float)").append(convertEquality(newExpr)).append(")");
 					} else {
-						builder.append(newExpr);
+						builder.append(convertEquality(newExpr));
 					}
 					if (i != func.getNumOperands() - 1) {
 						builder.append(',');
@@ -223,11 +223,39 @@ public class ExpressionGenerator
 				}
 				builder.append(");\n");
 			} else {
-				builder.append(expr.first.name).append(" = ").append(convertActionWithSV(translations, expr.second.toString())).append(";");
+				builder.append(expr.first.name).append(" = ").append(convertEquality(convertActionWithSV(translations, expr.second.toString()))).append(";");
 				builder.append("\n");
 			}
 		}
 		return new Expression(builder.toString());
+	}
+
+	static private String convertEquality(String expr)
+	{
+		StringBuilder builder = new StringBuilder(expr);
+		int index = 0;
+		while ((index = builder.indexOf("=", index)) != -1) {
+			if (index == 0 || builder.charAt(index - 1) != '!') {
+				builder.replace(index, index + 1, "==");
+				index += 2;
+			} else {
+				index += 1;
+			}
+		}
+		return builder.toString();
+	}
+
+	static private void convertEquality(StringBuilder builder)
+	{
+		int index = 0;
+		while ((index = builder.indexOf("=", index)) != -1) {
+			if (index == 0 || (builder.charAt(index - 1) != '!' && builder.charAt(index - 1) != '>' && builder.charAt(index - 1) != '<')) {
+				builder.replace(index, index + 1, "==");
+				index += 2;
+			} else {
+				index += 1;
+			}
+		}
 	}
 
 	static private String convertActionWithSV(Map<String, String> translations, String action)
@@ -260,11 +288,12 @@ public class ExpressionGenerator
 	static public Expression convertPrismProperty(String expr)
 	{
 		String newExpr = expr.replace("=", "==").replace("&", "&&").replace("|", "||");
-		if (expr.charAt(0) == ('!')) {
-			return new Expression(String.format("!(%s)", newExpr.substring(1)));
-		} else {
-			return new Expression(newExpr);
-		}
+		//		if (expr.charAt(0) == ('!')) {
+		//			return new Expression(String.format("!(%s)", newExpr.substring(1)));
+		//		} else {
+		//			return new Expression(newExpr);
+		//		}
+		return new Expression(newExpr);
 
 	}
 
@@ -274,7 +303,7 @@ public class ExpressionGenerator
 		for (int i = 0; i < vars.length; ++i) {
 			builderReplaceMostCommon(builder, vars[i].name, String.format("((float)%s)", vars[i].name));
 		}
-		builderReplace(builder, "=", "==");
+		convertEquality(builder);
 		builderReplace(builder, "|", "||");
 		builderReplace(builder, "&", "&&");
 		if (builder.charAt(0) == ('!')) {

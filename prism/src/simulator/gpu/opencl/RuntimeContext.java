@@ -123,6 +123,7 @@ public class RuntimeContext
 			for (int i = 0; i < properties.size(); ++i) {
 				resultBuffers.add(context.createByteBuffer(CLMem.Usage.Output, numberOfSamples));
 			}
+			//globalWorkSize = roundUp(localWorkSize, 10000);
 			long allTime = 0;
 			while (samplesProcessed < numberOfSamples) {
 				int currentGWSize = (int) Math.min(globalWorkSize, numberOfSamples - samplesProcessed);

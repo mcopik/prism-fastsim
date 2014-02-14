@@ -215,7 +215,13 @@ public class KernelGeneratorDTMC extends KernelGenerator
 		 * if(right_side == true) -> true
 		 * else -> false
 		 */
-		IfElse rhsCheck = createPropertyCondition(propertyVar, false, prop.getRightSide().toString(), true);
+		IfElse rhsCheck = null;
+		//TODO: always !prop?
+		if (prop.getRightSide().toString().charAt(0) == '!') {
+			rhsCheck = createPropertyCondition(propertyVar, true, prop.getRightSide().toString().substring(1), true);
+		} else {
+			rhsCheck = createPropertyCondition(propertyVar, false, prop.getRightSide().toString(), true);
+		}
 		createPropertyCondition(rhsCheck, propertyVar, false, null, false);
 		ifElse.addExpression(rhsCheck);
 		/**
@@ -226,7 +232,12 @@ public class KernelGeneratorDTMC extends KernelGenerator
 		 * if(right_side == true) -> true
 		 * else if(left_side == false) -> false
 		 */
-		IfElse betweenBounds = createPropertyCondition(propertyVar, false, prop.getRightSide().toString(), true);
+		IfElse betweenBounds = null;
+		if (prop.getRightSide().toString().charAt(0) == '!') {
+			betweenBounds = createPropertyCondition(propertyVar, true, prop.getRightSide().toString().substring(1), true);
+		} else {
+			betweenBounds = createPropertyCondition(propertyVar, false, prop.getRightSide().toString(), true);
+		}
 		if (!(prop.getLeftSide() instanceof ExpressionLiteral)) {
 			createPropertyCondition(betweenBounds, propertyVar, true, prop.getLeftSide().toString(), false);
 		}
@@ -335,7 +346,7 @@ public class KernelGeneratorDTMC extends KernelGenerator
 		Expression rndNumber = new Expression(String.format("%s%%%d", varPathLength.getSource().toString(), config.prngType.numbersPerRandomize()));
 		selection.setInitValue(config.prngType.getRandomUnifFloat(rndNumber));
 		parent.addExpression(selection.getDefinition());
-		parent.addExpression(new Expression("if(globalID<5)printf(\"selection %d %f\\n\",globalID,selection);"));
+		//parent.addExpression(new Expression("if(globalID<5)printf(\"selection %d %f\\n\",globalID,selection);"));
 		CLVariable counter = new CLVariable(new StdVariableType(0, synCommands.length), "synSelection");
 		counter.setInitValue(StdVariableType.initialize(0));
 		CLVariable synSum = new CLVariable(new StdVariableType(0, maximalNumberOfSynchsUpdates), "synSum");
@@ -534,7 +545,7 @@ public class KernelGeneratorDTMC extends KernelGenerator
 				throw new RuntimeException(e);
 			}
 			current.registerStateVector(stateVector);
-			current.addExpression(new Expression("if(get_global_id(0)<5)printf(\"" + cmd.synchLabel + " %f\\n\",prop);"));
+			//current.addExpression(new Expression("if(get_global_id(0)<5)printf(\"" + cmd.synchLabel + " %f\\n\",prop);"));
 			Expression guardUpdate = null, probUpdate = null;
 			CLVariable moduleSize = null;
 			//for-each module
@@ -608,7 +619,7 @@ public class KernelGeneratorDTMC extends KernelGenerator
 		//for-each module
 		for (int i = 0; i < synCmd.getModulesNum(); ++i) {
 			_switch.addCase(fromString(i));
-			//_switch.addCommand(i, new Expression("if(get_global_id(0)<5)printf(\"" + synCmd.synchLabel + " %d %d %f\\n\",module,guard,*prob);"));
+			_switch.addCommand(i, new Expression("if(get_global_id(0)<5)printf(\"" + synCmd.synchLabel + " %d %d %f\\n\",module,guard,*prob);"));
 			//_switch.addCommand(i, new Expression("if(get_global_id(0)<5)printf(\"" + synCmd.synchLabel
 			//		+ " %d %d %d %d\\n\",(*sv).__STATE_VECTOR_x1 ? 1 : 0 ,(*sv).__STATE_VECTOR_x2,(*sv).__STATE_VECTOR_x3,(*sv).__STATE_VECTOR_x4);"));
 			/**
@@ -640,8 +651,8 @@ public class KernelGeneratorDTMC extends KernelGenerator
 			ifElseGuardLoop.addExpression("break\n");
 			guardSelectionLoop.addExpression(ifElseGuardLoop);
 			_switch.addCommand(i, guardSelectionLoop);
-			//_switch.addCommand(i, new Expression("if(get_global_id(0)<5)printf(\"" + synCmd.synchLabel + " %d %d \\n\"," + guardCounter.varName + ","
-			//		+ guardSelection.varName + ");"));
+			_switch.addCommand(i, new Expression("if(get_global_id(0)<5)printf(\"" + synCmd.synchLabel + " %d %d \\n\"," + guardCounter.varName + ","
+					+ guardSelection.varName + ");"));
 
 			Switch internalSwitch = new Switch(guardSelection);
 			//for-each command

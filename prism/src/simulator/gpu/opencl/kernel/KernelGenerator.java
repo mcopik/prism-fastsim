@@ -436,6 +436,8 @@ public abstract class KernelGenerator
 		IfElse deadlockState = new IfElse(createBasicExpression(sum, Operator.EQ, fromString(0)));
 		deadlockState.addExpression(new Expression("break;\n"));
 		loop.addExpression(deadlockState);
+		//l//oop.addExpression(new Expression("if(globalID<5)printf(\"selection %d %d %d \\n\",globalID,pathLength,stateVector.__STATE_VECTOR_phase);"));
+
 		//		loop.addExpression(new Expression(
 		//				"if(globalID<5)printf(\"selection gID %d %d %d %d %d %d %d %d\\n\",globalID,stateVector.__STATE_VECTOR_x1,stateVector.__STATE_VECTOR_x2,stateVector.__STATE_VECTOR_x3,stateVector.__STATE_VECTOR_x4,stateVector.__STATE_VECTOR_x5,stateVector.__STATE_VECTOR_x6,stateVector.__STATE_VECTOR_x7);"));
 		/**
@@ -491,9 +493,9 @@ public abstract class KernelGenerator
 		 * For CTMC&bounded until -> update current time.
 		 */
 		mainMethodUpdateTimeAfter(currentMethod, loop);
-		//		loop.addExpression(new Expression(
-		//				"if(globalID<5)printf(\"end loop gID %d %d %d %d %d %d %d %d\\n\",globalID,stateVector.__STATE_VECTOR_x1,stateVector.__STATE_VECTOR_x2,stateVector.__STATE_VECTOR_x3,stateVector.__STATE_VECTOR_x4,stateVector.__STATE_VECTOR_x5,stateVector.__STATE_VECTOR_x6,stateVector.__STATE_VECTOR_x7);"));
-
+		loop.addExpression(new Expression(
+				"if(globalID<5 && pathLength < 20)printf(\"end loop gID %d %f %d %d %d %d %d\\n\",globalID,selection,selectionSize,selectionSynSize,stateVector.__STATE_VECTOR_phase,stateVector.__STATE_VECTOR_party,stateVector.__STATE_VECTOR_n);"));
+		//loop.addExpression(new Expression("if(phase==4)break;"));
 		currentMethod.addExpression(loop);
 		//sampleNumber + globalID
 		Expression position = createBasicExpression(globalID.getSource(), Operator.ADD, sampleNumber.getSource());
