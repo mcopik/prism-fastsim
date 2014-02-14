@@ -28,6 +28,7 @@ package simulator.gpu.opencl.kernel.expression;
 import java.util.HashMap;
 import java.util.Map;
 
+import parser.ast.ExpressionFunc;
 import prism.Pair;
 import prism.Preconditions;
 import simulator.gpu.automaton.PrismVariable;
@@ -204,8 +205,27 @@ public class ExpressionGenerator
 			translations.put(name, second.varName);
 		}
 		for (Pair<PrismVariable, parser.ast.Expression> expr : action.expressions) {
-			builder.append(expr.first.name).append(" = ").append(convertActionWithSV(translations, expr.second.toString())).append(";");
-			builder.append("\n");
+			if (expr.second instanceof ExpressionFunc) {
+				//TODO : function in operand?
+				ExpressionFunc func = (ExpressionFunc) expr.second;
+				builder.append(expr.first.name).append(" = ").append(func.getName()).append('(');
+				for (int i = 0; i < func.getNumOperands(); ++i) {
+					String newExpr = convertActionWithSV(translations, func.getOperand(i).toString());
+					//no change? cast to float for overloading functions e.g. min to (float,float), not (float,int)l
+					if (newExpr.equals(func.getOperand(i).toString())) {
+						builder.append("((float)").append(newExpr).append(")");
+					} else {
+						builder.append(newExpr);
+					}
+					if (i != func.getNumOperands() - 1) {
+						builder.append(',');
+					}
+				}
+				builder.append(");\n");
+			} else {
+				builder.append(expr.first.name).append(" = ").append(convertActionWithSV(translations, expr.second.toString())).append(";");
+				builder.append("\n");
+			}
 		}
 		return new Expression(builder.toString());
 	}
@@ -215,10 +235,11 @@ public class ExpressionGenerator
 		StringBuilder builder = new StringBuilder(action);
 		int index = 0;
 		for (Map.Entry<String, String> entry : translations.entrySet()) {
-			while ((index = builder.indexOf(entry.getKey(), index)) != -1) {
-				builder.replace(index, index + entry.getValue().length(), String.format("((float)%s)", entry.getValue()));
-				index += entry.getValue().length() + 9;
-			}
+			//while ((index = builder.indexOf(entry.getKey(), index)) != -1) {
+			builderReplaceMostCommon(builder, entry.getKey(), String.format("((float)%s)", entry.getValue()));
+			//builder.replace(index, index + entry.getKey().length(), String.format("((float)%s)", entry.getValue()));
+			//index += entry.getValue().length() + 9;
+			//}
 		}
 		return builder.toString();
 	}

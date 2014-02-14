@@ -250,8 +250,8 @@ public class KernelGeneratorDTMC extends KernelGenerator
 		Expression rndNumber = new Expression(String.format("%s%%%d", varPathLength.getSource().toString(), config.prngType.numbersPerRandomize()));
 		selection.setInitValue(config.prngType.getRandomUnifFloat(rndNumber));
 		parent.addExpression(selection.getDefinition());
-		parent.addExpression(new Expression(
-				"if(globalID<5)printf(\"%d %d %d %d %d %f\\n\",globalID,selectionSize,selectionSynSize,synchState_serve.size,synchState_serve1.size,selection);"));
+		//		parent.addExpression(new Expression(
+		//				"if(globalID<5)printf(\"%d %d %d %d %d %f\\n\",globalID,selectionSize,selectionSynSize,synchState_serve.size,synchState_serve1.size,selection);"));
 		Expression condition = createBasicExpression(selection.getSource(), Operator.LT,
 		//nonSyn/(syn+nonSyn)
 				createBasicExpression(varSelectionSize.cast("float"), Operator.DIV, sum));
@@ -325,8 +325,8 @@ public class KernelGeneratorDTMC extends KernelGenerator
 		ifElse.addExpression(1, _switch);
 
 		parent.addExpression(ifElse);
-		parent.addExpression(new Expression(
-				"if(globalID<5)printf(\"%d %d %d %d\\n\",globalID,stateVector.__STATE_VECTOR_q,stateVector.__STATE_VECTOR_s,stateVector.__STATE_VECTOR_s2);"));
+		//		parent.addExpression(new Expression(
+		//				"if(globalID<5)printf(\"%d %d %d %d\\n\",globalID,stateVector.__STATE_VECTOR_q,stateVector.__STATE_VECTOR_s,stateVector.__STATE_VECTOR_s2);"));
 	}
 
 	protected void mainMethodCallSynUpdate(ComplexKernelComponent parent)
@@ -608,9 +608,9 @@ public class KernelGeneratorDTMC extends KernelGenerator
 		//for-each module
 		for (int i = 0; i < synCmd.getModulesNum(); ++i) {
 			_switch.addCase(fromString(i));
-			_switch.addCommand(i, new Expression("if(get_global_id(0)<5)printf(\"" + synCmd.synchLabel + " %d %d %f\\n\",module,guard,*prob);"));
-			_switch.addCommand(i, new Expression("if(get_global_id(0)<5)printf(\"" + synCmd.synchLabel
-					+ " %d %d %d %d\\n\",(*sv).__STATE_VECTOR_x1 ? 1 : 0 ,(*sv).__STATE_VECTOR_x2,(*sv).__STATE_VECTOR_x3,(*sv).__STATE_VECTOR_x4);"));
+			//_switch.addCommand(i, new Expression("if(get_global_id(0)<5)printf(\"" + synCmd.synchLabel + " %d %d %f\\n\",module,guard,*prob);"));
+			//_switch.addCommand(i, new Expression("if(get_global_id(0)<5)printf(\"" + synCmd.synchLabel
+			//		+ " %d %d %d %d\\n\",(*sv).__STATE_VECTOR_x1 ? 1 : 0 ,(*sv).__STATE_VECTOR_x2,(*sv).__STATE_VECTOR_x3,(*sv).__STATE_VECTOR_x4);"));
 			/**
 			 * guardSelection = -1;
 			 * guardCounter = 0;
@@ -640,8 +640,8 @@ public class KernelGeneratorDTMC extends KernelGenerator
 			ifElseGuardLoop.addExpression("break\n");
 			guardSelectionLoop.addExpression(ifElseGuardLoop);
 			_switch.addCommand(i, guardSelectionLoop);
-			_switch.addCommand(i, new Expression("if(get_global_id(0)<5)printf(\"" + synCmd.synchLabel + " %d %d \\n\"," + guardCounter.varName + ","
-					+ guardSelection.varName + ");"));
+			//_switch.addCommand(i, new Expression("if(get_global_id(0)<5)printf(\"" + synCmd.synchLabel + " %d %d \\n\"," + guardCounter.varName + ","
+			//		+ guardSelection.varName + ");"));
 
 			Switch internalSwitch = new Switch(guardSelection);
 			//for-each command
