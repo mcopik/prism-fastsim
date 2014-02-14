@@ -618,6 +618,7 @@ public abstract class KernelGenerator
 			CLVariable currentSize = guardsSynCurrentVar(max);
 			currentSize.setInitValue(StdVariableType.initialize(0));
 			CLVariable saveSize = synState.accessField("moduleSize");
+			CLVariable guardsTab = synState.accessField("guards");
 			try {
 				current.addArg(stateVector);
 				current.addArg(synState);
@@ -627,9 +628,12 @@ public abstract class KernelGenerator
 				throw new RuntimeException(e);
 			}
 			current.registerStateVector(stateVector);
+			int guardCounter = 0;
 			//first module
 			for (int i = 0; i < cmd.getCommandNumber(0); ++i) {
-				guardsSynAddGuard(current, cmd.getCommand(0, i), currentSize);
+				guardsSynAddGuard(current, guardsTab.accessElement(fromString(guardCounter++)),
+				//guardsTab[counter] = evaluate(guard)
+						cmd.getCommand(0, i), currentSize);
 			}
 			current.addExpression(createAssignment(saveSize.accessElement(fromString(0)), currentSize));
 			current.addExpression(createAssignment(labelSize, currentSize));
@@ -638,7 +642,9 @@ public abstract class KernelGenerator
 				IfElse ifElse = new IfElse(createBasicExpression(labelSize.getSource(), Operator.NE, fromString(0)));
 				ifElse.addExpression(createAssignment(currentSize, fromString(0)));
 				for (int j = 0; j < cmd.getCommandNumber(i); ++j) {
-					guardsSynAddGuard(ifElse, cmd.getCommand(i, j), currentSize);
+					guardsSynAddGuard(ifElse, guardsTab.accessElement(fromString(guardCounter++)),
+					//guardsTab[counter] = evaluate(guard)
+							cmd.getCommand(i, j), currentSize);
 				}
 				ifElse.addExpression(createBasicExpression(labelSize.getSource(),
 				// cmds_for_label *= cmds_for_module;
@@ -659,7 +665,7 @@ public abstract class KernelGenerator
 
 	protected abstract CLVariable guardsSynCurrentVar(int maxCommandsNumber);
 
-	protected abstract void guardsSynAddGuard(ComplexKernelComponent parent, Command cmd, CLVariable size);
+	protected abstract void guardsSynAddGuard(ComplexKernelComponent parent, CLVariable guardArray, Command cmd, CLVariable size);
 
 	protected Method createNonsynUpdate() throws KernelException
 	{

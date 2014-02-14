@@ -169,4 +169,13 @@ public class SynchronizedCommand implements CommandInterface
 		}
 		return sum;
 	}
+
+	public int getCmdsNum()
+	{
+		int cmdNumber = 0;
+		for (int i = 0; i < getModulesNum(); ++i) {
+			cmdNumber += getCommandNumber(i);
+		}
+		return cmdNumber;
+	}
 }

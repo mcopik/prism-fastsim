@@ -417,15 +417,16 @@ public class KernelGeneratorCTMC extends KernelGenerator
 	protected void createSynchronizedStructures()
 	{
 		synchronizedStates = new HashMap<>();
-		CLVariable size;
-		CLVariable array;
+		CLVariable size = null, array = null, guards = null;
 		for (SynchronizedCommand cmd : synCommands) {
 			StructureType type = new StructureType(String.format("SynState__%s", cmd.synchLabel));
 
 			size = new CLVariable(new StdVariableType(StdType.FLOAT), "size");
 			array = new CLVariable(new ArrayType(new StdVariableType(StdType.FLOAT), cmd.getModulesNum()), "moduleSize");
+			guards = new CLVariable(new ArrayType(new StdVariableType(StdType.BOOL), cmd.getMaxCommandsNum()), "guards");
 			type.addVariable(size);
 			type.addVariable(array);
+			type.addVariable(guards);
 			synchronizedStates.put(cmd.synchLabel, type);
 		}
 	}
@@ -450,7 +451,7 @@ public class KernelGeneratorCTMC extends KernelGenerator
 	}
 
 	@Override
-	protected void guardsSynAddGuard(ComplexKernelComponent parent, Command cmd, CLVariable size)
+	protected void guardsSynAddGuard(ComplexKernelComponent parent, CLVariable guardArray, Command cmd, CLVariable size)
 	{
 		IfElse ifElse = new IfElse(new Expression(convertPrismGuard(svVars, cmd.getGuard().toString())));
 		ifElse.addExpression(createBasicExpression(size.getSource(), Operator.ADD_AUGM,

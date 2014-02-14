@@ -27,7 +27,7 @@ package simulator.gpu.opencl.kernel;
 
 import static simulator.gpu.opencl.kernel.expression.ExpressionGenerator.addComma;
 import static simulator.gpu.opencl.kernel.expression.ExpressionGenerator.addParentheses;
-import static simulator.gpu.opencl.kernel.expression.ExpressionGenerator.convertPrismAction;
+import static simulator.gpu.opencl.kernel.expression.ExpressionGenerator.convertPrismActionWithSecondSV;
 import static simulator.gpu.opencl.kernel.expression.ExpressionGenerator.convertPrismGuard;
 import static simulator.gpu.opencl.kernel.expression.ExpressionGenerator.convertPrismRate;
 import static simulator.gpu.opencl.kernel.expression.ExpressionGenerator.createAssignment;
@@ -432,7 +432,8 @@ public class KernelGeneratorDTMC extends KernelGenerator
 		synchronizedStates = new HashMap<>();
 		CLVariable size;// = new CLVariable("size",new StdVariableType(0, maximal)
 		CLVariable array;
-		long sum = 1, max = 0;
+		CLVariable guards;
+		int sum = 1, max = 0;
 		int cmdNumber = 0;
 		for (SynchronizedCommand cmd : synCommands) {
 			StructureType type = new StructureType(String.format("SynState__%s", cmd.synchLabel));
@@ -447,8 +448,10 @@ public class KernelGeneratorDTMC extends KernelGenerator
 			maximalNumberOfSynchsUpdates += sum;
 			size = new CLVariable(new StdVariableType(0, sum), "size");
 			array = new CLVariable(new ArrayType(new StdVariableType(0, max), cmd.getModulesNum()), "moduleSize");
+			guards = new CLVariable(new ArrayType(new StdVariableType(StdType.BOOL), cmd.getCmdsNum()), "guards");
 			type.addVariable(size);
 			type.addVariable(array);
+			type.addVariable(guards);
 			synchronizedStates.put(cmd.synchLabel, type);
 		}
 	}
@@ -473,12 +476,13 @@ public class KernelGeneratorDTMC extends KernelGenerator
 	}
 
 	@Override
-	protected void guardsSynAddGuard(ComplexKernelComponent parent, Command cmd, CLVariable size)
+	protected void guardsSynAddGuard(ComplexKernelComponent parent, CLVariable guardArray, Command cmd, CLVariable size)
 	{
 		Expression guard = new Expression(convertPrismGuard(svVars, cmd.getGuard().toString()));
+		parent.addExpression(createAssignment(guardArray, guard));
 		parent.addExpression(createBasicExpression(size.getSource(), Operator.ADD_AUGM,
 		//converted guard
-				guard));
+				guardArray.getSource()));
 	}
 
 	@Override
@@ -510,13 +514,19 @@ public class KernelGeneratorDTMC extends KernelGenerator
 			guard.setInitValue(StdVariableType.initialize(0));
 			//sv->size
 			CLVariable saveSize = synState.accessField("size");
+			//sv->guards
+			CLVariable guardsTab = synState.accessField("guards");
 			//size for current module
 			CLVariable totalSize = new CLVariable(new StdVariableType(0, cmd.getMaxCommandsNum()), "totalSize");
 			totalSize.setInitValue(saveSize);
+			//size for current module
+			CLVariable oldSV = new CLVariable(stateVectorType, "oldSV");
+			oldSV.setInitValue(stateVector.dereference());
 			try {
 				current.addArg(stateVector);
 				current.addArg(synState);
 				current.addArg(propability);
+				current.addLocalVar(oldSV);
 				current.addLocalVar(guard);
 				current.addLocalVar(totalSize);
 				current.registerStateVector(stateVector);
@@ -551,7 +561,8 @@ public class KernelGeneratorDTMC extends KernelGenerator
 				/**
 				 * call selected update
 				 */
-				current.addExpression(update.callMethod(stateVector, StdVariableType.initialize(i), guard, propability.convertToPointer()));
+				current.addExpression(update.callMethod(stateVector, oldSV.convertToPointer(), guardsTab, StdVariableType.initialize(i), guard,
+						propability.convertToPointer()));
 
 				//current.addExpression(new Expression("if(get_global_id(0)<5)printf(\"" + cmd.synchLabel + " %f %d %d\\n\",prop,guard,(*sv).__STATE_VECTOR_q);"));
 				/**
@@ -570,6 +581,9 @@ public class KernelGeneratorDTMC extends KernelGenerator
 		//don't return anything
 				new StdVariableType(StdType.VOID));
 		CLVariable stateVector = new CLVariable(varStateVector.getPointer(), "sv");
+		CLVariable oldSV = new CLVariable(varStateVector.getPointer(), "oldSV");
+		//guardsTab
+		CLVariable guardsTab = new CLVariable(new PointerType(new StdVariableType(StdType.BOOL)), "guards");
 		//selected module
 		CLVariable module = new CLVariable(new StdVariableType(StdType.UINT8), "module");
 		CLVariable guard = new CLVariable(new StdVariableType(StdType.UINT8), "guard");
@@ -577,6 +591,8 @@ public class KernelGeneratorDTMC extends KernelGenerator
 		CLVariable probability = probabilityPtr.dereference();
 		try {
 			current.addArg(stateVector);
+			current.addArg(oldSV);
+			current.addArg(guardsTab);
 			current.addArg(module);
 			current.addArg(guard);
 			current.addArg(probabilityPtr);
@@ -588,10 +604,46 @@ public class KernelGeneratorDTMC extends KernelGenerator
 		Update update = null;
 		Rate rate = null;
 		Command cmd = null;
+		int moduleOffset = 0;
 		//for-each module
 		for (int i = 0; i < synCmd.getModulesNum(); ++i) {
-			Switch internalSwitch = new Switch(guard);
+			_switch.addCase(fromString(i));
+			_switch.addCommand(i, new Expression("if(get_global_id(0)<5)printf(\"" + synCmd.synchLabel + " %d %d %f\\n\",module,guard,*prob);"));
+			_switch.addCommand(i, new Expression("if(get_global_id(0)<5)printf(\"" + synCmd.synchLabel
+					+ " %d %d %d %d\\n\",(*sv).__STATE_VECTOR_x1 ? 1 : 0 ,(*sv).__STATE_VECTOR_x2,(*sv).__STATE_VECTOR_x3,(*sv).__STATE_VECTOR_x4);"));
+			/**
+			 * guardSelection = -1;
+			 * guardCounter = 0;
+			 * for(;;guardCounter++) {
+			 * 	guardSelection += guards[moduleOffset+guardCounter];
+			 * 	if(guardsSelection == guard)
+			 * 		break;
+			 * }
+			 * switch(guardCounter)...
+			 */
+			CLVariable guardSelection = new CLVariable(new StdVariableType(0, synCmd.getCommandNumber(i)), "guardSelection" + i);
+			CLVariable guardCounter = new CLVariable(new StdVariableType(-1, synCmd.getCommandNumber(i)), "guardCounter" + i);
+			guardCounter.setInitValue(StdVariableType.initialize(-1));
+			guardSelection.setInitValue(StdVariableType.initialize(0));
+			_switch.addCommand(i, guardSelection.getDefinition());
+			_switch.addCommand(i, guardCounter.getDefinition());
+			ForLoop guardSelectionLoop = new ForLoop(guardSelection, false);
+			CLVariable guardsAccess = guardsTab.accessElement(
+			// moduleOffset(constant!) + guardCounter
+					createBasicExpression(fromString(moduleOffset), Operator.ADD, guardSelection.getSource()));
+			guardSelectionLoop.addExpression(createBasicExpression(guardCounter.getSource(),
+			//guardSelection += guards[moduleOffset + guardCounter];
+					Operator.ADD_AUGM, guardsAccess.getSource()));
+			IfElse ifElseGuardLoop = new IfElse(createBasicExpression(guardCounter.getSource(),
+			//guardSelection == guard
+					Operator.EQ, guard.getSource()));
+			ifElseGuardLoop.addExpression("break\n");
+			guardSelectionLoop.addExpression(ifElseGuardLoop);
+			_switch.addCommand(i, guardSelectionLoop);
+			_switch.addCommand(i, new Expression("if(get_global_id(0)<5)printf(\"" + synCmd.synchLabel + " %d %d \\n\"," + guardCounter.varName + ","
+					+ guardSelection.varName + ");"));
 
+			Switch internalSwitch = new Switch(guardSelection);
 			//for-each command
 			for (int j = 0; j < synCmd.getCommandNumber(i); ++j) {
 				cmd = synCmd.getCommand(i, j);
@@ -604,7 +656,8 @@ public class KernelGeneratorDTMC extends KernelGenerator
 					IfElse ifElse = new IfElse(createBasicExpression(probability.getSource(), Operator.LT, fromString(convertPrismRate(svVars, rate))));
 					if (!update.isActionTrue(0)) {
 						ifElse.addExpression(0, updateSynProbabilityRecompute(probability, null, rate));
-						ifElse.addExpression(0, convertPrismAction(update.getAction(0)));
+						//ifElse.addExpression(0, convertPrismAction(update.getAction(0)));
+						ifElse.addExpression(0, convertPrismActionWithSecondSV(stateVectorType, oldSV, STATE_VECTOR_PREFIX, update.getAction(0)));
 					}
 					for (int k = 1; k < update.getActionsNumber(); ++k) {
 						Rate previous = new Rate(rate);
@@ -612,19 +665,20 @@ public class KernelGeneratorDTMC extends KernelGenerator
 						ifElse.addElif(createBasicExpression(probability.getSource(), Operator.LT, fromString(convertPrismRate(svVars, rate))));
 						ifElse.addExpression(k, updateSynProbabilityRecompute(probability, previous, update.getRate(k)));
 						if (!update.isActionTrue(k)) {
-							ifElse.addExpression(k, convertPrismAction(update.getAction(k)));
+							//ifElse.addExpression(k, convertPrismAction(update.getAction(k)));
+							ifElse.addExpression(k, convertPrismActionWithSecondSV(stateVectorType, oldSV, STATE_VECTOR_PREFIX, update.getAction(k)));
 						}
 					}
 					internalSwitch.addCommand(j, ifElse);
 				} else {
 					if (!update.isActionTrue(0)) {
-						internalSwitch.addCommand(j, convertPrismAction(update.getAction(0)));
+						//internalSwitch.addCommand(j, convertPrismAction(update.getAction(0)));
+						internalSwitch.addCommand(j, convertPrismActionWithSecondSV(stateVectorType, oldSV, STATE_VECTOR_PREFIX, update.getAction(0)));
 						//no recomputation necessary!
 					}
 				}
 			}
-
-			_switch.addCase(fromString(i));
+			moduleOffset += synCmd.getCommandNumber(i);
 			_switch.addCommand(i, internalSwitch);
 		}
 		current.addExpression(_switch);

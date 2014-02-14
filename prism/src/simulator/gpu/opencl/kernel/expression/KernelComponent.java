@@ -68,4 +68,5 @@ public interface KernelComponent
 	 * @return component source code
 	 */
 	String getSource();
+
 }

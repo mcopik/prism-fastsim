@@ -194,6 +194,35 @@ public class ExpressionGenerator
 		return new Expression(builder.toString());
 	}
 
+	static public Expression convertPrismActionWithSecondSV(StructureType stateVectorType, CLVariable oldSV, String prefix, Action action)
+	{
+		StringBuilder builder = new StringBuilder();
+		Map<String, String> translations = new HashMap<>();
+		for (CLVariable var : stateVectorType.getFields()) {
+			String name = var.varName.substring(prefix.length());
+			CLVariable second = oldSV.accessField(var.varName);
+			translations.put(name, second.varName);
+		}
+		for (Pair<PrismVariable, parser.ast.Expression> expr : action.expressions) {
+			builder.append(expr.first.name).append(" = ").append(convertActionWithSV(translations, expr.second.toString())).append(";");
+			builder.append("\n");
+		}
+		return new Expression(builder.toString());
+	}
+
+	static private String convertActionWithSV(Map<String, String> translations, String action)
+	{
+		StringBuilder builder = new StringBuilder(action);
+		int index = 0;
+		for (Map.Entry<String, String> entry : translations.entrySet()) {
+			while ((index = builder.indexOf(entry.getKey(), index)) != -1) {
+				builder.replace(index, index + entry.getValue().length(), String.format("((float)%s)", entry.getValue()));
+				index += entry.getValue().length() + 9;
+			}
+		}
+		return builder.toString();
+	}
+
 	static public String convertPrismRate(PrismVariable[] stateVector, Rate rate)
 	{
 		StringBuilder builder = new StringBuilder(rate.toString());
