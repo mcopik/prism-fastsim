@@ -116,7 +116,8 @@ public class GPUSimulatorEngine implements ModelCheckInterface
 			if (pf != null) {
 				propNew = (Expression) propNew.replaceConstants(pf.getConstantValues());
 			}
-			propNew = (Expression) propNew.simplify();
+			//TODO: removing parentheses breaks things
+			//propNew = (Expression) propNew.simplify();
 			Sampler sampler = Sampler.createSampler(propNew, modulesFile);
 			SimulationMethod simMethodNew = simMethod.clone();
 			sampler.setSimulationMethod(simMethodNew);

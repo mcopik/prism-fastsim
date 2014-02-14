@@ -493,9 +493,9 @@ public abstract class KernelGenerator
 		 * For CTMC&bounded until -> update current time.
 		 */
 		mainMethodUpdateTimeAfter(currentMethod, loop);
-		loop.addExpression(new Expression(
-				"if(globalID<5 && pathLength < 20)printf(\"end loop gID %d %f %d %d %d %d %d\\n\",globalID,selection,selectionSize,selectionSynSize,stateVector.__STATE_VECTOR_phase,stateVector.__STATE_VECTOR_party,stateVector.__STATE_VECTOR_n);"));
-		//loop.addExpression(new Expression("if(phase==4)break;"));
+		//loop.addExpression(new Expression(
+		//		"if(globalID<5 && pathLength < 20)printf(\"end loop gID %d %f %d %d %d %d %d\\n\",globalID,selection,selectionSize,selectionSynSize,stateVector.__STATE_VECTOR_phase,stateVector.__STATE_VECTOR_party,stateVector.__STATE_VECTOR_n);"));
+		loop.addExpression(new Expression("if(phase==4)break;"));
 		currentMethod.addExpression(loop);
 		//sampleNumber + globalID
 		Expression position = createBasicExpression(globalID.getSource(), Operator.ADD, sampleNumber.getSource());
