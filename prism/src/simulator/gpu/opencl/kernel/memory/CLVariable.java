@@ -25,6 +25,7 @@
 //==============================================================================
 package simulator.gpu.opencl.kernel.memory;
 
+import prism.Preconditions;
 import simulator.gpu.opencl.kernel.expression.Expression;
 
 public class CLVariable implements CLValue
@@ -97,6 +98,16 @@ public class CLVariable implements CLValue
 	public Expression cast(String type)
 	{
 		return new Expression(String.format("((%s)%s)", type, varName));
+	}
+
+	public CLVariable dereference()
+	{
+		Preconditions.checkCondition(varType instanceof PointerType || varType instanceof ArrayType, "Dereference on non-pointer!");
+		if (varType instanceof PointerType) {
+			return new CLVariable(((PointerType) varType).getInternalType(), (String.format("(*%s)", varName)));
+		} else {
+			return new CLVariable(((ArrayType) varType).getInternalType(), (String.format("(*%s)", varName)));
+		}
 	}
 
 	public Expression getDeclaration()

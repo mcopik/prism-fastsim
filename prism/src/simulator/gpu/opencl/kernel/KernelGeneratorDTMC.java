@@ -27,12 +27,16 @@ package simulator.gpu.opencl.kernel;
 
 import static simulator.gpu.opencl.kernel.expression.ExpressionGenerator.addComma;
 import static simulator.gpu.opencl.kernel.expression.ExpressionGenerator.addParentheses;
+import static simulator.gpu.opencl.kernel.expression.ExpressionGenerator.convertPrismAction;
 import static simulator.gpu.opencl.kernel.expression.ExpressionGenerator.convertPrismGuard;
+import static simulator.gpu.opencl.kernel.expression.ExpressionGenerator.convertPrismRate;
 import static simulator.gpu.opencl.kernel.expression.ExpressionGenerator.createAssignment;
 import static simulator.gpu.opencl.kernel.expression.ExpressionGenerator.createBasicExpression;
 import static simulator.gpu.opencl.kernel.expression.ExpressionGenerator.fromString;
+import static simulator.gpu.opencl.kernel.expression.ExpressionGenerator.functionCall;
 import static simulator.gpu.opencl.kernel.expression.ExpressionGenerator.postIncrement;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 
@@ -41,15 +45,19 @@ import prism.Preconditions;
 import simulator.gpu.automaton.AbstractAutomaton;
 import simulator.gpu.automaton.command.Command;
 import simulator.gpu.automaton.command.SynchronizedCommand;
+import simulator.gpu.automaton.update.Rate;
+import simulator.gpu.automaton.update.Update;
 import simulator.gpu.opencl.kernel.expression.ComplexKernelComponent;
 import simulator.gpu.opencl.kernel.expression.Expression;
 import simulator.gpu.opencl.kernel.expression.ExpressionGenerator;
 import simulator.gpu.opencl.kernel.expression.ExpressionGenerator.Operator;
 import simulator.gpu.opencl.kernel.expression.IfElse;
 import simulator.gpu.opencl.kernel.expression.Method;
+import simulator.gpu.opencl.kernel.expression.Switch;
 import simulator.gpu.opencl.kernel.memory.ArrayType;
 import simulator.gpu.opencl.kernel.memory.CLValue;
 import simulator.gpu.opencl.kernel.memory.CLVariable;
+import simulator.gpu.opencl.kernel.memory.PointerType;
 import simulator.gpu.opencl.kernel.memory.RValue;
 import simulator.gpu.opencl.kernel.memory.StdVariableType;
 import simulator.gpu.opencl.kernel.memory.StdVariableType.StdType;
@@ -360,5 +368,167 @@ public class KernelGeneratorDTMC extends KernelGenerator
 		parent.addExpression(createBasicExpression(size.getSource(), Operator.ADD_AUGM,
 		//converted guard
 				guard));
+	}
+
+	@Override
+	protected void createUpdateMethodSyn()
+	{
+		synchronizedUpdates = new ArrayList<>();
+		additionalMethods = new ArrayList<>();
+		for (SynchronizedCommand cmd : synCommands) {
+
+			/**
+			 * create updateSynchronized__Label method
+			 * takes three args:
+			 * - state vector
+			 * - module number
+			 * - selected guard
+			 * - pointer to probability(updates it)
+			 */
+			Method update = updateSynLabelMethod(cmd);
+			additionalMethods.add(update);
+
+			Method current = new Method(String.format("updateSyn__%s", cmd.synchLabel), new StdVariableType(StdType.VOID));
+			//state vectior
+			CLVariable stateVector = new CLVariable(varStateVector.getPointer(), "sv");
+			//synchronized state
+			CLVariable synState = new CLVariable(new PointerType(synchronizedStates.get(cmd.synchLabel)), "synState");
+			CLVariable propability = new CLVariable(new StdVariableType(StdType.FLOAT), "prop");
+			//current guard
+			CLVariable guard = new CLVariable(new StdVariableType(0, cmd.getMaxCommandsNum()), "guard");
+			guard.setInitValue(StdVariableType.initialize(0));
+			//sv->size
+			CLVariable saveSize = synState.accessField("size");
+			//size for current module
+			CLVariable totalSize = new CLVariable(new StdVariableType(0, cmd.getMaxCommandsNum()), "totalSize");
+			totalSize.setInitValue(saveSize);
+			try {
+				current.addArg(stateVector);
+				current.addArg(synState);
+				current.addArg(propability);
+				current.addLocalVar(guard);
+				current.addLocalVar(totalSize);
+				current.registerStateVector(stateVector);
+			} catch (KernelException e) {
+				throw new RuntimeException(e);
+			}
+			current.registerStateVector(stateVector);
+			Expression guardUpdate = null, probUpdate = null, moduleSize = null;
+			//for-each module
+			for (int i = 0; i < cmd.getModulesNum(); ++i) {
+				moduleSize = fromString(cmd.getCommandNumber(i));
+				/**
+				 * compute current guard in update
+				 */
+				guardUpdate = functionCall("floor",
+				//probability * module_size
+						createBasicExpression(propability.getSource(), Operator.MUL, moduleSize));
+				current.addExpression(createAssignment(guard, guardUpdate));
+				/**
+				 * recompute probability to an [0,1) in selected guard
+				 */
+				probUpdate = createBasicExpression(
+				//probability * module_size
+						createBasicExpression(propability.getSource(), Operator.MUL, moduleSize), Operator.SUB,
+						//guard
+						guard.getSource());
+				current.addExpression(createAssignment(propability, probUpdate));
+				/**
+				 * call selected update
+				 */
+				current.addExpression(update.callMethod(stateVector, StdVariableType.initialize(i), guard, propability.convertToPointer()));
+				/**
+				 * totalSize /= 1 is useless
+				 */
+				if (cmd.getCommandNumber(i) != 1) {
+					current.addExpression(createBasicExpression(totalSize.getSource(), Operator.DIV_AUGM, moduleSize));
+				}
+			}
+			synchronizedUpdates.add(current);
+		}
+	}
+
+	@Override
+	protected Method updateSynLabelMethod(SynchronizedCommand synCmd)
+	{
+		Method current = new Method(String.format("updateSynchronized__%s", synCmd.synchLabel),
+		//don't return anything
+				new StdVariableType(StdType.VOID));
+		CLVariable stateVector = new CLVariable(varStateVector.getPointer(), "sv");
+		//selected module
+		CLVariable module = new CLVariable(new StdVariableType(StdType.UINT8), "module");
+		CLVariable guard = new CLVariable(new StdVariableType(StdType.UINT8), "guard");
+		CLVariable probabilityPtr = new CLVariable(new PointerType(new StdVariableType(StdType.FLOAT)), "prob");
+		CLVariable probability = probabilityPtr.dereference();
+		try {
+			current.addArg(stateVector);
+			current.addArg(module);
+			current.addArg(guard);
+			current.addArg(probabilityPtr);
+			current.registerStateVector(stateVector);
+		} catch (KernelException e) {
+			throw new RuntimeException(e);
+		}
+		Switch _switch = new Switch(module);
+		Update update = null;
+		Rate rate = null;
+		Command cmd = null;
+		//for-each module
+		for (int i = 0; i < synCmd.getModulesNum(); ++i) {
+			Switch internalSwitch = new Switch(guard);
+
+			//for-each command
+			for (int j = 0; j < synCmd.getCommandNumber(i); ++j) {
+				cmd = synCmd.getCommand(i, j);
+				update = cmd.getUpdate();
+				rate = new Rate(update.getRate(0));
+
+				internalSwitch.addCase(fromString(j));
+				//when update is in form prob:action + prob:action + ...
+				if (update.getActionsNumber() > 1) {
+					IfElse ifElse = new IfElse(createBasicExpression(probability.getSource(), Operator.LT, fromString(convertPrismRate(svVars, rate))));
+					if (!update.isActionTrue(0)) {
+						ifElse.addExpression(0, convertPrismAction(update.getAction(0)));
+						ifElse.addExpression(0, updateSynProbabilityRecompute(probability, null, rate));
+					}
+					for (int k = 1; k < update.getActionsNumber(); ++k) {
+						Rate previous = new Rate(rate);
+						rate.addRate(update.getRate(k));
+						ifElse.addElif(createBasicExpression(probability.getSource(), Operator.LT, fromString(convertPrismRate(svVars, rate))));
+						if (!update.isActionTrue(k)) {
+							ifElse.addExpression(k, convertPrismAction(update.getAction(k)));
+						}
+						ifElse.addExpression(k, updateSynProbabilityRecompute(probability, previous, update.getRate(k)));
+					}
+					internalSwitch.addCommand(j, ifElse);
+				} else {
+					if (!update.isActionTrue(0)) {
+						internalSwitch.addCommand(j, convertPrismAction(update.getAction(0)));
+						//no recomputation necessary!
+					}
+				}
+			}
+
+			_switch.addCase(fromString(i));
+			_switch.addCommand(i, internalSwitch);
+		}
+		current.addExpression(_switch);
+		return current;
+	}
+
+	private Expression updateSynProbabilityRecompute(CLVariable probability, Rate before, Rate current)
+	{
+		Expression compute = null;
+		if (before != null) {
+			compute = createBasicExpression(probability.getSource(), Operator.SUB,
+			//probability - sum of rates before
+					fromString(convertPrismRate(svVars, before)));
+		} else {
+			compute = probability.getSource();
+		}
+		addParentheses(compute);
+		return createAssignment(probability, createBasicExpression(compute, Operator.DIV,
+		//divide by current interval
+				fromString(convertPrismRate(svVars, current))));
 	}
 }

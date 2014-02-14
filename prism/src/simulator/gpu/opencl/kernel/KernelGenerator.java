@@ -174,6 +174,7 @@ public abstract class KernelGenerator
 	protected EnumMap<KernelMethods, Method> helperMethods = new EnumMap<>(KernelMethods.class);
 	protected List<Method> synchronizedGuards = null;
 	protected List<Method> synchronizedUpdates = null;
+	protected List<Method> additionalMethods = null;
 	protected KernelMethod mainMethod = null;
 	protected PRNGType prngType = null;
 	protected PrismVariable[] svVars = null;
@@ -239,6 +240,9 @@ public abstract class KernelGenerator
 		}
 		if (synchronizedUpdates != null) {
 			ret.addAll(synchronizedUpdates);
+		}
+		if (additionalMethods != null) {
+			ret.addAll(additionalMethods);
 		}
 		return ret;
 	}
@@ -354,6 +358,7 @@ public abstract class KernelGenerator
 		helperMethods.put(KernelMethods.PERFORM_UPDATE, createNonsynUpdate());
 		if (synCommands != null) {
 			createGuardsMethodSyn();
+			createUpdateMethodSyn();
 			//			helperMethods.put(KernelMethods.CHECK_GUARDS_SYN, createSynGuardsMethod());
 			//			helperMethods.put(KernelMethods.PERFORM_UPDATE_SYN, createSynUpdate());
 		}
@@ -587,7 +592,7 @@ public abstract class KernelGenerator
 			//synchronized state
 			CLVariable synState = new CLVariable(new PointerType(synchronizedStates.get(cmd.synchLabel)), "synState");
 			int max = cmd.getMaxCommandsNum();
-			Method current = guardsSynCreateMethod(String.format("guardCheck__%s", cmd.synchLabel), max);
+			Method current = guardsSynCreateMethod(String.format("guardCheckSyn__%s", cmd.synchLabel), max);
 			CLVariable stateVector = new CLVariable(varStateVector.getPointer(), "sv");
 			//size for whole label
 			CLVariable labelSize = guardsSynLabelVar(max);
@@ -811,4 +816,8 @@ public abstract class KernelGenerator
 	{
 		return String.format("%s%s", STATE_VECTOR_PREFIX, varName);
 	}
+
+	protected abstract void createUpdateMethodSyn();
+
+	protected abstract Method updateSynLabelMethod(SynchronizedCommand cmd);
 }

@@ -453,10 +453,24 @@ public class KernelGeneratorCTMC extends KernelGenerator
 	protected void guardsSynAddGuard(ComplexKernelComponent parent, Command cmd, CLVariable size)
 	{
 		IfElse ifElse = new IfElse(new Expression(convertPrismGuard(svVars, cmd.getGuard().toString())));
-		ifElse.addElif(createBasicExpression(size.getSource(), Operator.ADD_AUGM,
+		ifElse.addExpression(createBasicExpression(size.getSource(), Operator.ADD_AUGM,
 		//converted rate
 				new Expression(convertPrismRate(svVars, cmd.getRateSum()))));
 		parent.addExpression(ifElse);
+	}
+
+	@Override
+	protected void createUpdateMethodSyn()
+	{
+		// TODO Auto-generated method stub
+
+	}
+
+	@Override
+	protected Method updateSynLabelMethod(SynchronizedCommand cmd)
+	{
+		// TODO Auto-generated method stub
+		return null;
 	}
 
 }

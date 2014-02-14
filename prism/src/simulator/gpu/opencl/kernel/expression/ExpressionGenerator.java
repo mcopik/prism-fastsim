@@ -197,7 +197,6 @@ public class ExpressionGenerator
 	static public String convertPrismRate(PrismVariable[] stateVector, Rate rate)
 	{
 		StringBuilder builder = new StringBuilder(rate.toString());
-		int index = 0;
 		for (int i = 0; i < stateVector.length; ++i) {
 			//			while ((index = builder.indexOf(stateVector[i].name, index)) != -1) {
 			//				builder.replace(index, index + stateVector[i].name.length(), String.format("((float)%s)", stateVector[i].name));
