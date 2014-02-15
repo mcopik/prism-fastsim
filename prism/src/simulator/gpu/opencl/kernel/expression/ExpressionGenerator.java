@@ -152,9 +152,10 @@ public class ExpressionGenerator
 		}
 	}
 
-	static public void addParentheses(Expression expr)
+	static public Expression addParentheses(Expression expr)
 	{
 		expr.exprString = String.format("(%s)", expr.exprString);
+		return expr;
 	}
 
 	static public Expression addComma(Expression expr)

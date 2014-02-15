@@ -70,11 +70,47 @@ import simulator.sampler.SamplerBoundedUntilDisc;
 public class KernelGeneratorDTMC extends KernelGenerator
 {
 	protected int maximalNumberOfSynchsUpdates = 0;
-	protected boolean timingProperty = false;
 
 	public KernelGeneratorDTMC(AbstractAutomaton model, List<Sampler> properties, KernelConfig config)
 	{
 		super(model, properties, config);
+	}
+
+	@Override
+	protected void createSynchronizedStructures()
+	{
+		synchronizedStates = new HashMap<>();
+		CLVariable size = null, array = null, guards = null;
+		int sum = 1, max = 0;
+		int cmdNumber = 0;
+		for (SynchronizedCommand cmd : synCommands) {
+			StructureType type = new StructureType(String.format("SynState__%s", cmd.synchLabel));
+
+			for (int i = 0; i < cmd.getModulesNum(); ++i) {
+				cmdNumber = cmd.getCommandNumber(i);
+				if (cmdNumber > max) {
+					max = cmdNumber;
+				}
+			}
+			sum = cmd.getMaxCommandsNum();
+			maximalNumberOfSynchsUpdates += sum;
+			size = new CLVariable(new StdVariableType(0, sum), "size");
+			array = new CLVariable(new ArrayType(new StdVariableType(0, max), cmd.getModulesNum()), "moduleSize");
+			guards = new CLVariable(new ArrayType(new StdVariableType(StdType.BOOL), cmd.getCmdsNum()), "guards");
+			type.addVariable(size);
+			type.addVariable(array);
+			type.addVariable(guards);
+			synchronizedStates.put(cmd.synchLabel, type);
+		}
+	}
+
+	/*********************************
+	 * MAIN METHOD
+	 ********************************/
+	@Override
+	protected void mainMethodFirstUpdateProperties(ComplexKernelComponent parent)
+	{
+		//in case of DTMC, there is nothing to do
 	}
 
 	@Override
@@ -89,7 +125,7 @@ public class KernelGeneratorDTMC extends KernelGenerator
 		varSelectionSize.setInitValue(StdVariableType.initialize(0));
 		currentMethod.addLocalVar(varSelectionSize);
 		//number of synchronized transitions
-		if (synCommands != null) {
+		if (hasSynchronized) {
 			for (SynchronizedCommand cmd : synCommands) {
 				maximalNumberOfSynchsUpdates += cmd.getMaxCommandsNum();
 			}
@@ -112,140 +148,6 @@ public class KernelGeneratorDTMC extends KernelGenerator
 	}
 
 	@Override
-	protected void guardsMethodCreateLocalVars(Method currentMethod) throws KernelException
-	{
-		//don't need to do anything!
-	}
-
-	@Override
-	protected Method guardsMethodCreateSignature()
-	{
-		return new Method("checkNonsynGuards", new StdVariableType(0, commands.length - 1));
-	}
-
-	@Override
-	protected void guardsMethodCreateCondition(Method currentMethod, int position, String guard)
-	{
-		CLVariable guardsTab = currentMethod.getArg("guardsTab");
-		Preconditions.checkNotNull(guardsTab, "");
-		CLVariable counter = currentMethod.getLocalVar("counter");
-		Preconditions.checkNotNull(counter, "");
-		CLVariable tabPos = guardsTab.varType.accessElement(guardsTab, ExpressionGenerator.postIncrement(counter));
-		IfElse ifElse = new IfElse(new Expression(guard));
-		ifElse.addExpression(0, createAssignment(tabPos, fromString(position)));
-		currentMethod.addExpression(ifElse);
-	}
-
-	@Override
-	protected void guardsMethodReturnValue(Method currentMethod)
-	{
-		CLVariable counter = currentMethod.getLocalVar("counter");
-		Preconditions.checkNotNull(counter, "");
-		currentMethod.addReturn(counter);
-	}
-
-	@Override
-	protected void updateMethodPerformSelection(Method currentMethod) throws KernelException
-	{
-		//INPUT: selectionSum - float [0, numberOfAllCommands];
-		CLVariable sum = currentMethod.getArg("selectionSum");
-		CLVariable number = currentMethod.getArg("numberOfCommands");
-		CLVariable selection = currentMethod.getLocalVar("selection");
-		CLVariable guardsTab = currentMethod.getArg("guardsTab");
-		guardsTab = guardsTab.varType.accessElement(guardsTab, selection.getName());
-		//currentMethod.addExpression(new Expression(
-		//	"if(get_global_id(0)<10)printf(\"before %f %d %d %f\\n\",selectionSum,selection,numberOfCommands,((float)selection) / numberOfCommands);"));
-		// selection = floor(selectionSum)
-		//currentMethod.addExpression(ExpressionGenerator.createAssignment(selection, ExpressionGenerator.functionCall("floor", sum.getName())));
-
-		// selectionSum = numberOfCommands * ( selectionSum - selection/numberOfCommands);
-		Expression divideSelection = createBasicExpression(selection.cast("float"), Operator.DIV, number.getSource());
-		Expression subSum = createBasicExpression(sum.getSource(), Operator.SUB, divideSelection);
-		ExpressionGenerator.addParentheses(subSum);
-		Expression asSum = createBasicExpression(number.getSource(), Operator.MUL, subSum);
-		currentMethod.addExpression(ExpressionGenerator.createAssignment(sum, asSum));
-		//currentMethod.addExpression(new Expression("if(get_global_id(0)<10)printf(\"after %f %d %d\\n\",selectionSum,selection,numberOfCommands);"));
-		//currentMethod.addExpression(ExpressionGenerator.createAssignment(selection, guardsTab.getName()));
-	}
-
-	@Override
-	protected void updateMethodAdditionalArgs(Method currentMethod) throws KernelException
-	{
-		//uint numberOfCommands
-		CLVariable numberOfCommands = new CLVariable(new StdVariableType(0, commands.length - 1), "numberOfCommands");
-		currentMethod.addArg(numberOfCommands);
-	}
-
-	@Override
-	protected void updateMethodLocalVars(Method currentMethod) throws KernelException
-	{
-		//selection
-		CLVariable sum = currentMethod.getArg("selectionSum");
-		CLVariable number = currentMethod.getArg("numberOfCommands");
-		CLVariable selection = currentMethod.getLocalVar("selection");
-		String selectionExpression = String.format("floor(%s)", createBasicExpression(sum.getSource(), Operator.MUL, number.getSource()).toString());
-		selection.setInitValue(new Expression(selectionExpression));
-	}
-
-	@Override
-	protected void propertiesMethodTimeArg(Method currentMethod) throws KernelException
-	{
-		for (Sampler sampler : properties) {
-			if (sampler instanceof SamplerBoundedUntilDisc) {
-				timingProperty = true;
-				break;
-			}
-		}
-		if (timingProperty) {
-			CLVariable time = new CLVariable(new StdVariableType(0, config.maxPathLength), "time");
-			currentMethod.addArg(time);
-		}
-	}
-
-	@Override
-	protected void propertiesMethodAddBoundedUntil(Method currentMethod, ComplexKernelComponent parent, SamplerBoolean property, CLVariable propertyVar)
-	{
-		CLVariable time = currentMethod.getArg("time");
-		SamplerBoundedUntilDisc prop = (SamplerBoundedUntilDisc) property;
-		/**
-		 * if(time > upper_bound)
-		 */
-		IfElse ifElse = new IfElse(createBasicExpression(time.getSource(), Operator.GE, fromString(prop.getUpperBound())));
-		/**
-		 * if(right_side == true) -> true
-		 * else -> false
-		 */
-		IfElse rhsCheck = null;
-		//TODO: always !prop?
-		if (prop.getRightSide().toString().charAt(0) == '!') {
-			rhsCheck = createPropertyCondition(propertyVar, true, prop.getRightSide().toString().substring(1), true);
-		} else {
-			rhsCheck = createPropertyCondition(propertyVar, false, prop.getRightSide().toString(), true);
-		}
-		createPropertyCondition(rhsCheck, propertyVar, false, null, false);
-		ifElse.addExpression(rhsCheck);
-		/**
-		 * Else -> check RHS and LHS
-		 */
-		ifElse.addElse();
-		/**
-		 * if(right_side == true) -> true
-		 * else if(left_side == false) -> false
-		 */
-		IfElse betweenBounds = null;
-		if (prop.getRightSide().toString().charAt(0) == '!') {
-			betweenBounds = createPropertyCondition(propertyVar, true, prop.getRightSide().toString().substring(1), true);
-		} else {
-			betweenBounds = createPropertyCondition(propertyVar, false, prop.getRightSide().toString(), true);
-		}
-		if (!(prop.getLeftSide() instanceof ExpressionLiteral)) {
-			createPropertyCondition(betweenBounds, propertyVar, true, prop.getLeftSide().toString(), false);
-		}
-		ifElse.addExpression(1, betweenBounds);
-		parent.addExpression(ifElse);
-	}
-
-	@Override
 	protected int mainMethodRandomsPerIteration()
 	{
 		return 1;
@@ -261,8 +163,6 @@ public class KernelGeneratorDTMC extends KernelGenerator
 		Expression rndNumber = new Expression(String.format("%s%%%d", varPathLength.getSource().toString(), config.prngType.numbersPerRandomize()));
 		selection.setInitValue(config.prngType.getRandomUnifFloat(rndNumber));
 		parent.addExpression(selection.getDefinition());
-		//		parent.addExpression(new Expression(
-		//				"if(globalID<5)printf(\"%d %d %d %d %d %f\\n\",globalID,selectionSize,selectionSynSize,synchState_serve.size,synchState_serve1.size,selection);"));
 		Expression condition = createBasicExpression(selection.getSource(), Operator.LT,
 		//nonSyn/(syn+nonSyn)
 				createBasicExpression(varSelectionSize.cast("float"), Operator.DIV, sum));
@@ -412,10 +312,14 @@ public class KernelGeneratorDTMC extends KernelGenerator
 				varSelectionSize));
 	}
 
-	@Override
-	protected void mainMethodFirstUpdateProperties(ComplexKernelComponent parent)
+	protected CLVariable mainMethodCreateSelection(Expression selectionSize)
 	{
-		//in case of DTMC, there is nothing to do
+		CLVariable selection = new CLVariable(new StdVariableType(StdType.FLOAT), "selection");
+		Expression rndNumber = new Expression(String.format("%s%%%d", varPathLength.getSource().toString(),
+		//pathLength%2 for Random123
+				config.prngType.numbersPerRandomize()));
+		selection.setInitValue(config.prngType.getRandomUnifFloat(fromString(rndNumber)));
+		return selection;
 	}
 
 	@Override
@@ -437,36 +341,145 @@ public class KernelGeneratorDTMC extends KernelGenerator
 		parent.addExpression(ifElse);
 	}
 
+	/*********************************
+	 * NON-SYNCHRONIZED GUARDS CHECK
+	 ********************************/
 	@Override
-	protected void createSynchronizedStructures()
+	protected void guardsMethodCreateLocalVars(Method currentMethod) throws KernelException
 	{
-		synchronizedStates = new HashMap<>();
-		CLVariable size;// = new CLVariable("size",new StdVariableType(0, maximal)
-		CLVariable array;
-		CLVariable guards;
-		int sum = 1, max = 0;
-		int cmdNumber = 0;
-		for (SynchronizedCommand cmd : synCommands) {
-			StructureType type = new StructureType(String.format("SynState__%s", cmd.synchLabel));
+		//don't need to do anything!
+	}
 
-			for (int i = 0; i < cmd.getModulesNum(); ++i) {
-				cmdNumber = cmd.getCommandNumber(i);
-				if (cmdNumber > max) {
-					max = cmdNumber;
-				}
-			}
-			sum = cmd.getMaxCommandsNum();
-			maximalNumberOfSynchsUpdates += sum;
-			size = new CLVariable(new StdVariableType(0, sum), "size");
-			array = new CLVariable(new ArrayType(new StdVariableType(0, max), cmd.getModulesNum()), "moduleSize");
-			guards = new CLVariable(new ArrayType(new StdVariableType(StdType.BOOL), cmd.getCmdsNum()), "guards");
-			type.addVariable(size);
-			type.addVariable(array);
-			type.addVariable(guards);
-			synchronizedStates.put(cmd.synchLabel, type);
+	@Override
+	protected Method guardsMethodCreateSignature()
+	{
+		return new Method("checkNonsynGuards", new StdVariableType(0, commands.length - 1));
+	}
+
+	@Override
+	protected void guardsMethodCreateCondition(Method currentMethod, int position, String guard)
+	{
+		CLVariable guardsTab = currentMethod.getArg("guardsTab");
+		Preconditions.checkNotNull(guardsTab, "");
+		CLVariable counter = currentMethod.getLocalVar("counter");
+		Preconditions.checkNotNull(counter, "");
+		CLVariable tabPos = guardsTab.varType.accessElement(guardsTab, ExpressionGenerator.postIncrement(counter));
+		IfElse ifElse = new IfElse(new Expression(guard));
+		ifElse.addExpression(0, createAssignment(tabPos, fromString(position)));
+		currentMethod.addExpression(ifElse);
+	}
+
+	@Override
+	protected void guardsMethodReturnValue(Method currentMethod)
+	{
+		CLVariable counter = currentMethod.getLocalVar("counter");
+		Preconditions.checkNotNull(counter, "");
+		currentMethod.addReturn(counter);
+	}
+
+	/*********************************
+	 * NON-SYNCHRONIZED UPDATE
+	 ********************************/
+	@Override
+	protected void updateMethodPerformSelection(Method currentMethod) throws KernelException
+	{
+		//INPUT: selectionSum - float [0, numberOfAllCommands];
+		CLVariable sum = currentMethod.getArg("selectionSum");
+		CLVariable number = currentMethod.getArg("numberOfCommands");
+		CLVariable selection = currentMethod.getLocalVar("selection");
+		CLVariable guardsTab = currentMethod.getArg("guardsTab");
+		guardsTab = guardsTab.varType.accessElement(guardsTab, selection.getName());
+		//currentMethod.addExpression(new Expression(
+		//	"if(get_global_id(0)<10)printf(\"before %f %d %d %f\\n\",selectionSum,selection,numberOfCommands,((float)selection) / numberOfCommands);"));
+		// selection = floor(selectionSum)
+		//currentMethod.addExpression(ExpressionGenerator.createAssignment(selection, ExpressionGenerator.functionCall("floor", sum.getName())));
+
+		// selectionSum = numberOfCommands * ( selectionSum - selection/numberOfCommands);
+		Expression divideSelection = createBasicExpression(selection.cast("float"), Operator.DIV, number.getSource());
+		Expression subSum = createBasicExpression(sum.getSource(), Operator.SUB, divideSelection);
+		ExpressionGenerator.addParentheses(subSum);
+		Expression asSum = createBasicExpression(number.getSource(), Operator.MUL, subSum);
+		currentMethod.addExpression(ExpressionGenerator.createAssignment(sum, asSum));
+	}
+
+	@Override
+	protected void updateMethodAdditionalArgs(Method currentMethod) throws KernelException
+	{
+		//uint numberOfCommands
+		CLVariable numberOfCommands = new CLVariable(new StdVariableType(0, commands.length - 1), "numberOfCommands");
+		currentMethod.addArg(numberOfCommands);
+	}
+
+	@Override
+	protected void updateMethodLocalVars(Method currentMethod) throws KernelException
+	{
+		//selection
+		CLVariable sum = currentMethod.getArg("selectionSum");
+		CLVariable number = currentMethod.getArg("numberOfCommands");
+		CLVariable selection = currentMethod.getLocalVar("selection");
+		String selectionExpression = String.format("floor(%s)", createBasicExpression(sum.getSource(), Operator.MUL, number.getSource()).toString());
+		selection.setInitValue(new Expression(selectionExpression));
+	}
+
+	/*********************************
+	 * PROPERTY METHODS
+	 ********************************/
+	@Override
+	protected void propertiesMethodTimeArg(Method currentMethod) throws KernelException
+	{
+		//time necessary only in case of bounded until
+		if (timingProperty) {
+			CLVariable time = new CLVariable(new StdVariableType(0, config.maxPathLength), "time");
+			currentMethod.addArg(time);
 		}
 	}
 
+	@Override
+	protected void propertiesMethodAddBoundedUntil(Method currentMethod, ComplexKernelComponent parent, SamplerBoolean property, CLVariable propertyVar)
+	{
+		CLVariable time = currentMethod.getArg("time");
+		SamplerBoundedUntilDisc prop = (SamplerBoundedUntilDisc) property;
+		/**
+		 * if(time > upper_bound)
+		 */
+		IfElse ifElse = new IfElse(createBasicExpression(time.getSource(), Operator.GE, fromString(prop.getUpperBound())));
+		/**
+		 * if(right_side == true) -> true
+		 * else -> false
+		 */
+		IfElse rhsCheck = null;
+		//TODO: always !prop?
+		if (prop.getRightSide().toString().charAt(0) == '!') {
+			rhsCheck = createPropertyCondition(propertyVar, true, prop.getRightSide().toString().substring(1), true);
+		} else {
+			rhsCheck = createPropertyCondition(propertyVar, false, prop.getRightSide().toString(), true);
+		}
+		createPropertyCondition(rhsCheck, propertyVar, false, null, false);
+		ifElse.addExpression(rhsCheck);
+		/**
+		 * Else -> check RHS and LHS
+		 */
+		ifElse.addElse();
+		/**
+		 * if(right_side == true) -> true
+		 * else if(left_side == false) -> false
+		 */
+		IfElse betweenBounds = null;
+		if (prop.getRightSide().toString().charAt(0) == '!') {
+			betweenBounds = createPropertyCondition(propertyVar, true, prop.getRightSide().toString().substring(1), true);
+		} else {
+			betweenBounds = createPropertyCondition(propertyVar, false, prop.getRightSide().toString(), true);
+		}
+		if (!(prop.getLeftSide() instanceof ExpressionLiteral)) {
+			createPropertyCondition(betweenBounds, propertyVar, true, prop.getLeftSide().toString(), false);
+		}
+		ifElse.addExpression(1, betweenBounds);
+		parent.addExpression(ifElse);
+	}
+
+	/*********************************
+	 * SYNCHRONIZED GUARDS CHECK
+	 ********************************/
 	@Override
 	protected Method guardsSynCreateMethod(String label, int maxCommandsNumber)
 	{
@@ -496,6 +509,9 @@ public class KernelGeneratorDTMC extends KernelGenerator
 				guardArray.getSource()));
 	}
 
+	/*********************************
+	 * SYNCHRONIZED UPDATE
+	 ********************************/
 	@Override
 	protected void createUpdateMethodSyn()
 	{
