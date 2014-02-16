@@ -100,6 +100,7 @@ public class Switch extends ComplexKernelComponent
 
 	private boolean hasDefault = false;
 	private Expression switchCondition = null;
+	private int conditionNumber = 0;
 
 	public Switch(Expression switchCondition)
 	{
@@ -125,11 +126,27 @@ public class Switch extends ComplexKernelComponent
 		hasDefault = true;
 	}
 
-	public void addCommand(int conditionNumber, KernelComponent command)
+	public void addExpression(int conditionNumber, KernelComponent command)
 	{
 		Preconditions.checkIndex(conditionNumber, body.size(), "Non-valid index of condition in Switch!");
 		correctExpression(command);
 		((Case) body.get(conditionNumber)).commands.add(command);
+	}
+
+	public void addExpression(KernelComponent expr)
+	{
+		Preconditions.checkNotNull(expr, "Trying to add null reference to expression!");
+		correctExpression(expr);
+		addExpression(conditionNumber, expr);
+		if (expr.hasIncludes()) {
+			necessaryIncludes.addAll(expr.getIncludes());
+		}
+	}
+
+	public void setConditionNumber(int conditionNumber)
+	{
+		Preconditions.checkIndex(conditionNumber, body.size(), "Non-valid index of condition in IfElse!");
+		this.conditionNumber = conditionNumber;
 	}
 
 	/* (non-Javadoc)

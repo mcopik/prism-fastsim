@@ -165,28 +165,6 @@ public class KernelGeneratorCTMC extends KernelGenerator
 		return 2;
 	}
 
-	protected CLVariable mainMethodCreateSelection(Expression selectionSize)
-	{
-		CLVariable selection = new CLVariable(new StdVariableType(StdType.FLOAT), "selection");
-		Expression rndNumber = null;
-		if (config.prngType.numbersPerRandomize() == 2) {
-			rndNumber = new Expression(String.format("%s%%%d", varPathLength.getSource().toString(),
-			//pathLength%2 for Random123
-					config.prngType.numbersPerRandomize()));
-		}
-		//we assume that this is an even number!
-		else {
-			rndNumber = new Expression(String.format("%s%%%d",
-			//pathLength*2
-					addParentheses(createBasicExpression(varPathLength.getSource(), Operator.MUL,
-					// % numbersPerRandom
-							fromString(2))).toString(), config.prngType.numbersPerRandomize()));
-
-		}
-		selection.setInitValue(config.prngType.getRandomFloat(fromString(rndNumber), selectionSize));
-		return selection;
-	}
-
 	@Override
 	protected void mainMethodFirstUpdateProperties(ComplexKernelComponent parent)
 	{
@@ -212,54 +190,118 @@ public class KernelGeneratorCTMC extends KernelGenerator
 		}
 	}
 
-	protected void mainMethodCallBothUpdates(ComplexKernelComponent parent)
+	//
+	//	protected void mainMethodCallBothUpdates(ComplexKernelComponent parent)
+	//	{
+	//		//selection
+	//		CLVariable selection = new CLVariable(new StdVariableType(StdType.FLOAT), "selection");
+	//		Expression sum = createBasicExpression(varSelectionSize.getSource(), Operator.ADD, varSynSelectionSize.getSource());
+	//		addParentheses(sum);
+	//		selection.setInitValue(config.prngType.getRandomFloat(fromString(0), sum));
+	//		parent.addExpression(selection.getDefinition());
+	//		Expression condition = createBasicExpression(selection.getSource(), Operator.LT,
+	//		//< nonSynchronizedRate
+	//				varSelectionSize.getSource());
+	//		IfElse ifElse = new IfElse(condition);
+	//		/**
+	//		 * if(selection < selectionSize/sum)
+	//		 * callNonsynUpdate(..)
+	//		 */
+	//		Method update = helperMethods.get(KernelMethods.PERFORM_UPDATE);
+	//		ifElse.addExpression(update.callMethod(
+	//		//stateVector
+	//				varStateVector.convertToPointer(),
+	//				//non-synchronized guards tab
+	//				varGuardsTab,
+	//				//select 
+	//				selection));
+	//		/**
+	//		 * else
+	//		 * callSynUpdate()
+	//		 */
+	//		//TODO: call synchronized update
+	//		parent.addExpression(ifElse);
+	//	}
+	//
+	//	protected void mainMethodCallSynUpdate(ComplexKernelComponent parent)
+	//	{
+	//		//TODO: call synchronized update
+	//	}
+
+	@Override
+	protected void mainMethodCallNonsynUpdate(ComplexKernelComponent parent)
 	{
-		//selection
+		CLValue random = config.prngType.getRandomFloat(fromString(0), varSelectionSize.getSource());
+		parent.addExpression(mainMethodCallNonsynUpdate(random));
+	}
+
+	private Expression mainMethodCallNonsynUpdate(CLValue rnd)
+	{
+		Method update = helperMethods.get(KernelMethods.PERFORM_UPDATE);
+		return update.callMethod(
+		//stateVector
+				varStateVector.convertToPointer(),
+				//non-synchronized guards tab
+				varGuardsTab,
+				//random float [0,1]
+				rnd);
+	}
+
+	@Override
+	protected CLVariable mainMethodBothUpdatesSumVar()
+	{
+		return new CLVariable(new StdVariableType(StdType.FLOAT), "synSum");
+	}
+
+	@Override
+	protected CLVariable mainMethodSelectionVar(Expression selectionSize)
+	{
 		CLVariable selection = new CLVariable(new StdVariableType(StdType.FLOAT), "selection");
-		Expression sum = createBasicExpression(varSelectionSize.getSource(), Operator.ADD, varSynSelectionSize.getSource());
-		addParentheses(sum);
-		selection.setInitValue(config.prngType.getRandomFloat(fromString(0), sum));
-		parent.addExpression(selection.getDefinition());
+		Expression rndNumber = null;
+		if (config.prngType.numbersPerRandomize() == 2) {
+			rndNumber = new Expression(String.format("%s%%%d", varPathLength.getSource().toString(),
+			//pathLength%2 for Random123
+					config.prngType.numbersPerRandomize()));
+		}
+		//we assume that this is an even number!
+		else {
+			rndNumber = new Expression(String.format("%s%%%d",
+			//pathLength*2
+					addParentheses(createBasicExpression(varPathLength.getSource(), Operator.MUL,
+					// % numbersPerRandom
+							fromString(2))).toString(), config.prngType.numbersPerRandomize()));
+
+		}
+		selection.setInitValue(config.prngType.getRandomFloat(fromString(rndNumber), selectionSize));
+		return selection;
+	}
+
+	@Override
+	protected IfElse mainMethodBothUpdatesCondition(CLVariable selection)
+	{
 		Expression condition = createBasicExpression(selection.getSource(), Operator.LT,
-		//< nonSynchronizedRate
+		//random < selectionSize
 				varSelectionSize.getSource());
 		IfElse ifElse = new IfElse(condition);
 		/**
 		 * if(selection < selectionSize/sum)
 		 * callNonsynUpdate(..)
 		 */
-		Method update = helperMethods.get(KernelMethods.PERFORM_UPDATE);
-		ifElse.addExpression(update.callMethod(
-		//stateVector
-				varStateVector.convertToPointer(),
-				//non-synchronized guards tab
-				varGuardsTab,
-				//select 
-				selection));
-		/**
-		 * else
-		 * callSynUpdate()
-		 */
-		//TODO: call synchronized update
-		parent.addExpression(ifElse);
+		ifElse.addExpression(mainMethodCallNonsynUpdate(selection));
+		return ifElse;
 	}
 
-	protected void mainMethodCallSynUpdate(ComplexKernelComponent parent)
+	@Override
+	protected Expression mainMethodSynUpdateCondition(CLVariable selection, CLVariable synSum, Expression sum)
 	{
-		//TODO: call synchronized update
+		return createBasicExpression(selection.getSource(), Operator.LT, sum);
 	}
 
-	protected void mainMethodCallNonsynUpdate(ComplexKernelComponent parent)
+	@Override
+	protected void mainMethodSynRecomputeSelection(ComplexKernelComponent parent, CLVariable selection, CLVariable synSum, Expression sum,
+			CLVariable currentLabelSize)
 	{
-		Method update = helperMethods.get(KernelMethods.PERFORM_UPDATE);
-		CLValue random = config.prngType.getRandomFloat(fromString(0), varSelectionSize.getSource());
-		parent.addExpression(update.callMethod(
-		//stateVector
-				varStateVector.convertToPointer(),
-				//non-synchronized guards tab
-				varGuardsTab,
-				//random float [0,1]
-				random));
+		parent.addExpression(createBasicExpression(selection.getSource(), Operator.SUB_AUGM, synSum.getSource()));
 	}
 
 	@Override
@@ -340,7 +382,7 @@ public class KernelGeneratorCTMC extends KernelGenerator
 		for (int i = 0; i < commands.length; ++i) {
 			Rate rateSum = commands[i].getRateSum();
 			_switch.addCase(new Expression(Integer.toString(i)));
-			_switch.addCommand(i, ExpressionGenerator.createAssignment(newSum, fromString(rateSum)));
+			_switch.addExpression(i, ExpressionGenerator.createAssignment(newSum, fromString(rateSum)));
 		}
 		loop.addExpression(_switch);
 		// if(sum + newSum > selectionSum)

@@ -113,6 +113,7 @@ public class IfElse extends ComplexKernelComponent
 	}
 
 	private boolean hasElse = false;
+	private int conditionNumber = 0;
 
 	public IfElse(Expression ifCondition)
 	{
@@ -152,11 +153,17 @@ public class IfElse extends ComplexKernelComponent
 		return body.size();
 	}
 
+	public void setConditionNumber(int conditionNumber)
+	{
+		Preconditions.checkIndex(conditionNumber, body.size(), "Non-valid index of condition in IfElse!");
+		this.conditionNumber = conditionNumber;
+	}
+
 	public void addExpression(KernelComponent expr)
 	{
 		Preconditions.checkNotNull(expr, "Trying to add null reference to expression!");
 		correctExpression(expr);
-		addExpression(0, expr);
+		addExpression(conditionNumber, expr);
 		if (expr.hasIncludes()) {
 			necessaryIncludes.addAll(expr.getIncludes());
 		}

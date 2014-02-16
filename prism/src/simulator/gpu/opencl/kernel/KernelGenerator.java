@@ -512,7 +512,7 @@ public abstract class KernelGenerator
 		mainMethodUpdateTimeAfter(currentMethod, loop);
 		//loop.addExpression(new Expression(
 		//		"if(globalID<5 && pathLength < 20)printf(\"end loop gID %d %f %d %d %d %d %d\\n\",globalID,selection,selectionSize,selectionSynSize,stateVector.__STATE_VECTOR_phase,stateVector.__STATE_VECTOR_party,stateVector.__STATE_VECTOR_n);"));
-		//loop.addExpression(new Expression("if(phase==4)break;"));
+		loop.addExpression(new Expression("if(phase==4)break;"));
 		currentMethod.addExpression(loop);
 		/**
 		 * Write results.
@@ -543,36 +543,106 @@ public abstract class KernelGenerator
 		//selection
 		Expression sum = createBasicExpression(varSelectionSize.getSource(), Operator.ADD, varSynSelectionSize.getSource());
 		addParentheses(sum);
-		CLVariable selection = mainMethodCreateSelection(sum);
+		CLVariable selection = mainMethodSelectionVar(sum);
 		parent.addExpression(selection.getDefinition());
-		Expression condition = createBasicExpression(selection.getSource(), Operator.LT, varSelectionSize.getSource());
-		IfElse ifElse = new IfElse(condition);
-		/**
-		 * if(selection < selectionSize)
-		 * callNonsynUpdate(..)
-		 */
-		Method update = helperMethods.get(KernelMethods.PERFORM_UPDATE);
-		ifElse.addExpression(update.callMethod(
-		//stateVector
-				varStateVector.convertToPointer(),
-				//non-synchronized guards tab
-				varGuardsTab,
-				//select 
-				selection));
+		IfElse ifElse = mainMethodBothUpdatesCondition(selection);
 		/**
 		 * else
 		 * callSynUpdate()
 		 */
-		//TODO: call synchronized update
+		ifElse.addElse();
+		//write everything to else
+		ifElse.setConditionNumber(1);
+		CLVariable synSum = mainMethodBothUpdatesSumVar();
+		//start checking values from the low limit of non-syn size
+		synSum.setInitValue(varSelectionSize);
+		ifElse.addExpression(synSum.getDefinition());
+		mainMethodCallSynUpdate(ifElse, selection, synSum, sum);
 		parent.addExpression(ifElse);
 	}
 
 	protected void mainMethodCallSynUpdate(ComplexKernelComponent parent)
 	{
-		//TODO: call synchronized update
+		CLVariable selection = mainMethodSelectionVar(varSynSelectionSize.getSource());
+		CLVariable synSum = mainMethodBothUpdatesSumVar();
+		synSum.setInitValue(StdVariableType.initialize(0));
+		parent.addExpression(synSum.getDefinition());
+		mainMethodCallSynUpdate(parent, selection, synSum, varSynSelectionSize.getSource());
 	}
 
-	protected abstract CLVariable mainMethodCreateSelection(Expression selectionSize);
+	protected void mainMethodCallSynUpdate(ComplexKernelComponent parent, CLVariable selection, CLVariable synSum, Expression sum)
+	{
+		/**
+		 * Loop counter, over all labels
+		 */
+		CLVariable counter = new CLVariable(new StdVariableType(0, synCommands.length), "synSelection");
+		counter.setInitValue(StdVariableType.initialize(0));
+		parent.addExpression(counter.getDefinition());
+		ForLoop loop = new ForLoop(counter, 0, synCommands.length);
+		Switch _switch = new Switch(counter);
+		for (int i = 0; i < synCommands.length; ++i) {
+			CLVariable currentSize = varSynchronizedStates[i].accessField("size");
+			_switch.addCase(fromString(i));
+			_switch.addExpression(i, createBasicExpression(synSum.getSource(), Operator.ADD_AUGM,
+			// synSum += synchState__label.size;
+					currentSize.getSource()));
+		}
+		loop.addExpression(_switch);
+		/**
+		 * Check whether we have found proper label.
+		 */
+		IfElse checkSelection = new IfElse(mainMethodSynUpdateCondition(selection, synSum, sum));
+		/**
+		 * If yes, then counter shows us the label.
+		 * For each one, recompute probability/rate
+		 */
+		_switch = new Switch(counter);
+		for (int i = 0; i < synCommands.length; ++i) {
+			_switch.addCase(fromString(i));
+			_switch.setConditionNumber(i);
+			/**
+			 * Remove current size, added in loop.
+			 */
+			CLVariable currentSize = varSynchronizedStates[i].accessField("size");
+			_switch.addExpression(i, createBasicExpression(synSum.getSource(), Operator.SUB_AUGM,
+			// synSum -= synchState__label.size;
+					currentSize.getSource()));
+			/**
+			 * Recompute probability/rate
+			 */
+			mainMethodSynRecomputeSelection(_switch, selection, synSum, sum, currentSize);
+		}
+		checkSelection.addExpression(_switch);
+		checkSelection.addExpression("break;\n");
+		loop.addExpression(checkSelection);
+		parent.addExpression(loop);
+		/**
+		 * Counter shows selected label, so we can call the update.
+		 */
+		_switch = new Switch(counter);
+		for (int i = 0; i < synCommands.length; ++i) {
+			_switch.addCase(fromString(i));
+			_switch.addExpression(i, synchronizedUpdates.get(i).callMethod(
+			//&stateVector
+					varStateVector.convertToPointer(),
+					//&synchState__label
+					varSynchronizedStates[i].convertToPointer(),
+					//probability
+					selection));
+		}
+		parent.addExpression(_switch);
+	}
+
+	protected abstract CLVariable mainMethodBothUpdatesSumVar();
+
+	protected abstract IfElse mainMethodBothUpdatesCondition(CLVariable selection);
+
+	protected abstract Expression mainMethodSynUpdateCondition(CLVariable selection, CLVariable synSum, Expression sum);
+
+	protected abstract void mainMethodSynRecomputeSelection(ComplexKernelComponent parent, CLVariable selection, CLVariable synSum, Expression sum,
+			CLVariable currentLabelSize);
+
+	protected abstract CLVariable mainMethodSelectionVar(Expression selectionSize);
 
 	protected abstract void mainMethodCallNonsynUpdate(ComplexKernelComponent parent);
 
@@ -672,11 +742,11 @@ public abstract class KernelGenerator
 					}
 				}
 				_switch.addCase(new Expression(Integer.toString(i)));
-				_switch.addCommand(switchCounter++, ifElse);
+				_switch.addExpression(switchCounter++, ifElse);
 			} else {
 				if (!update.isActionTrue(0)) {
 					_switch.addCase(new Expression(Integer.toString(i)));
-					_switch.addCommand(switchCounter++, convertPrismAction(update.getAction(0)));
+					_switch.addExpression(switchCounter++, convertPrismAction(update.getAction(0)));
 				}
 			}
 		}
