@@ -209,6 +209,8 @@ public class GPUSimulatorEngine implements ModelCheckInterface
 			Sampler sampler = samplers[i];
 			if (sampler != null) {
 				SimulationMethod sm = sampler.getSimulationMethod();
+				//TODO: temporal fix to avoid wrong width computation
+				sm.shouldStopNow(numberOfSimulations, sampler);
 				sm.computeMissingParameterAfterSim();
 				try {
 					results[i] = sm.getResult(sampler);

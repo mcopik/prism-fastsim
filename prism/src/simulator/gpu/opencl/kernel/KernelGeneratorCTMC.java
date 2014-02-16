@@ -515,17 +515,62 @@ public class KernelGeneratorCTMC extends KernelGenerator
 	 * SYNCHRONIZED UPDATE
 	 ********************************/
 	@Override
-	protected void createUpdateMethodSyn()
+	protected CLVariable updateSynLabelMethodGuardCounter(SynchronizedCommand cmd)
 	{
-		// TODO Auto-generated method stub
+		CLVariable guardCounter = new CLVariable(new StdVariableType(StdType.FLOAT), "guardCounter");
+		guardCounter.setInitValue(StdVariableType.initialize(0.0f));
+		return guardCounter;
+	}
+
+	@Override
+	protected void updateSynLabelMethodSelectGuard(Method currentMethod, ComplexKernelComponent parent, CLVariable guardSelection, CLVariable guardCounter,
+			int moduleOffset)
+	{
+		CLVariable guardsTab = currentMethod.getArg("guardsTab");
+		CLVariable guard = currentMethod.getArg("guard");
+		/**
+		 * guardSelection = -1;
+		 * guardCounter = 0;
+		 * for(;;guardCounter++) {
+		 * 	guardSelection += guards[moduleOffset+guardCounter];
+		 * 	if(guardsSelection == guard)
+		 * 		break;
+		 * }
+		 * switch(guardCounter)...
+		 */
+		ForLoop guardSelectionLoop = new ForLoop(guardSelection, false);
+		CLVariable guardsAccess = guardsTab.accessElement(
+		// moduleOffset(constant!) + guardCounter
+				createBasicExpression(fromString(moduleOffset), Operator.ADD, guardSelection.getSource()));
+		guardSelectionLoop.addExpression(createBasicExpression(guardCounter.getSource(),
+		//guardSelection += guards[moduleOffset + guardCounter];
+				Operator.ADD_AUGM, guardsAccess.getSource()));
+		IfElse ifElseGuardLoop = new IfElse(createBasicExpression(guardCounter.getSource(),
+		//guardSelection == guard
+				Operator.EQ, guard.getSource()));
+		ifElseGuardLoop.addExpression("break\n");
+		guardSelectionLoop.addExpression(ifElseGuardLoop);
+		parent.addExpression(guardSelectionLoop);
+		//		parent.addExpression(new Expression("if(get_global_id(0)<5)printf(\"" + synCmd.synchLabel + " %d %d \\n\"," + guardCounter.varName + ","
+		//				+ guardSelection.varName + ");"));
 
 	}
 
 	@Override
-	protected Method updateSynLabelMethod(SynchronizedCommand cmd)
+	protected Expression updateSynProbabilityRecompute(CLVariable probability, Rate before, Rate current)
 	{
-		// TODO Auto-generated method stub
-		return null;
+		Expression compute = null;
+		if (before != null) {
+			compute = createBasicExpression(probability.getSource(), Operator.SUB,
+			//probability - sum of rates before
+					fromString(convertPrismRate(svVars, before)));
+		} else {
+			compute = probability.getSource();
+		}
+		addParentheses(compute);
+		return createAssignment(probability, createBasicExpression(compute, Operator.DIV,
+		//divide by current interval
+				fromString(convertPrismRate(svVars, current))));
 	}
 
 }

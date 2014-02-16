@@ -73,6 +73,11 @@ public class ForLoop extends ComplexKernelComponent
 		}
 	}
 
+	public CLVariable getLoopCounter()
+	{
+		return counter;
+	}
+
 	@Override
 	public boolean hasDeclaration()
 	{
