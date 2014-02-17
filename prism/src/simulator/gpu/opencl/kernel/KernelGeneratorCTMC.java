@@ -84,7 +84,7 @@ public class KernelGeneratorCTMC extends KernelGenerator
 
 			size = new CLVariable(new StdVariableType(StdType.FLOAT), "size");
 			array = new CLVariable(new ArrayType(new StdVariableType(StdType.FLOAT), cmd.getModulesNum()), "moduleSize");
-			guards = new CLVariable(new ArrayType(new StdVariableType(StdType.BOOL), cmd.getMaxCommandsNum()), "guards");
+			guards = new CLVariable(new ArrayType(new StdVariableType(StdType.BOOL), cmd.getCmdsNum()), "guards");
 			type.addVariable(size);
 			type.addVariable(array);
 			type.addVariable(guards);
@@ -259,9 +259,7 @@ public class KernelGeneratorCTMC extends KernelGenerator
 		CLVariable selection = new CLVariable(new StdVariableType(StdType.FLOAT), "selection");
 		Expression rndNumber = null;
 		if (config.prngType.numbersPerRandomize() == 2) {
-			rndNumber = new Expression(String.format("%s%%%d", varPathLength.getSource().toString(),
-			//pathLength%2 for Random123
-					config.prngType.numbersPerRandomize()));
+			rndNumber = fromString(0);
 		}
 		//we assume that this is an even number!
 		else {
@@ -294,7 +292,7 @@ public class KernelGeneratorCTMC extends KernelGenerator
 	@Override
 	protected Expression mainMethodSynUpdateCondition(CLVariable selection, CLVariable synSum, Expression sum)
 	{
-		return createBasicExpression(selection.getSource(), Operator.LT, sum);
+		return createBasicExpression(selection.getSource(), Operator.LT, synSum.getSource());
 	}
 
 	@Override
@@ -508,6 +506,9 @@ public class KernelGeneratorCTMC extends KernelGenerator
 		ifElse.addExpression(createBasicExpression(size.getSource(), Operator.ADD_AUGM,
 		//converted rate
 				new Expression(convertPrismRate(svVars, cmd.getRateSum()))));
+		ifElse.addExpression(createAssignment(guardArray, fromString(1)));
+		ifElse.addElse();
+		ifElse.addExpression(1, createAssignment(guardArray, fromString(0)));
 		parent.addExpression(ifElse);
 	}
 
@@ -515,10 +516,120 @@ public class KernelGeneratorCTMC extends KernelGenerator
 	 * SYNCHRONIZED UPDATE
 	 ********************************/
 	@Override
+	protected void updateSynAdditionalVars(Method parent, SynchronizedCommand cmd) throws KernelException
+	{
+		/**
+		 * Used only if at least one module has more than one guard.
+		 */
+		boolean flag = false;
+		for (int i = 0; i < cmd.getModulesNum(); ++i) {
+			if (cmd.getCommandNumber(i) > 1) {
+				flag = true;
+				break;
+			}
+		}
+		if (flag) {
+			CLVariable sum = new CLVariable(new StdVariableType(StdType.FLOAT), "sum");
+			sum.setInitValue(StdVariableType.initialize(0.0f));
+			parent.addLocalVar(sum);
+			CLVariable newSum = new CLVariable(new StdVariableType(StdType.FLOAT), "newSum");
+			newSum.setInitValue(StdVariableType.initialize(0.0f));
+			parent.addLocalVar(newSum);
+		}
+
+	}
+
+	protected void updateSynBeforeUpdateLabel(Method parent, SynchronizedCommand cmd, int moduleNumber, CLVariable guardsTab, CLVariable guard,
+			CLVariable moduleSize, CLVariable totalSize, CLVariable probability)
+	{
+		/**
+		 * Divide total size and compute the size of rest of modules.
+		 */
+		parent.addExpression(createBasicExpression(totalSize.getSource(), Operator.DIV_AUGM, moduleSize.getSource()));
+		/**
+		 * FROM prob in [0,moduleLength]
+		 * TO prob in [0,moduleLength]
+		 */
+		parent.addExpression(createBasicExpression(probability.getSource(), Operator.DIV_AUGM, totalSize.getSource()));
+		/**
+		 * float sum = 0.0f;
+		 * for(;;guard++) {
+		 *  switch(guard){
+		 *  case i:
+		 * 	sum += guards[moduleOffset+guardCounter]*i_cmd_size;
+		 * 	if(guardsSelection == guard)
+		 * 		break;
+		 * }
+		 * switch(guardCounter)...
+		 */
+		CLVariable sum = parent.getLocalVar("sum");
+		CLVariable newSum = parent.getLocalVar("newSum");
+		parent.addExpression(createAssignment(guard, fromString(0)));
+		int cmdSum = 0;
+		for (int i = 0; i < moduleNumber; ++i) {
+			cmdSum += cmd.getCommandNumber(i);
+		}
+		CLVariable guardFlag = guardsTab.accessElement(createBasicExpression(guard.getSource(), Operator.ADD, fromString(cmdSum)));
+		if (cmd.getCommandNumber(moduleNumber) > 1) {
+			parent.addExpression(createAssignment(sum, fromString(0.0f)));
+			parent.addExpression(createAssignment(newSum, fromString(0.0f)));
+			/**
+			 * Select guard
+			 */
+			ForLoop guardSelectionLoop = new ForLoop(guard, false);
+			Switch _switch = new Switch(guard);
+			for (int i = 0; i < cmd.getCommandNumber(moduleNumber); ++i) {
+				Rate rateSum = cmd.getCommand(moduleNumber, i).getRateSum();
+				_switch.addCase(new Expression(Integer.toString(i)));
+				_switch.addExpression(i, ExpressionGenerator.createAssignment(newSum, fromString(rateSum)));
+			}
+			guardSelectionLoop.addExpression(_switch);
+			/**
+			 * Multiply newSum by guardFlag -> if guard is inactive, then it is 0.
+			 */
+			guardSelectionLoop.addExpression(createBasicExpression(newSum.getSource(), Operator.MUL_AUGM, guardFlag.getSource()));
+
+			/**
+			 * Check whether sum + newSum is greater than rate.
+			 */
+			// if(sum + newSum > selectionSum)
+			Expression condition = createBasicExpression(
+			//selectionSum
+					probability.getSource(),
+					// <
+					Operator.LT,
+					//sum + newSum
+					createBasicExpression(sum.getSource(), Operator.ADD, newSum.getSource()));
+			IfElse ifElse = new IfElse(condition);
+			Expression reduction = createBasicExpression(probability.getSource(), Operator.SUB_AUGM, sum.getSource());
+			ifElse.addExpression(0, reduction.add(";"));
+			ifElse.addExpression(0, new Expression("break;"));
+			guardSelectionLoop.addExpression(ifElse);
+			guardSelectionLoop.addExpression(createBasicExpression(sum.getSource(), Operator.ADD_AUGM, newSum.getSource()).add(";"));
+			parent.addExpression(guardSelectionLoop);
+		}
+	}
+
+	protected void updateSynAfterUpdateLabel(ComplexKernelComponent parent, CLVariable guard, CLVariable moduleSize, CLVariable totalSize,
+			CLVariable probability)
+	{
+		/**
+		 * FROM prob in [0,moduleLength]
+		 * TO prob in [0,moduleLength]
+		 */
+		parent.addExpression(createBasicExpression(probability.getSource(), Operator.MUL_AUGM, totalSize.getSource()));
+	}
+
+	@Override
 	protected CLVariable updateSynLabelMethodGuardCounter(SynchronizedCommand cmd)
 	{
-		CLVariable guardCounter = new CLVariable(new StdVariableType(StdType.FLOAT), "guardCounter");
-		guardCounter.setInitValue(StdVariableType.initialize(0.0f));
+		return null;
+	}
+
+	protected CLVariable updateSynLabelMethodGuardSelection(SynchronizedCommand cmd, CLVariable guard)
+	{
+		CLVariable guardCounter = new CLVariable(new StdVariableType(0, cmd.getCmdsNum()), "guardSelection");
+		guardCounter.setInitValue(guard.getSource());
 		return guardCounter;
 	}
 
@@ -526,33 +637,6 @@ public class KernelGeneratorCTMC extends KernelGenerator
 	protected void updateSynLabelMethodSelectGuard(Method currentMethod, ComplexKernelComponent parent, CLVariable guardSelection, CLVariable guardCounter,
 			int moduleOffset)
 	{
-		CLVariable guardsTab = currentMethod.getArg("guardsTab");
-		CLVariable guard = currentMethod.getArg("guard");
-		/**
-		 * guardSelection = -1;
-		 * guardCounter = 0;
-		 * for(;;guardCounter++) {
-		 * 	guardSelection += guards[moduleOffset+guardCounter];
-		 * 	if(guardsSelection == guard)
-		 * 		break;
-		 * }
-		 * switch(guardCounter)...
-		 */
-		ForLoop guardSelectionLoop = new ForLoop(guardSelection, false);
-		CLVariable guardsAccess = guardsTab.accessElement(
-		// moduleOffset(constant!) + guardCounter
-				createBasicExpression(fromString(moduleOffset), Operator.ADD, guardSelection.getSource()));
-		guardSelectionLoop.addExpression(createBasicExpression(guardCounter.getSource(),
-		//guardSelection += guards[moduleOffset + guardCounter];
-				Operator.ADD_AUGM, guardsAccess.getSource()));
-		IfElse ifElseGuardLoop = new IfElse(createBasicExpression(guardCounter.getSource(),
-		//guardSelection == guard
-				Operator.EQ, guard.getSource()));
-		ifElseGuardLoop.addExpression("break\n");
-		guardSelectionLoop.addExpression(ifElseGuardLoop);
-		parent.addExpression(guardSelectionLoop);
-		//		parent.addExpression(new Expression("if(get_global_id(0)<5)printf(\"" + synCmd.synchLabel + " %d %d \\n\"," + guardCounter.varName + ","
-		//				+ guardSelection.varName + ");"));
 
 	}
 

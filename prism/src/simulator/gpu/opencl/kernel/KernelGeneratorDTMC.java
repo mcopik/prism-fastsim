@@ -32,6 +32,7 @@ import static simulator.gpu.opencl.kernel.expression.ExpressionGenerator.convert
 import static simulator.gpu.opencl.kernel.expression.ExpressionGenerator.createAssignment;
 import static simulator.gpu.opencl.kernel.expression.ExpressionGenerator.createBasicExpression;
 import static simulator.gpu.opencl.kernel.expression.ExpressionGenerator.fromString;
+import static simulator.gpu.opencl.kernel.expression.ExpressionGenerator.functionCall;
 import static simulator.gpu.opencl.kernel.expression.ExpressionGenerator.postIncrement;
 
 import java.util.HashMap;
@@ -551,11 +552,55 @@ public class KernelGeneratorDTMC extends KernelGenerator
 	/*********************************
 	 * SYNCHRONIZED UPDATE
 	 ********************************/
+	@Override
+	protected void updateSynAdditionalVars(Method parent, SynchronizedCommand cmd)
+	{
+
+	}
+
+	protected void updateSynBeforeUpdateLabel(Method parent, SynchronizedCommand cmd, int moduleNumber, CLVariable guardsTab, CLVariable guard,
+			CLVariable moduleSize, CLVariable totalSize, CLVariable probability)
+	{
+		/**
+		 * compute current guard in update
+		 */
+		Expression guardUpdate = functionCall("floor",
+		//probability * module_size
+				createBasicExpression(probability.getSource(), Operator.MUL, moduleSize.getSource()));
+		parent.addExpression(createAssignment(guard, guardUpdate));
+		/**
+		* recompute probability to an [0,1) in selected guard
+		*/
+		Expression probUpdate = createBasicExpression(
+		//probability * module_size
+				createBasicExpression(probability.getSource(), Operator.MUL, moduleSize.getSource()), Operator.SUB,
+				//guard
+				guard.getSource());
+		parent.addExpression(createAssignment(probability, probUpdate));
+		//current.addExpression(new Expression("if(get_global_id(0)<5)printf(\"" + cmd.synchLabel + " %f %d %d\\n\",prop,guard,(*sv).__STATE_VECTOR_q);"));
+
+	}
+
+	protected void updateSynAfterUpdateLabel(ComplexKernelComponent parent, CLVariable guard, CLVariable moduleSize, CLVariable totalSize,
+			CLVariable probability)
+	{
+		/**
+		 * totalSize /= 1 is useless
+		 */
+		parent.addExpression(createBasicExpression(totalSize.getSource(), Operator.DIV_AUGM, moduleSize.getSource()));
+	}
 
 	protected CLVariable updateSynLabelMethodGuardCounter(SynchronizedCommand cmd)
 	{
 		CLVariable guardCounter = new CLVariable(new StdVariableType(-1, cmd.getCmdsNum()), "guardCounter");
 		guardCounter.setInitValue(StdVariableType.initialize(-1));
+		return guardCounter;
+	}
+
+	protected CLVariable updateSynLabelMethodGuardSelection(SynchronizedCommand cmd, CLVariable guard)
+	{
+		CLVariable guardCounter = new CLVariable(new StdVariableType(0, cmd.getCmdsNum()), "guardSelection");
+		guardCounter.setInitValue(StdVariableType.initialize(0));
 		return guardCounter;
 	}
 

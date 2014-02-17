@@ -85,7 +85,7 @@ public class RuntimeContext
 		//TODO: ERASE THIS!
 		numberOfSamples = 1000000;
 		//config.globalWorkSize = 10000;
-		mainLog.println(kernel.getSource());
+		//mainLog.println(kernel.getSource());
 		mainLog.flush();
 		try {
 			int samplesProcessed = 0;

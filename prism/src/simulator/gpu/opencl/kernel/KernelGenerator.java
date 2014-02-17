@@ -37,7 +37,6 @@ import static simulator.gpu.opencl.kernel.expression.ExpressionGenerator.createA
 import static simulator.gpu.opencl.kernel.expression.ExpressionGenerator.createBasicExpression;
 import static simulator.gpu.opencl.kernel.expression.ExpressionGenerator.createNegation;
 import static simulator.gpu.opencl.kernel.expression.ExpressionGenerator.fromString;
-import static simulator.gpu.opencl.kernel.expression.ExpressionGenerator.functionCall;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -512,8 +511,8 @@ public abstract class KernelGenerator
 		 * For CTMC&bounded until -> update current time.
 		 */
 		mainMethodUpdateTimeAfter(currentMethod, loop);
-		//loop.addExpression(new Expression(
-		//		"if(globalID<5 && pathLength < 20)printf(\"end loop gID %d %f %d %d %d %d %d\\n\",globalID,selection,selectionSize,selectionSynSize,stateVector.__STATE_VECTOR_phase,stateVector.__STATE_VECTOR_party,stateVector.__STATE_VECTOR_n);"));
+		//		loop.addExpression(new Expression(
+		//				"if(globalID<5 && pathLength < 20)printf(\"end loop gID %d %f %f %f %d %d %d\\n\",globalID,selection,selectionSize,synSelectionSize,stateVector.__STATE_VECTOR_q,stateVector.__STATE_VECTOR_s,stateVector.__STATE_VECTOR_s2);"));
 		//loop.addExpression(new Expression("if(phase==4)break;"));
 		currentMethod.addExpression(loop);
 		/**
@@ -547,6 +546,9 @@ public abstract class KernelGenerator
 		addParentheses(sum);
 		CLVariable selection = mainMethodSelectionVar(sum);
 		parent.addExpression(selection.getDefinition());
+		//		parent.addExpression(new Expression(
+		//				"if(get_global_id(0) < 5)printf(\"%d %f %d %d %d\\n\",get_global_id(0),selection,stateVector.__STATE_VECTOR_q,stateVector.__STATE_VECTOR_s,stateVector.__STATE_VECTOR_s2);\n"));
+
 		IfElse ifElse = mainMethodBothUpdatesCondition(selection);
 		/**
 		 * else
@@ -1018,7 +1020,7 @@ public abstract class KernelGenerator
 			//sv->guards
 			CLVariable guardsTab = synState.accessField("guards");
 			//size for current module
-			CLVariable totalSize = new CLVariable(new StdVariableType(0, cmd.getMaxCommandsNum()), "totalSize");
+			CLVariable totalSize = new CLVariable(saveSize.varType, "totalSize");
 			totalSize.setInitValue(saveSize);
 			//size for current module
 			CLVariable oldSV = new CLVariable(stateVectorType, "oldSV");
@@ -1031,44 +1033,33 @@ public abstract class KernelGenerator
 				current.addLocalVar(guard);
 				current.addLocalVar(totalSize);
 				current.registerStateVector(stateVector);
+				updateSynAdditionalVars(current, cmd);
 			} catch (KernelException e) {
 				throw new RuntimeException(e);
 			}
 			current.registerStateVector(stateVector);
 			//current.addExpression(new Expression("if(get_global_id(0)<5)printf(\"" + cmd.synchLabel + " %f\\n\",prop);"));
-			Expression guardUpdate = null, probUpdate = null;
 			CLVariable moduleSize = null;
-			ForLoop loop = new ForLoop("loopCounter", 0, cmd.getModulesNum());
-			CLVariable loopCounter = loop.getLoopCounter();
-			moduleSize = synState.accessField("moduleSize").accessElement(loopCounter.getSource());
-			/**
-			 * compute current guard in update
-			 */
-			guardUpdate = functionCall("floor",
-			//probability * module_size
-					createBasicExpression(propability.getSource(), Operator.MUL, moduleSize.getSource()));
-			loop.addExpression(createAssignment(guard, guardUpdate));
-			/**
-			* recompute probability to an [0,1) in selected guard
-			*/
-			probUpdate = createBasicExpression(
-			//probability * module_size
-					createBasicExpression(propability.getSource(), Operator.MUL, moduleSize.getSource()), Operator.SUB,
-					//guard
-					guard.getSource());
-			loop.addExpression(createAssignment(propability, probUpdate));
-			//current.addExpression(new Expression("if(get_global_id(0)<5)printf(\"" + cmd.synchLabel + " %f %d %d\\n\",prop,guard,(*sv).__STATE_VECTOR_q);"));
-			/**
-			 * call selected update
-			 */
-			loop.addExpression(update.callMethod(stateVector, oldSV.convertToPointer(), guardsTab, loopCounter, guard, propability.convertToPointer()));
+			//			ForLoop loop = new ForLoop("loopCounter", 0, cmd.getModulesNum());
+			//			CLVariable loopCounter = loop.getLoopCounter();
+			//for-each module
+			//TODO: check optimizing without loop unrolling?
+			for (int i = 0; i < cmd.getModulesNum(); ++i) {
 
+				moduleSize = synState.accessField("moduleSize").accessElement(fromString(i));
+				updateSynBeforeUpdateLabel(current, cmd, i, guardsTab, guard, moduleSize, totalSize, propability);
+				/**
+				 * call selected update
+				 */
+				//				current.addExpression(new Expression("if(get_global_id(0) < 10)printf(\"%d " + cmd.synchLabel
+				//						+ " %f %d %f %f\\n\",get_global_id(0),prop,guard,totalSize,totalSize * (*synState).moduleSize[" + i + "]);\n"));
+				current.addExpression(update.callMethod(stateVector, oldSV.convertToPointer(), guardsTab, StdVariableType.initialize(i), guard,
+						propability.convertToPointer()));
+
+				updateSynAfterUpdateLabel(current, guard, moduleSize, totalSize, propability);
+			}
 			//current.addExpression(new Expression("if(get_global_id(0)<5)printf(\"" + cmd.synchLabel + " %f %d %d\\n\",prop,guard,(*sv).__STATE_VECTOR_q);"));
-			/**
-			 * totalSize /= 1 is useless
-			 */
-			loop.addExpression(createBasicExpression(totalSize.getSource(), Operator.DIV_AUGM, moduleSize.getSource()));
-			current.addExpression(loop);
+
 			//			//for-each module
 			//			for (int i = 0; i < cmd.getModulesNum(); ++i) {
 			//				//moduleSize = fromString(cmd.getCommandNumber(i));
@@ -1105,6 +1096,14 @@ public abstract class KernelGenerator
 		}
 	}
 
+	protected abstract void updateSynAdditionalVars(Method parent, SynchronizedCommand cmd) throws KernelException;
+
+	protected abstract void updateSynBeforeUpdateLabel(Method parent, SynchronizedCommand cmd, int moduleNumber, CLVariable guardsTab, CLVariable guard,
+			CLVariable moduleSize, CLVariable totalSize, CLVariable probability);
+
+	protected abstract void updateSynAfterUpdateLabel(ComplexKernelComponent parent, CLVariable guard, CLVariable moduleSize, CLVariable totalSize,
+			CLVariable probability);
+
 	protected Method updateSynLabelMethod(SynchronizedCommand synCmd)
 	{
 		Method current = new Method(String.format("updateSynchronized__%s", synCmd.synchLabel),
@@ -1135,11 +1134,12 @@ public abstract class KernelGenerator
 		Rate rate = null;
 		Command cmd = null;
 		int moduleOffset = 0;
-		CLVariable guardSelection = new CLVariable(new StdVariableType(0, synCmd.getCmdsNum()), "guardSelection");
+		CLVariable guardSelection = updateSynLabelMethodGuardSelection(synCmd, guard);
 		CLVariable guardCounter = updateSynLabelMethodGuardCounter(synCmd);
-		guardSelection.setInitValue(StdVariableType.initialize(0));
+		if (guardCounter != null) {
+			current.addExpression(guardCounter.getDefinition());
+		}
 		current.addExpression(guardSelection.getDefinition());
-		current.addExpression(guardCounter.getDefinition());
 		//for-each module
 		for (int i = 0; i < synCmd.getModulesNum(); ++i) {
 			_switch.addCase(fromString(i));
@@ -1191,6 +1191,8 @@ public abstract class KernelGenerator
 		current.addExpression(_switch);
 		return current;
 	}
+
+	protected abstract CLVariable updateSynLabelMethodGuardSelection(SynchronizedCommand cmd, CLVariable guard);
 
 	protected abstract CLVariable updateSynLabelMethodGuardCounter(SynchronizedCommand cmd);
 
