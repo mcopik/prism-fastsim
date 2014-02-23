@@ -749,7 +749,10 @@ public abstract class KernelGenerator
 			}
 
 			updateSize = createBasicExpression(updateSize, Operator.EQ, fromString("1"));
-			IfElse loop = new IfElse(createBasicExpression(updateFlag, Operator.AND, updateSize));
+			IfElse loop = new IfElse(new Expression("stateVector.__STATE_VECTOR_s==4"));//createBasicExpression(updateFlag, Operator.AND, updateSize));
+			//loop.addExpression(new Expression("printf(\"%d %d\\n\",stateVector.__STATE_VECTOR_s,stateVector.__STATE_VECTOR_z);"));
+			loop.setConditionNumber(0);
+			mainMethodUpdateProperties(loop);
 			loop.addExpression(new Expression("break;\n"));
 			parent.addExpression(loop);
 		}
@@ -990,9 +993,9 @@ public abstract class KernelGenerator
 	{
 		IfElse ifElse = null;
 		if (!negation) {
-			ifElse = new IfElse(convertPrismProperty(condition));
+			ifElse = new IfElse(convertPrismProperty(svVars, condition));
 		} else {
-			ifElse = new IfElse(createNegation(convertPrismProperty(condition)));
+			ifElse = new IfElse(createNegation(convertPrismProperty(svVars, condition)));
 		}
 		CLVariable valueKnown = accessStructureField(propertyVar, "valueKnown");
 		CLVariable propertyState = accessStructureField(propertyVar, "propertyState");
@@ -1009,9 +1012,9 @@ public abstract class KernelGenerator
 	{
 		if (condition != null) {
 			if (!negation) {
-				ifElse.addElif(convertPrismProperty(condition));
+				ifElse.addElif(convertPrismProperty(svVars, condition));
 			} else {
-				ifElse.addElif(createNegation(convertPrismProperty(condition)));
+				ifElse.addElif(createNegation(convertPrismProperty(svVars, condition)));
 			}
 		} else {
 			ifElse.addElse();

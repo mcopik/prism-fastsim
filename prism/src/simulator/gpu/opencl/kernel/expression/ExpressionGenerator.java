@@ -302,16 +302,23 @@ public class ExpressionGenerator
 		return builder.toString();
 	}
 
-	static public Expression convertPrismProperty(String expr)
+	static public Expression convertPrismProperty(PrismVariable[] vars, String expr)
 	{
-		String newExpr = expr.replace("=", "==").replace("&", "&&").replace("|", "||");
+		StringBuilder builder = new StringBuilder(expr);
+		for (int i = 0; i < vars.length; ++i) {
+			builderReplaceMostCommon(builder, vars[i].name, String.format("((float)%s)", vars[i].name));
+		}
+		convertEquality(builder);
+		builderReplace(builder, "|", "||");
+		builderReplace(builder, "&", "&&");
+		//String newExpr = expr.replace("=", "==").replace("&", "&&").replace("|", "||");
 		//		if (expr.charAt(0) == ('!')) {
 		//			return new Expression(String.format("!(%s)", newExpr.substring(1)));
 		//		} else {
 		//			return new Expression(newExpr);
 		//		}
-		return new Expression(newExpr);
-
+		//return new Expression(newExpr);
+		return new Expression(builder.toString());
 	}
 
 	static public String convertPrismGuard(PrismVariable[] vars, String expr)
@@ -343,13 +350,17 @@ public class ExpressionGenerator
 	{
 		int index = 0;
 		while ((index = builder.indexOf(first, index)) != -1) {
-			//if there is something, then it should be longer variable
-			if (builder.length() == index + first.length()
-					|| (!Character.isAlphabetic(builder.charAt(index + first.length())) && !Character.isDigit(builder.charAt(index + first.length())))) {
+			//check whether it is a prefix
+			if (builder.length() != index + first.length()
+					&& (Character.isAlphabetic(builder.charAt(index + first.length())) || Character.isDigit(builder.charAt(index + first.length())))) {
+				index += first.length();
+			}
+			//check if it is a suffix
+			else if (index != 0 && (Character.isAlphabetic(builder.charAt(index - 1)) || Character.isDigit(builder.charAt(index - 1)))) {
+				index += first.length();
+			} else {
 				builder.replace(index, index + first.length(), second);
 				index += second.length();
-			} else {
-				index += first.length();
 			}
 			//for safety
 			index = Math.min(index, builder.length() - 1);

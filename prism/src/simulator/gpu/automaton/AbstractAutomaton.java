@@ -90,7 +90,9 @@ public abstract class AbstractAutomaton
 	public AbstractAutomaton(ModulesFile modulesFile) throws PrismException
 	{
 		varList = modulesFile.createVarList();
-		modulesFile = (ModulesFile) modulesFile.deepCopy().replaceConstants(modulesFile.getConstantValues()).simplify();
+		modulesFile = (ModulesFile) modulesFile.deepCopy().replaceConstants(modulesFile.getConstantValues());
+		//TODO: error in nand.pm
+		//modulesFile.simplify();
 		this.modulesFile = modulesFile;
 		this.modulesFile.tidyUp();
 		extractVariables();
