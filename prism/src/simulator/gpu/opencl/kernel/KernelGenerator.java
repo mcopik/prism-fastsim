@@ -73,6 +73,8 @@ import simulator.gpu.opencl.kernel.memory.StdVariableType.StdType;
 import simulator.gpu.opencl.kernel.memory.StructureType;
 import simulator.sampler.Sampler;
 import simulator.sampler.SamplerBoolean;
+import simulator.sampler.SamplerBoundedUntilCont;
+import simulator.sampler.SamplerBoundedUntilDisc;
 import simulator.sampler.SamplerNext;
 import simulator.sampler.SamplerUntil;
 
@@ -82,6 +84,7 @@ public abstract class KernelGenerator
 	protected CLVariable varSelectionSize = null;
 	protected CLVariable varStateVector = null;
 	protected CLVariable varPathLength = null;
+	protected CLVariable varLoopDetection = null;
 	protected CLVariable varSynSelectionSize = null;
 	protected CLVariable varGuardsTab = null;
 	protected CLVariable[] varSynchronizedStates = null;
@@ -206,6 +209,15 @@ public abstract class KernelGenerator
 	 */
 	protected boolean timingProperty = false;
 
+	//	/**
+	//	 * Contains names of variables that need to be copied before update.
+	//	 */
+	//	protected Set<String> nonSynchVarsToSave = new HashSet<>();
+	//	/**
+	//	 * Contains names of variables that need to be copied before update.
+	//	 */
+	//	protected Map<String, Set<String>> synchVarsToSave = new HashMap<>();
+
 	/**
 	 * 
 	 * @param model
@@ -240,7 +252,7 @@ public abstract class KernelGenerator
 			}
 		}
 		for (Sampler sampler : properties) {
-			if (sampler instanceof SamplerBoolean) {
+			if (sampler instanceof SamplerBoundedUntilCont || sampler instanceof SamplerBoundedUntilDisc) {
 				timingProperty = true;
 				break;
 			}
@@ -252,7 +264,71 @@ public abstract class KernelGenerator
 		if (prngType.getAdditionalDefinitions() != null) {
 			additionalDeclarations.addAll(prngType.getAdditionalDefinitions());
 		}
+		//		/*
+		//		 * copying old values for multiple update - non-synchronized
+		//		 */
+		//		findVariablesToSave();
+		//		if (hasSynchronized) {
+		//			for (SynchronizedCommand cmd : synCommands) {
+		//				findVariablesToSaveSyn(cmd);
+		//			}
+		//		}
 	}
+
+	//	protected void findUpdatedVariables(Update upd, Set<String> updatedVars, Set<String> varsToSave)
+	//	{
+	//		for (int i = 0; i < upd.getActionsNumber(); ++i) {
+	//			for (Pair<PrismVariable, parser.ast.Expression> pair : upd.getAction(i).expressions) {
+	//				//for each action, check whether it contains old variable
+	//				for (String entry : updatedVars) {
+	//					String updExpr = pair.second.toString();
+	//					int index = updExpr.indexOf(entry);
+	//					if (index == -1) {
+	//						continue;
+	//					}
+	//					int len = index + entry.length();
+	//					//check whether it is not a prefix of longer variable
+	//					if ((index + len) != updExpr.length()
+	//							&& (Character.isAlphabetic(updExpr.charAt(index + len)) || Character.isDigit(updExpr.charAt(index + len)))) {
+	//						continue;
+	//					}
+	//					//check whether it is not a suffix of longer variable
+	//					if (index != 0 && (Character.isAlphabetic(updExpr.charAt(index - 1)) || Character.isDigit(updExpr.charAt(index - 1)))) {
+	//						continue;
+	//					}
+	//					varsToSave.add(entry);
+	//				}
+	//				updatedVars.add(pair.first.name);
+	//			}
+	//		}
+	//	}
+	//
+	//	protected void findVariablesToSave()
+	//	{
+	//		Set<String> updatedVars = new HashSet<>();
+	//		if (hasNonSynchronized) {
+	//			for (Command cmd : commands) {
+	//				Update upd = cmd.getUpdate();
+	//				findUpdatedVariables(upd, updatedVars, nonSynchVarsToSave);
+	//				updatedVars.clear();
+	//			}
+	//		}
+	//	}
+	//
+	//	protected void findVariablesToSaveSyn(SynchronizedCommand cmd)
+	//	{
+	//		Set<String> updatedVars = new HashSet<>();
+	//		Update upd = null;
+	//		Set<String> varsToSave = new HashSet<>();
+	//		for (int i = 0; i < cmd.getModulesNum(); ++i) {
+	//			//for each cmd in module
+	//			for (int j = 0; j < cmd.getCommandNumber(i); ++j) {
+	//				upd = cmd.getCommand(i, j).getUpdate();
+	//				findUpdatedVariables(upd, updatedVars, varsToSave);
+	//			}
+	//		}
+	//		synchVarsToSave.put(cmd.synchLabel, varsToSave);
+	//	}
 
 	protected abstract void createSynchronizedStructures();
 
@@ -393,6 +469,10 @@ public abstract class KernelGenerator
 		//pathLength
 		varPathLength = new CLVariable(new StdVariableType(StdType.UINT32), "pathLength");
 		currentMethod.addLocalVar(varPathLength);
+		//flag for loop detection
+		varLoopDetection = new CLVariable(new StdVariableType(StdType.BOOL), "loopDetection");
+		varLoopDetection.setInitValue(StdVariableType.initialize(0));
+		currentMethod.addLocalVar(varLoopDetection);
 		//additional local variables, mainly selectionSize. depends on DTMC/CTMC
 		mainMethodDefineLocalVars(currentMethod);
 
@@ -511,6 +591,7 @@ public abstract class KernelGenerator
 		 * For CTMC&bounded until -> update current time.
 		 */
 		mainMethodUpdateTimeAfter(currentMethod, loop);
+		mainMethodLoopDetection(loop);
 		//		loop.addExpression(new Expression(
 		//				"if(globalID<5 && pathLength < 20)printf(\"end loop gID %d %f %f %f %d %d %d\\n\",globalID,selection,selectionSize,synSelectionSize,stateVector.__STATE_VECTOR_q,stateVector.__STATE_VECTOR_s,stateVector.__STATE_VECTOR_s2);"));
 		//loop.addExpression(new Expression("if(phase==4)break;"));
@@ -653,6 +734,27 @@ public abstract class KernelGenerator
 		}
 	}
 
+	protected void mainMethodLoopDetection(ComplexKernelComponent parent)
+	{
+		if (!timingProperty) {
+			Expression updateFlag = createBasicExpression(varLoopDetection.getSource(), Operator.EQ, fromString("true"));
+
+			Expression updateSize = null;
+			if (hasNonSynchronized && hasSynchronized) {
+				updateSize = createBasicExpression(varSelectionSize.getSource(), Operator.ADD, varSynSelectionSize.getSource());
+			} else if (hasNonSynchronized) {
+				updateSize = varSelectionSize.getSource();
+			} else {
+				updateSize = varSynSelectionSize.getSource();
+			}
+
+			updateSize = createBasicExpression(updateSize, Operator.EQ, fromString("1"));
+			IfElse loop = new IfElse(createBasicExpression(updateFlag, Operator.AND, updateSize));
+			loop.addExpression(new Expression("break;\n"));
+			parent.addExpression(loop);
+		}
+	}
+
 	protected abstract CLVariable mainMethodBothUpdatesSumVar();
 
 	protected abstract IfElse mainMethodBothUpdatesCondition(CLVariable selection);
@@ -721,10 +823,10 @@ public abstract class KernelGenerator
 	 ********************************/
 	protected Method createNonsynUpdate() throws KernelException
 	{
-		if (commands == null) {
+		if (!hasNonSynchronized) {
 			return null;
 		}
-		Method currentMethod = new Method("updateNonsynGuards", new StdVariableType(StdType.VOID));
+		Method currentMethod = new Method("updateNonsynGuards", new StdVariableType(StdType.BOOL));
 		//StateVector * sv
 		CLVariable sv = new CLVariable(varStateVector.getPointer(), "sv");
 		currentMethod.addArg(sv);
@@ -739,6 +841,15 @@ public abstract class KernelGenerator
 		CLVariable selection = new CLVariable(new StdVariableType(0, commands.length), "selection");
 		selection.setInitValue(StdVariableType.initialize(0));
 		currentMethod.addLocalVar(selection);
+		//changeFlag
+		CLVariable changeFlag = new CLVariable(new StdVariableType(StdType.BOOL), "changeFlag");
+		changeFlag.setInitValue(StdVariableType.initialize(1));
+		currentMethod.addLocalVar(changeFlag);
+		//oldValue
+		CLVariable oldValue = new CLVariable(new StdVariableType(StdType.INT32), "oldValue");
+		oldValue.setInitValue(StdVariableType.initialize(0));
+		currentMethod.addLocalVar(oldValue);
+
 		updateMethodAdditionalArgs(currentMethod);
 		updateMethodLocalVars(currentMethod);
 		updateMethodPerformSelection(currentMethod);
@@ -752,13 +863,13 @@ public abstract class KernelGenerator
 			if (update.getActionsNumber() > 1) {
 				IfElse ifElse = new IfElse(createBasicExpression(selectionSum.getSource(), Operator.LT, fromString(convertPrismRate(vars, rate))));
 				if (!update.isActionTrue(0)) {
-					ifElse.addExpression(0, convertPrismAction(update.getAction(0)));
+					ifElse.addExpression(0, convertPrismAction(update.getAction(0), changeFlag, oldValue));
 				}
 				for (int j = 1; j < update.getActionsNumber(); ++j) {
 					rate.addRate(update.getRate(j));
 					ifElse.addElif(createBasicExpression(selectionSum.getSource(), Operator.LT, fromString(convertPrismRate(vars, rate))));
 					if (!update.isActionTrue(j)) {
-						ifElse.addExpression(j, convertPrismAction(update.getAction(j)));
+						ifElse.addExpression(j, convertPrismAction(update.getAction(j), changeFlag, oldValue));
 					}
 				}
 				_switch.addCase(new Expression(Integer.toString(i)));
@@ -766,11 +877,12 @@ public abstract class KernelGenerator
 			} else {
 				if (!update.isActionTrue(0)) {
 					_switch.addCase(new Expression(Integer.toString(i)));
-					_switch.addExpression(switchCounter++, convertPrismAction(update.getAction(0)));
+					_switch.addExpression(switchCounter++, convertPrismAction(update.getAction(0), changeFlag, oldValue));
 				}
 			}
 		}
 		currentMethod.addExpression(_switch);
+		currentMethod.addReturn(changeFlag);
 		return currentMethod;
 	}
 
@@ -991,6 +1103,10 @@ public abstract class KernelGenerator
 
 	protected void createUpdateMethodSyn()
 	{
+		//		for (Map.Entry<String, Set<String>> entry : synchVarsToSave.entrySet()) {
+		//			for (String var : entry.getValue())
+		//				System.out.println(entry.getKey() + " " + var);
+		//		}
 		synchronizedUpdates = new ArrayList<>();
 		additionalMethods = new ArrayList<>();
 		for (SynchronizedCommand cmd : synCommands) {
@@ -1179,7 +1295,7 @@ public abstract class KernelGenerator
 					internalSwitch.addExpression(j, ifElse);
 				} else {
 					if (!update.isActionTrue(0)) {
-						//internalSwitch.addCommand(j, convertPrismAction(update.getAction(0)));
+						//internalSwitch.addExpression(j, convertPrismAction(update.getAction(0)));
 						internalSwitch.addExpression(j, convertPrismActionWithSecondSV(stateVectorType, oldSV, STATE_VECTOR_PREFIX, update.getAction(0)));
 						//no recomputation necessary!
 					}

@@ -238,13 +238,13 @@ public class KernelGeneratorCTMC extends KernelGenerator
 	private Expression mainMethodCallNonsynUpdate(CLValue rnd)
 	{
 		Method update = helperMethods.get(KernelMethods.PERFORM_UPDATE);
-		return update.callMethod(
+		return createAssignment(varLoopDetection, update.callMethod(
 		//stateVector
 				varStateVector.convertToPointer(),
 				//non-synchronized guards tab
 				varGuardsTab,
 				//random float [0,1]
-				rnd);
+				rnd));
 	}
 
 	@Override

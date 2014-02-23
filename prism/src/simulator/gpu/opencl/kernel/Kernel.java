@@ -185,6 +185,7 @@ public class Kernel
 		declareMethods(builder);
 		defineMethods(builder);
 		kernelSource = builder.toString();
+		System.out.println(kernelSource);
 	}
 
 	public String getSource()

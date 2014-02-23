@@ -80,7 +80,7 @@ public class ExpressionGenerator
 	}
 
 	public enum Operator {
-		GT, LT, GE, LE, EQ, NE, AS, ADD, SUB, MUL, DIV, ADD_AUGM, SUB_AUGM, MUL_AUGM, DIV_AUGM
+		GT, LT, GE, LE, EQ, NE, AND, OR, AS, ADD, SUB, MUL, DIV, ADD_AUGM, SUB_AUGM, MUL_AUGM, DIV_AUGM
 	};
 
 	private static final Map<Operator, String> operatorsSource;
@@ -91,6 +91,8 @@ public class ExpressionGenerator
 		operatorsSource.put(Operator.GE, ">=");
 		operatorsSource.put(Operator.LE, "<=");
 		operatorsSource.put(Operator.EQ, "==");
+		operatorsSource.put(Operator.AND, "&&");
+		operatorsSource.put(Operator.OR, "||");
 		operatorsSource.put(Operator.NE, "!=");
 		operatorsSource.put(Operator.AS, "=");
 		operatorsSource.put(Operator.ADD, "+");
@@ -133,9 +135,9 @@ public class ExpressionGenerator
 		return var;
 	}
 
-	static public Expression createConditionalAssignment(String dest, String condition, String first, String second)
+	static public Expression createConditionalAssignment(CLVariable dest, Expression condition, String first, String second)
 	{
-		return new Expression(String.format("%s = %s ? %s : %s;", dest, condition, first, second));
+		return new Expression(String.format("%s = %s ? %s : %s;", dest.getSource(), condition.getSource(), first, second));
 	}
 
 	static public CLVariable accessArrayElement(CLVariable var, Expression indice)
@@ -191,6 +193,20 @@ public class ExpressionGenerator
 		StringBuilder builder = new StringBuilder();
 		for (Pair<PrismVariable, parser.ast.Expression> expr : action.expressions) {
 			builder.append(expr.first.name).append(" = ").append(expr.second.toString()).append(";");
+			builder.append("\n");
+		}
+		return new Expression(builder.toString());
+	}
+
+	static public Expression convertPrismAction(Action action, CLVariable changeFlag, CLVariable oldValue)
+	{
+		StringBuilder builder = new StringBuilder();
+		for (Pair<PrismVariable, parser.ast.Expression> expr : action.expressions) {
+			builder.append(createAssignment(oldValue, new Expression(expr.second.toString()))).append("\n");
+			builder.append(createConditionalAssignment(changeFlag,
+			//destination == new_value
+					createBasicExpression(new Expression(expr.first.name), Operator.EQ, oldValue.getSource()), "true", "false")).append("\n");
+			builder.append(expr.first.name).append(" = ").append(oldValue.getSource()).append(";").append("\n");
 			builder.append("\n");
 		}
 		return new Expression(builder.toString());
