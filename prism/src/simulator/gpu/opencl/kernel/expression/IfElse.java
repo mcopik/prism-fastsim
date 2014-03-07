@@ -159,6 +159,7 @@ public class IfElse extends ComplexKernelComponent
 		this.conditionNumber = conditionNumber;
 	}
 
+	@Override
 	public void addExpression(KernelComponent expr)
 	{
 		Preconditions.checkNotNull(expr, "Trying to add null reference to expression!");

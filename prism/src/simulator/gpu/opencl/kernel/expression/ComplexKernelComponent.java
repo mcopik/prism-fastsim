@@ -60,17 +60,26 @@ public abstract class ComplexKernelComponent implements KernelComponent
 
 	protected void correctExpression(KernelComponent expr)
 	{
-		if (expr instanceof Expression) {
-			Expression expression = (Expression) expr;
-			int len = expression.exprString.length() - 1;
-			while (len >= 0 && expression.exprString.charAt(len) != ';' &&
-			//remove all whitespaces
-					Character.isWhitespace(expression.exprString.charAt(len))) {
-				--len;
+		if (expr instanceof ExpressionList) {
+			ExpressionList list = (ExpressionList) expr;
+			for (Expression expression : list.exprs) {
+				correctExpression(expression);
 			}
-			if (len >= 0 && expression.exprString.charAt(len) != ';') {
-				ExpressionGenerator.addComma(expression);
-			}
+		} else if (expr instanceof Expression) {
+			correctExpression((Expression) expr);
+		}
+	}
+
+	protected void correctExpression(Expression expression)
+	{
+		int len = expression.exprString.length() - 1;
+		while (len >= 0 && expression.exprString.charAt(len) != ';' &&
+		//remove all whitespaces
+				Character.isWhitespace(expression.exprString.charAt(len))) {
+			--len;
+		}
+		if (len >= 0 && expression.exprString.charAt(len) != ';') {
+			ExpressionGenerator.addComma(expression);
 		}
 	}
 

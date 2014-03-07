@@ -70,7 +70,7 @@ public class ExpressionGenerator
 	static public Expression createAssignment(CLVariable dest, Expression expr)
 	{
 		Expression ret = createBasicExpression(dest.getSource(), Operator.AS, expr);
-		ret.exprString += ";";
+		//ret.exprString += ";";
 		return ret;
 	}
 
@@ -80,7 +80,7 @@ public class ExpressionGenerator
 	}
 
 	public enum Operator {
-		GT, LT, GE, LE, EQ, NE, AND, OR, AS, ADD, SUB, MUL, DIV, ADD_AUGM, SUB_AUGM, MUL_AUGM, DIV_AUGM
+		GT, LT, GE, LE, EQ, NE, LAND, LOR, AS, ADD, SUB, MUL, DIV, ADD_AUGM, SUB_AUGM, MUL_AUGM, DIV_AUGM, LAND_AUGM
 	};
 
 	private static final Map<Operator, String> operatorsSource;
@@ -91,8 +91,8 @@ public class ExpressionGenerator
 		operatorsSource.put(Operator.GE, ">=");
 		operatorsSource.put(Operator.LE, "<=");
 		operatorsSource.put(Operator.EQ, "==");
-		operatorsSource.put(Operator.AND, "&&");
-		operatorsSource.put(Operator.OR, "||");
+		operatorsSource.put(Operator.LAND, "&&");
+		operatorsSource.put(Operator.LOR, "||");
 		operatorsSource.put(Operator.NE, "!=");
 		operatorsSource.put(Operator.AS, "=");
 		operatorsSource.put(Operator.ADD, "+");
@@ -103,6 +103,7 @@ public class ExpressionGenerator
 		operatorsSource.put(Operator.SUB_AUGM, "-=");
 		operatorsSource.put(Operator.MUL_AUGM, "*=");
 		operatorsSource.put(Operator.DIV_AUGM, "/=");
+		operatorsSource.put(Operator.LAND_AUGM, "&=");
 	}
 
 	//	static public Expression createBasicExpression(CLValue var, Operator operator, CLValue var2)
@@ -135,9 +136,9 @@ public class ExpressionGenerator
 		return var;
 	}
 
-	static public Expression createConditionalAssignment(CLVariable dest, Expression condition, String first, String second)
+	static public Expression createConditionalAssignment(Expression condition, String first, String second)
 	{
-		return new Expression(String.format("%s = %s ? %s : %s;", dest.getSource(), condition.getSource(), first, second));
+		return new Expression(String.format("%s ? %s : %s", condition.getSource(), first, second));
 	}
 
 	static public CLVariable accessArrayElement(CLVariable var, Expression indice)
@@ -192,75 +193,127 @@ public class ExpressionGenerator
 	{
 		StringBuilder builder = new StringBuilder();
 		for (Pair<PrismVariable, parser.ast.Expression> expr : action.expressions) {
-			builder.append(expr.first.name).append(" = ").append(expr.second.toString()).append(";");
-			builder.append("\n");
+			//			builder.append(expr.first.name).append(" = ").append(expr.second.toString()).append(";");
+			//			builder.append("\n");
+			builder.append(expr.first.name).append(" = ");
+			builder.append(convertUpdate(expr.second, null));
+			builder.append(";\n");
 		}
 		return new Expression(builder.toString());
 	}
 
-	static public Expression convertPrismAction(Action action, CLVariable changeFlag, CLVariable oldValue)
+	static public KernelComponent convertPrismAction(Action action, CLVariable changeFlag, CLVariable oldValue)
 	{
+		ExpressionList list = new ExpressionList();
 		StringBuilder builder = new StringBuilder();
 		for (Pair<PrismVariable, parser.ast.Expression> expr : action.expressions) {
-			builder.append(createAssignment(oldValue, new Expression(expr.second.toString()))).append("\n");
-			builder.append(createConditionalAssignment(changeFlag,
+			list.addExpression(createAssignment(oldValue, new Expression(expr.first.name)));
+			Expression mainAssignment = new Expression(String.format("%s = %s", expr.first.name, convertUpdate(expr.second, null)));
+			addParentheses(mainAssignment);
+			list.addExpression(createBasicExpression(changeFlag.getSource(), Operator.LAND_AUGM, createConditionalAssignment(
 			//destination == new_value
-					createBasicExpression(new Expression(expr.first.name), Operator.EQ, oldValue.getSource()), "true", "false")).append("\n");
-			builder.append(expr.first.name).append(" = ").append(oldValue.getSource()).append(";").append("\n");
-			builder.append("\n");
+					createBasicExpression(mainAssignment, Operator.EQ, oldValue.getSource()), "true", "false")));
+
+			//			builder.append(expr.first.name).append(" = ");
+			//			builder.append(createAssignment(oldValue, new Expression(convertUpdate(expr.second, null)))).append("\n");
+			//			builder.append(createAssignment(changeFlag, createConditionalAssignment(
+			//			//destination == new_value
+			//					createBasicExpression(new Expression(expr.first.name), Operator.EQ, oldValue.getSource()), "true", "false"))).append("\n");
+			//			builder.append(expr.first.name).append(" = ").append(oldValue.getSource()).append(";").append("\n");
+			//			builder.append("\n");
+		}
+		return list;
+	}
+
+	static public Expression convertPrismAction(Action action, Map<String, String> translations)
+	{
+		StringBuilder builder = new StringBuilder();
+		for (Pair<PrismVariable, parser.ast.Expression> expr : action.expressions) {
+
+			builder.append(expr.first.name).append(" = ");
+			builder.append(convertUpdate(expr.second, translations));
+			builder.append(";\n");
 		}
 		return new Expression(builder.toString());
 	}
 
-	static public Expression convertPrismActionWithSecondSV(StructureType stateVectorType, CLVariable oldSV, String prefix, Action action)
+	static public KernelComponent convertPrismAction(Action action, Map<String, String> translations, CLVariable changeFlag, CLVariable oldValue)
 	{
+		ExpressionList list = new ExpressionList();
 		StringBuilder builder = new StringBuilder();
-		Map<String, String> translations = new HashMap<>();
-		for (CLVariable var : stateVectorType.getFields()) {
-			String name = var.varName.substring(prefix.length());
-			CLVariable second = oldSV.accessField(var.varName);
-			translations.put(name, second.varName);
-		}
 		for (Pair<PrismVariable, parser.ast.Expression> expr : action.expressions) {
-			if (expr.second instanceof ExpressionFunc) {
-				//TODO : function in operand? + two builders
-				ExpressionFunc func = (ExpressionFunc) expr.second;
-				builder.append(expr.first.name).append(" = ").append(func.getName()).append('(');
-				for (int i = 0; i < func.getNumOperands(); ++i) {
-					String newExpr = convertActionWithSV(translations, func.getOperand(i).toString());
-					//no change? cast to float for overloading functions e.g. min to (float,float), not (float,int)l
-					if (newExpr.equals(func.getOperand(i).toString())) {
-						builder.append("((float)").append(convertEquality(newExpr)).append(")");
+
+			list.addExpression(createAssignment(oldValue, new Expression(expr.first.name)));
+			Expression mainAssignment = new Expression(String.format("%s = %s", expr.first.name, convertUpdate(expr.second, translations)));
+			addParentheses(mainAssignment);
+			list.addExpression(createAssignment(changeFlag, createConditionalAssignment(
+			//destination == new_value
+					createBasicExpression(mainAssignment, Operator.EQ, oldValue.getSource()), "true", "false")));
+			//builder.append(expr.first.name).append(" = ").append(oldValue.getSource()).append(";").append("\n");
+			//builder.append("\n");
+		}
+		return list;
+	}
+
+	static private String convertUpdate(parser.ast.Expression expr, Map<String, String> translations)
+	{
+		StringBuilder assignment = new StringBuilder();
+		convertFunc(assignment, translations, expr);
+		convertEquality(assignment);
+		builderReplace(assignment, "|", "||");
+		builderReplace(assignment, "&", "&&");
+		return assignment.toString();
+	}
+
+	static private void convertFunc(StringBuilder builder, Map<String, String> translations, parser.ast.Expression expr)
+	{
+		if (expr instanceof ExpressionFunc) {
+			ExpressionFunc func = (ExpressionFunc) expr;
+			builder.append(func.getName()).append('(');
+			for (int i = 0; i < func.getNumOperands(); ++i) {
+				if (func.getOperand(i) instanceof ExpressionFunc) {
+					convertFunc(builder, translations, func.getOperand(i));
+				} else {
+					if (translations != null) {
+						String newExpr = convertActionWithSV(translations, func.getOperand(i).toString());
+						//no change? cast to float for overloading functions e.g. min to (float,float), not (float,int)l
+						if (newExpr.equals(func.getOperand(i).toString())) {
+							builder.append("((float)").append(newExpr).append(")");
+						} else {
+							builder.append(newExpr);
+						}
 					} else {
-						builder.append(convertEquality(newExpr));
+						builder.append(func.getOperand(i).toString());
 					}
 					if (i != func.getNumOperands() - 1) {
 						builder.append(',');
 					}
 				}
-				builder.append(");\n");
+			}
+			builder.append(")");
+		} else {
+			if (translations != null) {
+				builder.append(convertActionWithSV(translations, expr.toString()));
 			} else {
-				builder.append(expr.first.name).append(" = ").append(convertEquality(convertActionWithSV(translations, expr.second.toString()))).append(";");
-				builder.append("\n");
+				builder.append(expr.toString());
 			}
 		}
-		return new Expression(builder.toString());
 	}
 
-	static private String convertEquality(String expr)
-	{
-		StringBuilder builder = new StringBuilder(expr);
-		int index = 0;
-		while ((index = builder.indexOf("=", index)) != -1) {
-			if (index == 0 || builder.charAt(index - 1) != '!') {
-				builder.replace(index, index + 1, "==");
-				index += 2;
-			} else {
-				index += 1;
-			}
-		}
-		return builder.toString();
-	}
+	//	static private String convertEquality(String expr)
+	//	{
+	//		StringBuilder builder = new StringBuilder(expr);
+	//		int index = 0;
+	//		while ((index = builder.indexOf("=", index)) != -1) {
+	//			if (index == 0 || (builder.charAt(index - 1) != '!' && builder.charAt(index - 1) != '>' && builder.charAt(index - 1) != '<')) {
+	//				builder.replace(index, index + 1, "==");
+	//				index += 2;
+	//			} else {
+	//				index += 1;
+	//			}
+	//		}
+	//		return builder.toString();
+	//	}
 
 	static private void convertEquality(StringBuilder builder)
 	{
@@ -278,10 +331,11 @@ public class ExpressionGenerator
 	static private String convertActionWithSV(Map<String, String> translations, String action)
 	{
 		StringBuilder builder = new StringBuilder(action);
-		int index = 0;
 		for (Map.Entry<String, String> entry : translations.entrySet()) {
 			//while ((index = builder.indexOf(entry.getKey(), index)) != -1) {
+
 			builderReplaceMostCommon(builder, entry.getKey(), String.format("((float)%s)", entry.getValue()));
+
 			//builder.replace(index, index + entry.getKey().length(), String.format("((float)%s)", entry.getValue()));
 			//index += entry.getValue().length() + 9;
 			//}

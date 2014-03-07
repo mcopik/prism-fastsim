@@ -29,7 +29,6 @@ import static simulator.gpu.opencl.kernel.expression.ExpressionGenerator.accessA
 import static simulator.gpu.opencl.kernel.expression.ExpressionGenerator.accessStructureField;
 import static simulator.gpu.opencl.kernel.expression.ExpressionGenerator.addParentheses;
 import static simulator.gpu.opencl.kernel.expression.ExpressionGenerator.convertPrismAction;
-import static simulator.gpu.opencl.kernel.expression.ExpressionGenerator.convertPrismActionWithSecondSV;
 import static simulator.gpu.opencl.kernel.expression.ExpressionGenerator.convertPrismGuard;
 import static simulator.gpu.opencl.kernel.expression.ExpressionGenerator.convertPrismProperty;
 import static simulator.gpu.opencl.kernel.expression.ExpressionGenerator.convertPrismRate;
@@ -41,6 +40,7 @@ import static simulator.gpu.opencl.kernel.expression.ExpressionGenerator.fromStr
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.EnumMap;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -709,13 +709,14 @@ public abstract class KernelGenerator
 			_switch = new Switch(counter);
 			for (int i = 0; i < synCommands.length; ++i) {
 				_switch.addCase(fromString(i));
-				_switch.addExpression(i, synchronizedUpdates.get(i).callMethod(
+				Expression call = synchronizedUpdates.get(i).callMethod(
 				//&stateVector
 						varStateVector.convertToPointer(),
 						//&synchState__label
 						varSynchronizedStates[i].convertToPointer(),
 						//probability
-						selection));
+						selection);
+				_switch.addExpression(i, timingProperty ? call : createAssignment(varLoopDetection, call));
 			}
 			parent.addExpression(_switch);
 		} else {
@@ -724,13 +725,14 @@ public abstract class KernelGenerator
 			 * Recompute probability/rate
 			 */
 			mainMethodSynRecomputeSelection(parent, selection, synSum, sum, currentSize);
-			parent.addExpression(synchronizedUpdates.get(0).callMethod(
+			Expression call = synchronizedUpdates.get(0).callMethod(
 			//&stateVector
 					varStateVector.convertToPointer(),
 					//&synchState__label
 					varSynchronizedStates[0].convertToPointer(),
 					//probability
-					selection));
+					selection);
+			parent.addExpression(timingProperty ? call : createAssignment(varLoopDetection, call));
 		}
 	}
 
@@ -749,8 +751,7 @@ public abstract class KernelGenerator
 			}
 
 			updateSize = createBasicExpression(updateSize, Operator.EQ, fromString("1"));
-			IfElse loop = new IfElse(new Expression("stateVector.__STATE_VECTOR_s==4"));//createBasicExpression(updateFlag, Operator.AND, updateSize));
-			//loop.addExpression(new Expression("printf(\"%d %d\\n\",stateVector.__STATE_VECTOR_s,stateVector.__STATE_VECTOR_z);"));
+			IfElse loop = new IfElse(createBasicExpression(updateFlag, Operator.LAND, updateSize));
 			loop.setConditionNumber(0);
 			mainMethodUpdateProperties(loop);
 			loop.addExpression(new Expression("break;\n"));
@@ -829,7 +830,7 @@ public abstract class KernelGenerator
 		if (!hasNonSynchronized) {
 			return null;
 		}
-		Method currentMethod = new Method("updateNonsynGuards", new StdVariableType(StdType.BOOL));
+		Method currentMethod = new Method("updateNonsynGuards", new StdVariableType(timingProperty ? StdType.VOID : StdType.BOOL));
 		//StateVector * sv
 		CLVariable sv = new CLVariable(varStateVector.getPointer(), "sv");
 		currentMethod.addArg(sv);
@@ -1125,7 +1126,7 @@ public abstract class KernelGenerator
 			Method update = updateSynLabelMethod(cmd);
 			additionalMethods.add(update);
 
-			Method current = new Method(String.format("updateSyn__%s", cmd.synchLabel), new StdVariableType(StdType.VOID));
+			Method current = new Method(String.format("updateSyn__%s", cmd.synchLabel), new StdVariableType(timingProperty ? StdType.VOID : StdType.BOOL));
 			//state vector
 			CLVariable stateVector = new CLVariable(varStateVector.getPointer(), "sv");
 			//synchronized state
@@ -1144,6 +1145,12 @@ public abstract class KernelGenerator
 			//size for current module
 			CLVariable oldSV = new CLVariable(stateVectorType, "oldSV");
 			oldSV.setInitValue(stateVector.dereference());
+			//changeFlag - for loop detection
+			CLVariable changeFlag = null;
+			if (!timingProperty) {
+				changeFlag = new CLVariable(new StdVariableType(StdType.BOOL), "changeFlag");
+				changeFlag.setInitValue(StdVariableType.initialize(1));
+			}
 			try {
 				current.addArg(stateVector);
 				current.addArg(synState);
@@ -1152,6 +1159,9 @@ public abstract class KernelGenerator
 				current.addLocalVar(guard);
 				current.addLocalVar(totalSize);
 				current.registerStateVector(stateVector);
+				if (!timingProperty) {
+					current.addLocalVar(changeFlag);
+				}
 				updateSynAdditionalVars(current, cmd);
 			} catch (KernelException e) {
 				throw new RuntimeException(e);
@@ -1172,8 +1182,13 @@ public abstract class KernelGenerator
 				 */
 				//				current.addExpression(new Expression("if(get_global_id(0) < 10)printf(\"%d " + cmd.synchLabel
 				//						+ " %f %d %f %f\\n\",get_global_id(0),prop,guard,totalSize,totalSize * (*synState).moduleSize[" + i + "]);\n"));
-				current.addExpression(update.callMethod(stateVector, oldSV.convertToPointer(), guardsTab, StdVariableType.initialize(i), guard,
-						propability.convertToPointer()));
+				Expression callUpdate = update.callMethod(stateVector, oldSV.convertToPointer(), guardsTab, StdVariableType.initialize(i), guard,
+						propability.convertToPointer());
+				if (timingProperty) {
+					current.addExpression(callUpdate);
+				} else {
+					current.addExpression(createAssignment(changeFlag, createBasicExpression(callUpdate, Operator.LAND, changeFlag.getSource())));
+				}
 
 				updateSynAfterUpdateLabel(current, guard, moduleSize, totalSize, propability);
 			}
@@ -1211,6 +1226,9 @@ public abstract class KernelGenerator
 			//				 */
 			//				current.addExpression(createBasicExpression(totalSize.getSource(), Operator.DIV_AUGM, moduleSize.getSource()));
 			//			}
+			if (!timingProperty) {
+				current.addReturn(changeFlag);
+			}
 			synchronizedUpdates.add(current);
 		}
 	}
@@ -1227,7 +1245,7 @@ public abstract class KernelGenerator
 	{
 		Method current = new Method(String.format("updateSynchronized__%s", synCmd.synchLabel),
 		//don't return anything
-				new StdVariableType(StdType.VOID));
+				new StdVariableType(timingProperty ? StdType.VOID : StdType.BOOL));
 		CLVariable stateVector = new CLVariable(varStateVector.getPointer(), "sv");
 		CLVariable oldSV = new CLVariable(varStateVector.getPointer(), "oldSV");
 		//guardsTab
@@ -1237,6 +1255,13 @@ public abstract class KernelGenerator
 		CLVariable guard = new CLVariable(new StdVariableType(StdType.UINT8), "guard");
 		CLVariable probabilityPtr = new CLVariable(new PointerType(new StdVariableType(StdType.FLOAT)), "prob");
 		CLVariable probability = probabilityPtr.dereference();
+		CLVariable newValue = null, changeFlag = null;
+		if (!timingProperty) {
+			newValue = new CLVariable(new StdVariableType(StdType.INT32), "newValue");
+			newValue.setInitValue(StdVariableType.initialize(0));
+			changeFlag = new CLVariable(new StdVariableType(StdType.BOOL), "changeFlag");
+			changeFlag.setInitValue(StdVariableType.initialize(0));
+		}
 		try {
 			current.addArg(stateVector);
 			current.addArg(oldSV);
@@ -1245,8 +1270,18 @@ public abstract class KernelGenerator
 			current.addArg(guard);
 			current.addArg(probabilityPtr);
 			current.registerStateVector(stateVector);
+			if (!timingProperty) {
+				current.addLocalVar(newValue);
+				current.addLocalVar(changeFlag);
+			}
 		} catch (KernelException e) {
 			throw new RuntimeException(e);
+		}
+		Map<String, String> translations = new HashMap<>();
+		for (CLVariable var : stateVectorType.getFields()) {
+			String name = var.varName.substring(STATE_VECTOR_PREFIX.length());
+			CLVariable second = oldSV.accessField(var.varName);
+			translations.put(name, second.varName);
 		}
 		Switch _switch = new Switch(module);
 		Update update = null;
@@ -1283,7 +1318,11 @@ public abstract class KernelGenerator
 					if (!update.isActionTrue(0)) {
 						ifElse.addExpression(0, updateSynProbabilityRecompute(probability, null, rate));
 						//ifElse.addExpression(0, convertPrismAction(update.getAction(0)));
-						ifElse.addExpression(0, convertPrismActionWithSecondSV(stateVectorType, oldSV, STATE_VECTOR_PREFIX, update.getAction(0)));
+						if (!timingProperty) {
+							ifElse.addExpression(0, convertPrismAction(update.getAction(0), translations, changeFlag, newValue));
+						} else {
+							ifElse.addExpression(0, convertPrismAction(update.getAction(0), translations));
+						}
 					}
 					for (int k = 1; k < update.getActionsNumber(); ++k) {
 						Rate previous = new Rate(rate);
@@ -1292,14 +1331,22 @@ public abstract class KernelGenerator
 						ifElse.addExpression(k, updateSynProbabilityRecompute(probability, previous, update.getRate(k)));
 						if (!update.isActionTrue(k)) {
 							//ifElse.addExpression(k, convertPrismAction(update.getAction(k)));
-							ifElse.addExpression(k, convertPrismActionWithSecondSV(stateVectorType, oldSV, STATE_VECTOR_PREFIX, update.getAction(k)));
+							if (!timingProperty) {
+								ifElse.addExpression(k, convertPrismAction(update.getAction(k), translations, changeFlag, newValue));
+							} else {
+								ifElse.addExpression(k, convertPrismAction(update.getAction(k), translations));
+							}
 						}
 					}
 					internalSwitch.addExpression(j, ifElse);
 				} else {
 					if (!update.isActionTrue(0)) {
 						//internalSwitch.addExpression(j, convertPrismAction(update.getAction(0)));
-						internalSwitch.addExpression(j, convertPrismActionWithSecondSV(stateVectorType, oldSV, STATE_VECTOR_PREFIX, update.getAction(0)));
+						if (!timingProperty) {
+							internalSwitch.addExpression(j, convertPrismAction(update.getAction(0), translations, changeFlag, newValue));
+						} else {
+							internalSwitch.addExpression(j, convertPrismAction(update.getAction(0), translations));
+						}
 						//no recomputation necessary!
 					}
 				}
@@ -1308,6 +1355,9 @@ public abstract class KernelGenerator
 			_switch.addExpression(i, internalSwitch);
 		}
 		current.addExpression(_switch);
+		if (!timingProperty) {
+			current.addReturn(changeFlag);
+		}
 		return current;
 	}
 

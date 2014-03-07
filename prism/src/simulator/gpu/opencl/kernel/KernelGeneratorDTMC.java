@@ -294,7 +294,7 @@ public class KernelGeneratorDTMC extends KernelGenerator
 	private Expression mainMethodCallNonsynUpdate(CLValue rnd, CLValue sum)
 	{
 		Method update = helperMethods.get(KernelMethods.PERFORM_UPDATE);
-		return createAssignment(varLoopDetection, update.callMethod(
+		Expression call = update.callMethod(
 		//stateVector
 				varStateVector.convertToPointer(),
 				//non-synchronized guards tab
@@ -302,7 +302,8 @@ public class KernelGeneratorDTMC extends KernelGenerator
 				//random float [0,1]
 				rnd,
 				//number of commands
-				sum));
+				sum);
+		return timingProperty ? call : createAssignment(varLoopDetection, call);
 	}
 
 	@Override
@@ -371,8 +372,7 @@ public class KernelGeneratorDTMC extends KernelGenerator
 		} else {
 			call = helperMethods.get(KernelMethods.UPDATE_PROPERTIES).callMethod(varStateVector.convertToPointer(), varPropertiesArray);
 		}
-		String source = call.getSource();
-		IfElse ifElse = new IfElse(new Expression(source.substring(0, source.indexOf(';'))));
+		IfElse ifElse = new IfElse(call);
 		//		ifElse.addExpression(
 		//				0,
 		//				new Expression(

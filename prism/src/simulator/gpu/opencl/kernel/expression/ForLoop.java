@@ -47,6 +47,7 @@ public class ForLoop extends ComplexKernelComponent
 	{
 		this.counter = counter;
 		definition = ExpressionGenerator.createAssignment(counter, new Expression("0"));
+		ExpressionGenerator.addComma(definition);
 		counter.setInitValue(StdVariableType.initialize(startValue));
 		this.endValue = new Expression(Long.toString(endValue));
 	}

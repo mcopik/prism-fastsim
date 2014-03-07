@@ -35,6 +35,10 @@ import simulator.sampler.Sampler;
 
 public interface RuntimeFrameworkInterface
 {
+	public enum DeviceType {
+		CPU, GPU
+	}
+
 	//FRAMEWORK
 	/**
 	 * Get name of framework
@@ -59,6 +63,8 @@ public interface RuntimeFrameworkInterface
 	String[] getDevicesNames();
 
 	RuntimeDeviceInterface getMaxFlopsDevice();
+
+	RuntimeDeviceInterface getMaxFlopsDevice(DeviceType type);
 
 	void selectDevice(RuntimeDeviceInterface device);
 

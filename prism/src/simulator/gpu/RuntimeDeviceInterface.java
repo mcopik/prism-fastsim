@@ -27,6 +27,7 @@ package simulator.gpu;
 
 public interface RuntimeDeviceInterface
 {
+
 	public String getName();
 
 	public String getPlatformName();

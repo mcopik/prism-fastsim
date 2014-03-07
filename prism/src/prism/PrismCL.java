@@ -40,6 +40,7 @@ import parser.ast.PropertiesFile;
 import parser.ast.Property;
 import simulator.GenerateSimulationPath;
 import simulator.SimulationSettings;
+import simulator.gpu.RuntimeFrameworkInterface;
 import simulator.gpu.opencl.RuntimeOpenCL;
 import simulator.method.ACIconfidence;
 import simulator.method.ACIiterations;
@@ -172,6 +173,8 @@ public class PrismCL implements PrismModelListener
 	// simulation info
 	private String simMethodName = null;
 	private String simPlatform = null;
+	private String simDevice = null;
+	private String simDeviceType = null;
 	private double simApprox;
 	private double simConfidence;
 	private int simNumSamples;
@@ -187,6 +190,8 @@ public class PrismCL implements PrismModelListener
 	private boolean simMaxRewardGiven = false;
 	private boolean simMaxPathGiven = false;
 	private boolean simPlatformGiven = false;
+	private boolean simDeviceGiven = false;
+	private boolean simDeviceTypeGiven = false;
 	private boolean simManual = false;
 	private SimulationMethod simMethod = null;
 
@@ -1510,6 +1515,24 @@ public class PrismCL implements PrismModelListener
 						errorAndExit("No value specified for -" + sw + " switch");
 					}
 				}
+				// device selection
+				else if (sw.equals("simdevice")) {
+					if (i < args.length - 1) {
+						simDevice = args[++i];
+						simDeviceGiven = true;
+					} else {
+						errorAndExit("No value specified for -" + sw + " switch");
+					}
+				} else if (sw.equals("simdevicetype")) {
+					if (i < args.length - 1) {
+						simDeviceType = args[++i];
+						if (!simPlatform.equalsIgnoreCase("cpu") && !simPlatform.equalsIgnoreCase("gpu"))
+							errorAndExit("Invalid value for -" + sw + " switch");
+						simDeviceTypeGiven = true;
+					} else {
+						errorAndExit("No value specified for -" + sw + " switch");
+					}
+				}
 
 				// FURTHER OPTIONS - NEED TIDYING/FIXING
 
@@ -2071,7 +2094,33 @@ public class PrismCL implements PrismModelListener
 				simSettings = new SimulationSettings(aSimMethod);
 			} else {
 				RuntimeOpenCL runtime = new RuntimeOpenCL();
-				runtime.selectDevice(runtime.getMaxFlopsDevice());
+				if (simDeviceGiven) {
+					String[] names = runtime.getDevicesNames();
+					int device = -1;
+					for (int i = 0; i < names.length; ++i) {
+						if (names[i].toLowerCase().contains(simDevice)) {
+							if (device == -1) {
+								device = i;
+							} else {
+								String msg = String.format("Ambiguous selection of device \"%s\" for OpenCL simulator. Possible matches: \"%s\", \"%s\"",
+										simDevice, names[device], names[i]);
+								throw new PrismException(msg);
+							}
+						}
+					}
+					if (device == -1) {
+						throw new PrismException(String.format("Unknown device \"%s\" in OpenCL simulator", simDevice));
+					}
+					runtime.selectDevice(runtime.getDevices()[device]);
+				} else if (simDeviceTypeGiven) {
+					if (simDeviceType.toLowerCase().equals("cpu")) {
+						runtime.selectDevice(runtime.getMaxFlopsDevice(RuntimeFrameworkInterface.DeviceType.CPU));
+					} else {
+						runtime.selectDevice(runtime.getMaxFlopsDevice(RuntimeFrameworkInterface.DeviceType.GPU));
+					}
+				} else {
+					runtime.selectDevice(runtime.getMaxFlopsDevice());
+				}
 				simSettings = new SimulationSettings(aSimMethod, runtime);
 			}
 		} else {
@@ -2152,6 +2201,9 @@ public class PrismCL implements PrismModelListener
 		mainLog.println("-simvar <n> .................... Set the minimum number of samples to know the variance is null or not");
 		mainLog.println("-simmaxrwd <x> ................. Set the maximum reward -- useful to display the CI/ACI methods progress");
 		mainLog.println("-simpathlen <n> ................ Set the maximum path length for the simulator");
+		mainLog.println("-simplatform <name>............. Set the simulation platform. Possible choices: cpu, opencl");
+		mainLog.println("-simdevicetype <type>........... Set the type of device which will be used by OpenCL simulator. Possible choices: cpu, gpu");
+		mainLog.println("-simdevice <name> .............. Set the device used by OpenCL simulator.");
 
 		mainLog.println();
 		mainLog.println("You can also use \"prism -help xxx\" for help on some switches -xxx with non-obvious syntax.");

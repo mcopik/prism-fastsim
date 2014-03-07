@@ -123,7 +123,7 @@ public class Method extends ComplexKernelComponent
 			builder.append(arg.getSource()).append(",");
 		}
 		builder.deleteCharAt(builder.length() - 1);
-		builder.append(");\n");
+		builder.append(")");
 		return new Expression(builder.toString());
 	}
 

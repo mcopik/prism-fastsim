@@ -120,11 +120,12 @@ public class RuntimeContext
 			} else {
 				globalWorkSize = roundUp(localWorkSize, config.globalWorkSize);
 			}
-			for (int i = 0; i < properties.size(); ++i) {
-				resultBuffers.add(context.createByteBuffer(CLMem.Usage.Output, numberOfSamples));
-			}
+			//			for (int i = 0; i < properties.size(); ++i) {
+			//				resultBuffers.add(context.createByteBuffer(CLMem.Usage.Output, numberOfSamples));
+			//			}
 			//globalWorkSize = roundUp(localWorkSize, 10000);
 			long allTime = 0;
+			List<CLEvent> events = new ArrayList<>();
 			while (samplesProcessed < numberOfSamples) {
 				int currentGWSize = (int) Math.min(globalWorkSize, numberOfSamples - samplesProcessed);
 				int samplesToProcess = currentGWSize;
@@ -153,15 +154,16 @@ public class RuntimeContext
 				//global work size
 						new int[] { currentGWSize }, new int[] { localWorkSize });
 				//new int[] { roundUp(localWorkSize, currentGWSize) });
-				kernelCompletion.waitFor();
-				long kernelTime = (kernelCompletion.getProfilingCommandEnd() - kernelCompletion.getProfilingCommandStart()) / 1000000;
-				allTime += kernelTime;
-				queue.finish();
-				mainLog.println(String.format("%d samples done - time %d ms", roundUp(localWorkSize, currentGWSize), kernelTime));
+				events.add(kernelCompletion);
+				//long kernelTime = (kernelCompletion.getProfilingCommandEnd() - kernelCompletion.getProfilingCommandStart()) / 1000000;
+				//allTime += kernelTime;
+				//queue.finish();
+				//mainLog.println(String.format("%d samples done - time %d ms", roundUp(localWorkSize, currentGWSize), kernelTime));
 
-				mainLog.flush();
+				//mainLog.flush();
 				samplesProcessed += currentGWSize;
 			}
+			queue.finish();
 			for (int i = 0; i < resultBuffers.size(); ++i) {
 				float sum = 0.0f;
 				NativeList<Byte> bytes = resultBuffers.get(i).read(queue).asList();
@@ -170,8 +172,13 @@ public class RuntimeContext
 					sampler.addSample(bytes.get(j) == 1);
 					sum += bytes.get(j);
 				}
-				mainLog.println(sum / 1000000);
+				//mainLog.println(sum / 1000000);
 			}
+			long kernelTime = 0;
+			for (CLEvent event : events) {
+				kernelTime += (event.getProfilingCommandEnd() - event.getProfilingCommandStart()) / 1000000;
+			}
+			mainLog.println("KernelTime " + kernelTime);
 			NativeList<Integer> lengths = pathLengths.read(queue).asList();
 			int minPathFound = 1000000;
 			int maxPathFound = 0;

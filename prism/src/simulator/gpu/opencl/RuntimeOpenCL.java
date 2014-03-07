@@ -44,6 +44,7 @@ import simulator.sampler.Sampler;
 import com.nativelibs4java.opencl.CLDevice;
 import com.nativelibs4java.opencl.CLException;
 import com.nativelibs4java.opencl.CLPlatform;
+import com.nativelibs4java.opencl.CLPlatform.DeviceFeature;
 import com.nativelibs4java.opencl.JavaCL;
 
 public class RuntimeOpenCL implements RuntimeFrameworkInterface
@@ -158,6 +159,19 @@ public class RuntimeOpenCL implements RuntimeFrameworkInterface
 	public RuntimeDeviceInterface getMaxFlopsDevice()
 	{
 		return new CLDeviceWrapper(JavaCL.getBestDevice());
+	}
+
+	/* (non-Javadoc)
+	 * @see simulator.gpu.RuntimeFrameworkInterface#getMaxFlopsDevice()
+	 */
+	@Override
+	public RuntimeDeviceInterface getMaxFlopsDevice(DeviceType type)
+	{
+		if (type == DeviceType.CPU) {
+			return new CLDeviceWrapper(JavaCL.getBestDevice(DeviceFeature.CPU));
+		} else {
+			return new CLDeviceWrapper(JavaCL.getBestDevice(DeviceFeature.GPU));
+		}
 	}
 
 	/* (non-Javadoc)
