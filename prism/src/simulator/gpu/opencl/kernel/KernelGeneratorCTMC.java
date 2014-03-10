@@ -44,6 +44,7 @@ import simulator.gpu.automaton.AbstractAutomaton;
 import simulator.gpu.automaton.command.Command;
 import simulator.gpu.automaton.command.SynchronizedCommand;
 import simulator.gpu.automaton.update.Rate;
+import simulator.gpu.opencl.RuntimeConfig;
 import simulator.gpu.opencl.kernel.expression.ComplexKernelComponent;
 import simulator.gpu.opencl.kernel.expression.Expression;
 import simulator.gpu.opencl.kernel.expression.ExpressionGenerator;
@@ -69,7 +70,7 @@ public class KernelGeneratorCTMC extends KernelGenerator
 	 */
 	protected CLVariable varUpdatedTime = null;
 
-	public KernelGeneratorCTMC(AbstractAutomaton model, List<Sampler> properties, KernelConfig config)
+	public KernelGeneratorCTMC(AbstractAutomaton model, List<Sampler> properties, RuntimeConfig config)
 	{
 		super(model, properties, config);
 	}
@@ -313,8 +314,7 @@ public class KernelGeneratorCTMC extends KernelGenerator
 		} else {
 			call = helperMethods.get(KernelMethods.UPDATE_PROPERTIES).callMethod(varStateVector.convertToPointer(), varPropertiesArray, varTime);
 		}
-		String source = call.getSource();
-		IfElse ifElse = new IfElse(new Expression(source.substring(0, source.indexOf(';'))));
+		IfElse ifElse = new IfElse(call);
 		//		ifElse.addExpression(
 		//				0,
 		//				new Expression(

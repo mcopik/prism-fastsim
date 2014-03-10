@@ -30,6 +30,7 @@ import java.util.List;
 import parser.State;
 import prism.PrismException;
 import prism.PrismLog;
+import prism.PrismSettings;
 import simulator.gpu.automaton.AbstractAutomaton;
 import simulator.sampler.Sampler;
 
@@ -70,13 +71,13 @@ public interface RuntimeFrameworkInterface
 
 	//MODEL
 
-	void simulateProperty(AbstractAutomaton model, List<Sampler> properties, int numberOfSamples) throws PrismException;
-
-	void simulateTest(PrismLog mainLog);
+	void simulateProperty(AbstractAutomaton model, List<Sampler> properties) throws PrismException;
 
 	void setInitialState(State initialState);
 
 	void setMaxPathLength(long maxPathLength);
+
+	void setPrismSettings(PrismSettings settings);
 
 	void setMainLog(PrismLog mainLog);
 }

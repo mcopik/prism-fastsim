@@ -53,6 +53,7 @@ import simulator.gpu.automaton.command.CommandInterface;
 import simulator.gpu.automaton.command.SynchronizedCommand;
 import simulator.gpu.automaton.update.Rate;
 import simulator.gpu.automaton.update.Update;
+import simulator.gpu.opencl.RuntimeConfig;
 import simulator.gpu.opencl.kernel.expression.ComplexKernelComponent;
 import simulator.gpu.opencl.kernel.expression.Expression;
 import simulator.gpu.opencl.kernel.expression.ExpressionGenerator;
@@ -163,7 +164,7 @@ public abstract class KernelGenerator
 	protected Map<String, StructureType> synchronizedStates = null;
 	protected StructureType synCmdState = null;
 	protected AbstractAutomaton model = null;
-	protected KernelConfig config = null;
+	protected RuntimeConfig config = null;
 	protected Command commands[] = null;
 	protected SynchronizedCommand synCommands[] = null;
 	protected List<Sampler> properties = null;
@@ -224,7 +225,7 @@ public abstract class KernelGenerator
 	 * @param properties
 	 * @param config
 	 */
-	public KernelGenerator(AbstractAutomaton model, List<Sampler> properties, KernelConfig config)
+	public KernelGenerator(AbstractAutomaton model, List<Sampler> properties, RuntimeConfig config)
 	{
 		this.model = model;
 		this.properties = properties;
@@ -386,13 +387,13 @@ public abstract class KernelGenerator
 			}
 		} else {
 			Object[] initVars = config.initialState.varValues;
-			//TODO: initial state
-			/**
 			for (int i = 0; i < initVars.length; ++i) {
-				CLVariable var = new CLVariable(new StdVariableType((Integer)initVars[i]), vars[i].name);
-				stateVectorType.addVariable(var);
-				init[i] = new Integer(vars[i].initValue);
-			}**/
+				if (initVars[i] instanceof Integer) {
+					init[i] = (Integer) initVars[i];
+				} else {
+					init[i] = new Integer(((Boolean) initVars[i]) ? 1 : 0);
+				}
+			}
 		}
 		return stateVectorType.initializeStdStructure(init);
 	}
@@ -867,13 +868,21 @@ public abstract class KernelGenerator
 			if (update.getActionsNumber() > 1) {
 				IfElse ifElse = new IfElse(createBasicExpression(selectionSum.getSource(), Operator.LT, fromString(convertPrismRate(vars, rate))));
 				if (!update.isActionTrue(0)) {
-					ifElse.addExpression(0, convertPrismAction(update.getAction(0), changeFlag, oldValue));
+					if (!timingProperty) {
+						ifElse.addExpression(0, convertPrismAction(update.getAction(0), changeFlag, oldValue));
+					} else {
+						ifElse.addExpression(0, convertPrismAction(update.getAction(0)));
+					}
 				}
 				for (int j = 1; j < update.getActionsNumber(); ++j) {
 					rate.addRate(update.getRate(j));
 					ifElse.addElif(createBasicExpression(selectionSum.getSource(), Operator.LT, fromString(convertPrismRate(vars, rate))));
 					if (!update.isActionTrue(j)) {
-						ifElse.addExpression(j, convertPrismAction(update.getAction(j), changeFlag, oldValue));
+						if (!timingProperty) {
+							ifElse.addExpression(j, convertPrismAction(update.getAction(j), changeFlag, oldValue));
+						} else {
+							ifElse.addExpression(j, convertPrismAction(update.getAction(j)));
+						}
 					}
 				}
 				_switch.addCase(new Expression(Integer.toString(i)));
@@ -881,12 +890,18 @@ public abstract class KernelGenerator
 			} else {
 				if (!update.isActionTrue(0)) {
 					_switch.addCase(new Expression(Integer.toString(i)));
-					_switch.addExpression(switchCounter++, convertPrismAction(update.getAction(0), changeFlag, oldValue));
+					if (!timingProperty) {
+						_switch.addExpression(switchCounter++, convertPrismAction(update.getAction(0), changeFlag, oldValue));
+					} else {
+						_switch.addExpression(switchCounter++, convertPrismAction(update.getAction(0)));
+					}
 				}
 			}
 		}
 		currentMethod.addExpression(_switch);
-		currentMethod.addReturn(changeFlag);
+		if (!timingProperty) {
+			currentMethod.addReturn(changeFlag);
+		}
 		return currentMethod;
 	}
 
@@ -920,6 +935,7 @@ public abstract class KernelGenerator
 		propertiesMethodTimeArg(currentMethod);
 		//uint counter
 		CLVariable counter = new CLVariable(new StdVariableType(0, properties.size()), "counter");
+		counter.setInitValue(StdVariableType.initialize(0));
 		currentMethod.addLocalVar(counter);
 		//bool allKnown
 		CLVariable allKnown = new CLVariable(new StdVariableType(StdType.BOOL), "allKnown");

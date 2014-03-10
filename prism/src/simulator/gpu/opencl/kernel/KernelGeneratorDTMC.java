@@ -44,6 +44,7 @@ import simulator.gpu.automaton.AbstractAutomaton;
 import simulator.gpu.automaton.command.Command;
 import simulator.gpu.automaton.command.SynchronizedCommand;
 import simulator.gpu.automaton.update.Rate;
+import simulator.gpu.opencl.RuntimeConfig;
 import simulator.gpu.opencl.kernel.expression.ComplexKernelComponent;
 import simulator.gpu.opencl.kernel.expression.Expression;
 import simulator.gpu.opencl.kernel.expression.ExpressionGenerator;
@@ -66,7 +67,7 @@ public class KernelGeneratorDTMC extends KernelGenerator
 {
 	protected int maximalNumberOfSynchsUpdates = 0;
 
-	public KernelGeneratorDTMC(AbstractAutomaton model, List<Sampler> properties, KernelConfig config)
+	public KernelGeneratorDTMC(AbstractAutomaton model, List<Sampler> properties, RuntimeConfig config)
 	{
 		super(model, properties, config);
 	}

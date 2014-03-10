@@ -977,7 +977,7 @@ public class Prism extends PrismComponent implements PrismSettingsListener
 			return getSimulator();
 		} else {
 			if (gpuSimulator == null) {
-				gpuSimulator = new GPUSimulatorEngine(simInfo.getSimulatorFramework(), getLog());
+				gpuSimulator = new GPUSimulatorEngine(simInfo.getSimulatorFramework(), this);
 			} else {
 				gpuSimulator.setSimulatorFramework(simInfo.getSimulatorFramework());
 			}
@@ -997,7 +997,7 @@ public class Prism extends PrismComponent implements PrismSettingsListener
 			return getSimulator();
 		} else {
 			if (gpuSimulator == null) {
-				gpuSimulator = new GPUSimulatorEngine(simSettings.getSimulatorFramework(), getLog());
+				gpuSimulator = new GPUSimulatorEngine(simSettings.getSimulatorFramework(), this);
 			} else {
 				gpuSimulator.setSimulatorFramework(simSettings.getSimulatorFramework());
 			}

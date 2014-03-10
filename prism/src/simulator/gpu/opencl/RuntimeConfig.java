@@ -1,14 +1,15 @@
-package simulator.gpu.opencl.kernel;
+package simulator.gpu.opencl;
 
 import java.util.EnumSet;
 
 import parser.State;
-import simulator.gpu.opencl.CLDeviceWrapper;
+import simulator.gpu.opencl.kernel.KernelException;
+import simulator.gpu.opencl.kernel.PRNGType;
 
 import com.nativelibs4java.opencl.CLDevice;
 import com.nativelibs4java.opencl.CLDevice.Type;
 
-public class KernelConfig
+public class RuntimeConfig
 {
 	static public final int DEFAULT_GLOBAL_WORK_SIZE = 100000;
 	public int globalWorkSize = DEFAULT_GLOBAL_WORK_SIZE;
@@ -23,15 +24,34 @@ public class KernelConfig
 	public PRNGType prngType = null;
 	public long prngSeed = 0;
 
+	/**
+	 * Direct method - known number of iterations.
+	*/
+	static public final int DEFAULT_DIRECT_CPU_GWSIZE = 100000;
+	public int directMethodGWSizeCPU = DEFAULT_DIRECT_CPU_GWSIZE;
+	static public final int DEFAULT_DIRECT_GPU_GWSIZE = 25000;
+	public int directMethodGWSizeGPU = DEFAULT_DIRECT_GPU_GWSIZE;
+	/**
+	 * Number of iterations not known.
+	 */
+	static public final int DEFAULT_INDIRECT_CPU_GWSIZE = 25000;
+	public int inDirectMethodGWSizeCPU = DEFAULT_INDIRECT_CPU_GWSIZE;
+	static public final int DEFAULT_INDIRECT_GPU_GWSIZE = 25000;
+	public int inDirectMethodGWSizeGPU = DEFAULT_INDIRECT_GPU_GWSIZE;
+	static public final int DEFAULT_INDIRECT_RESULT_PERIOD = 1;
+	public int inDirectResultCheckPeriod = DEFAULT_INDIRECT_RESULT_PERIOD;
+	static public final int DEFAULT_INDIRECT_PATH_PERIOD = 3;
+	public int inDirectPathCheckPeriod = DEFAULT_INDIRECT_PATH_PERIOD;
+
 	public enum PRNG {
 		MERSENNE_TWISTER, MWC64X
 	}
 
-	public KernelConfig()
+	public RuntimeConfig()
 	{
 	}
 
-	public KernelConfig(KernelConfig config)
+	public RuntimeConfig(RuntimeConfig config)
 	{
 		this.globalWorkSize = config.globalWorkSize;
 		this.maxPathLength = config.maxPathLength;

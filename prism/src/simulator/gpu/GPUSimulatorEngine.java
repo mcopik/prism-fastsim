@@ -34,6 +34,7 @@ import parser.ast.LabelList;
 import parser.ast.ModulesFile;
 import parser.ast.PropertiesFile;
 import prism.ModelType;
+import prism.Prism;
 import prism.PrismException;
 import prism.PrismLog;
 import prism.ResultsCollection;
@@ -52,6 +53,7 @@ import simulator.sampler.Sampler;
 
 public class GPUSimulatorEngine implements ModelCheckInterface
 {
+	protected Prism prism;
 	/**
 	 * Prism main log.
 	 */
@@ -73,9 +75,10 @@ public class GPUSimulatorEngine implements ModelCheckInterface
 	 * Main constructor
 	 * @param log Prism main log
 	 */
-	public GPUSimulatorEngine(RuntimeFrameworkInterface framework, PrismLog log)
+	public GPUSimulatorEngine(RuntimeFrameworkInterface framework, Prism prism)
 	{
-		mainLog = log;
+		this.prism = prism;
+		mainLog = prism.getLog();
 		simFramework = framework;
 	}
 
@@ -110,6 +113,8 @@ public class GPUSimulatorEngine implements ModelCheckInterface
 			Expression propNew = properties.get(i).deepCopy();
 			// Combine label lists from model/property file, then expand property refs/labels in property 
 			LabelList combinedLabelList = (pf == null) ? modulesFile.getLabelList() : pf.getCombinedLabelList();
+			// formulas must be expanded before replacing constants!!!
+			propNew = (Expression) propNew.expandFormulas(modulesFile.getFormulaList());
 			propNew = (Expression) propNew.expandPropRefsAndLabels(pf, combinedLabelList);
 			// Then get rid of any constants and simplify
 			propNew = (Expression) propNew.replaceConstants(modulesFile.getConstantValues());
@@ -118,7 +123,6 @@ public class GPUSimulatorEngine implements ModelCheckInterface
 			}
 			//TODO: removing parentheses breaks things
 			//propNew = (Expression) propNew.simplify();
-			propNew = (Expression) propNew.expandFormulas(modulesFile.getFormulaList());
 			Sampler sampler = Sampler.createSampler(propNew, modulesFile);
 			SimulationMethod simMethodNew = simMethod.clone();
 			sampler.setSimulationMethod(simMethodNew);
@@ -204,7 +208,8 @@ public class GPUSimulatorEngine implements ModelCheckInterface
 		}
 		simFramework.setMaxPathLength(maxPathLength);
 		simFramework.setMainLog(mainLog);
-		simFramework.simulateProperty(automaton, validSamplers, numberOfSimulations);
+		simFramework.setPrismSettings(prism.getSettings());
+		simFramework.simulateProperty(automaton, validSamplers);
 		for (int i = 0; i < samplers.length; i++) {
 			Sampler sampler = samplers[i];
 			if (sampler != null) {

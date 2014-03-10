@@ -32,6 +32,7 @@ import java.util.List;
 import simulator.gpu.automaton.AbstractAutomaton;
 import simulator.gpu.automaton.AbstractAutomaton.AutomatonType;
 import simulator.gpu.automaton.PrismVariable;
+import simulator.gpu.opencl.RuntimeConfig;
 import simulator.gpu.opencl.kernel.expression.Include;
 import simulator.gpu.opencl.kernel.expression.KernelComponent;
 import simulator.gpu.opencl.kernel.expression.MemoryTranslatorVisitor;
@@ -51,7 +52,7 @@ public class Kernel
 	 * Input - three objects which determine kernel's source.
 	 */
 	@SuppressWarnings("unused")
-	private KernelConfig config = null;
+	private RuntimeConfig config = null;
 	private AbstractAutomaton model = null;
 	@SuppressWarnings("unused")
 	private List<Sampler> properties = null;
@@ -83,7 +84,7 @@ public class Kernel
 			+ "typedef short int16_t;\n" + "typedef unsigned int uint32_t;\n" + "typedef int int32_t;\n" + "typedef long int64_t;\n"
 			+ "typedef unsigned long uint64_t;\n";
 
-	public Kernel(KernelConfig config, AbstractAutomaton model, List<Sampler> properties) throws KernelException
+	public Kernel(RuntimeConfig config, AbstractAutomaton model, List<Sampler> properties) throws KernelException
 	{
 		this.config = config;
 		this.model = model;
@@ -185,7 +186,6 @@ public class Kernel
 		declareMethods(builder);
 		defineMethods(builder);
 		kernelSource = builder.toString();
-		System.out.println(kernelSource);
 	}
 
 	public String getSource()

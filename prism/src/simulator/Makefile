@@ -12,7 +12,7 @@
 THIS_DIR = simulator
 PRISM_DIR_REL = ../..
 
-JAVA_FILES_ALL = $(wildcard *.java gpu/opencl/*.java sampler/*.java networking/*.java)
+JAVA_FILES_ALL = $(wildcard *.java gpu/*.java gpu/opencl/*.java sampler/*.java networking/*.java)
 JAVA_FILES = $(patsubst %package-info.java,,$(JAVA_FILES_ALL))
 CLASS_FILES = $(JAVA_FILES:%.java=$(PRISM_DIR_REL)/$(CLASSES_DIR)/$(THIS_DIR)/%.class)
 

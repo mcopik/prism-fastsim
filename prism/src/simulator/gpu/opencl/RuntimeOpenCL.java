@@ -33,11 +33,10 @@ import parser.State;
 import prism.Preconditions;
 import prism.PrismException;
 import prism.PrismLog;
+import prism.PrismSettings;
 import simulator.gpu.RuntimeDeviceInterface;
 import simulator.gpu.RuntimeFrameworkInterface;
 import simulator.gpu.automaton.AbstractAutomaton;
-import simulator.gpu.opencl.kernel.KernelConfig;
-import simulator.gpu.opencl.kernel.KernelException;
 import simulator.gpu.opencl.kernel.PRNGRandom123;
 import simulator.sampler.Sampler;
 
@@ -49,6 +48,7 @@ import com.nativelibs4java.opencl.JavaCL;
 
 public class RuntimeOpenCL implements RuntimeFrameworkInterface
 {
+
 	private final CLPlatform[] platforms;
 	private final CLDeviceWrapper[] devices;
 	private CLPlatform currentPlatform = null;
@@ -57,12 +57,10 @@ public class RuntimeOpenCL implements RuntimeFrameworkInterface
 	private long maxPathLength = 0;
 	private State initialState = null;
 	private PrismLog mainLog = null;
-	private int numberOfSamplesProcessed = 0;
-	/**
-	 * Interval for each simulation.
-	 * Equals to 2^40.
-	 */
-	public static final long DEFAULT_GENERATOR_OFFSET = 1099511627776L;
+	private PrismSettings prismSettings = null;
+	private int minPathFound = 0;
+	private int maxPathFound = 0;
+	private float avgPathFound = 0;
 
 	/**
 	 * Constructor. Throws an exception when OpenCL initialization failed.
@@ -197,11 +195,11 @@ public class RuntimeOpenCL implements RuntimeFrameworkInterface
 	 * @see simulator.gpu.RuntimeFrameworkInterface#simulateProperty()
 	 */
 	@Override
-	public void simulateProperty(AbstractAutomaton model, List<Sampler> properties, int numberOfSamples) throws PrismException
+	public void simulateProperty(AbstractAutomaton model, List<Sampler> properties) throws PrismException
 	{
 		Preconditions.checkNotNull(mainLog, "");
 		Preconditions.checkCondition(maxPathLength > 0, "");
-		KernelConfig config = new KernelConfig();
+		RuntimeConfig config = new RuntimeConfig();
 		if (initialState != null) {
 			config.initialState = initialState;
 		}
@@ -209,59 +207,47 @@ public class RuntimeOpenCL implements RuntimeFrameworkInterface
 		config.prngType = new PRNGRandom123("rng");
 		Date date = new Date();
 		config.prngSeed = date.getTime();
+
 		try {
-			currentContexts = createContexts();
-			int sampleOffset = 0;
+			currentContexts = new ArrayList<>();
+			for (CLDeviceWrapper device : currentDevices) {
+				RuntimeContext currentContext = new RuntimeContext(device, mainLog);
+				currentContext.createKernel(model, properties, config);
+				currentContexts.add(currentContext);
+			}
 			mainLog.println("Using " + currentContexts.size() + " OpenCL devices.");
 			for (RuntimeContext context : currentContexts) {
-				mainLog.println(context);
+				context.runSimulation();
 			}
 			for (RuntimeContext context : currentContexts) {
-				KernelConfig newConfig = new KernelConfig(config);
-				newConfig.sampleOffset = sampleOffset;
-				context.createKernel(model, properties, newConfig);
-				sampleOffset += numberOfSamples;
+				mainLog.println(String.format("Sampling: %d samples in %d miliseconds.", context.getSamplesProcessed(), context.getTime()));
+				mainLog.println(String.format("Path length: min %d, max %d, avg %f", context.getMinPathLength(), context.getMaxPathLength(),
+						context.getAvgPathLength()));
 			}
-		} catch (KernelException e) {
-			mainLog.println("Creating kernel on one of selected devices failed! Probably bug in program. Error log:");
-			mainLog.println(e.getMessage());
-			throw new PrismException("OpenCL simulator failed during kernel generation");
+		} finally {
+			for (RuntimeContext context : currentContexts) {
+				context.release();
+				//context.currentDevice.getDevice().release();
+			}
 		}
-		for (RuntimeContext context : currentContexts) {
-			context.runSimulation(numberOfSamples, mainLog);
-		}
-		for (RuntimeContext context : currentContexts) {
-			context.context.release();
-			//context.currentDevice.getDevice().release();
-		}
-	}
-
-	@Override
-	public void simulateTest(PrismLog mainLog)
-	{
-		currentContexts = createContexts();
-		mainLog.println("Using " + currentContexts.size() + " OpenCL devices.");
-		for (RuntimeContext context : currentContexts) {
-			mainLog.println(context);
-		}
-		for (RuntimeContext context : currentContexts) {
-			context.createTestKernel();
-		}
-		for (RuntimeContext context : currentContexts) {
-			context.runTestSimulation(mainLog);
-		}
-	}
-
-	private List<RuntimeContext> createContexts()
-	{
-		List<RuntimeContext> contexts = new ArrayList<>();
-		for (CLDeviceWrapper device : currentDevices) {
-			RuntimeContext currentContext = new RuntimeContext(device);
-			contexts.add(currentContext);
-		}
-		return contexts;
 
 	}
+
+	//	@Override
+	//	public void simulateTest(PrismLog mainLog)
+	//	{
+	//		currentContexts = createContexts();
+	//		mainLog.println("Using " + currentContexts.size() + " OpenCL devices.");
+	//		for (RuntimeContext context : currentContexts) {
+	//			mainLog.println(context);
+	//		}
+	//		for (RuntimeContext context : currentContexts) {
+	//			context.createTestKernel();
+	//		}
+	//		for (RuntimeContext context : currentContexts) {
+	//			context.runTestSimulation(mainLog);
+	//		}
+	//	}
 
 	@Override
 	public void setInitialState(State initialState)
@@ -279,5 +265,11 @@ public class RuntimeOpenCL implements RuntimeFrameworkInterface
 	public void setMainLog(PrismLog mainLog)
 	{
 		this.mainLog = mainLog;
+	}
+
+	@Override
+	public void setPrismSettings(PrismSettings settings)
+	{
+		this.prismSettings = settings;
 	}
 }

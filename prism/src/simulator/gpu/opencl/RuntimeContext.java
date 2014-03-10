@@ -29,18 +29,28 @@ import java.util.ArrayList;
 import java.util.List;
 
 import org.bridj.NativeList;
+import org.bridj.Pointer;
 
+import prism.Pair;
+import prism.Preconditions;
+import prism.PrismException;
 import prism.PrismLog;
 import simulator.gpu.automaton.AbstractAutomaton;
 import simulator.gpu.opencl.kernel.Kernel;
-import simulator.gpu.opencl.kernel.KernelConfig;
 import simulator.gpu.opencl.kernel.KernelException;
+import simulator.method.ACIiterations;
+import simulator.method.APMCMethod;
+import simulator.method.CIMethod;
+import simulator.method.CIiterations;
+import simulator.method.SPRTMethod;
+import simulator.method.SimulationMethod;
 import simulator.sampler.Sampler;
 import simulator.sampler.SamplerBoolean;
 
 import com.nativelibs4java.opencl.CLBuffer;
 import com.nativelibs4java.opencl.CLBuildException;
 import com.nativelibs4java.opencl.CLContext;
+import com.nativelibs4java.opencl.CLDevice.Type;
 import com.nativelibs4java.opencl.CLEvent;
 import com.nativelibs4java.opencl.CLKernel;
 import com.nativelibs4java.opencl.CLMem;
@@ -49,91 +59,146 @@ import com.nativelibs4java.opencl.CLQueue;
 
 public class RuntimeContext
 {
-	CLDeviceWrapper currentDevice = null;
-	CLContext context = null;
-	Kernel kernel = null;
-	KernelConfig config = null;
-	List<Sampler> properties = null;
-	int samplesOffset = 0;
-
-	public RuntimeContext(CLDeviceWrapper device)
+	private abstract class ContextState
 	{
-		currentDevice = device;
-		context = currentDevice.createDeviceContext();
-	}
+		public int numberOfSamplesPerIteration = 25000;
+		public List<Sampler> properties;
+		protected int globalWorkSize;
+		protected boolean finished = false;
+		protected List<CLEvent> events = new ArrayList<>();
+		protected int samplesProcessed = 0;
 
-	public void createKernel(AbstractAutomaton automaton, List<Sampler> properties, KernelConfig config) throws KernelException
-	{
-		this.config = config;
-		this.config.configDevice(currentDevice);
-		this.properties = properties;
-		kernel = new Kernel(this.config, automaton, properties);
-	}
+		protected ContextState(List<Sampler> properties, int gwSize, int lwSize)
+		{
+			this.properties = properties;
+			this.globalWorkSize = roundUp(lwSize, gwSize);
+		}
 
-	public void createTestKernel()
-	{
-		kernel = Kernel.createTestKernel();
-	}
+		protected abstract void createBuffers();
 
-	public void setSamplesOffset(int numberOfSamples)
-	{
-		samplesOffset = numberOfSamples;
-	}
+		public boolean hasFinished()
+		{
+			return finished;
+		}
 
-	public void runSimulation(int numberOfSamples, PrismLog mainLog)
-	{
-		//TODO: ERASE THIS!
-		numberOfSamples = 1000000;
-		//config.globalWorkSize = 10000;
-		mainLog.println(kernel.getSource());
-		mainLog.flush();
-		try {
-			int samplesProcessed = 0;
-			CLProgram program = context.createProgram(kernel.getSource());
-			List<CLBuffer<Byte>> resultBuffers = new ArrayList<>();
-			//CLBuffer<Integer> pathLenghts = context.createIntBuffer(CLMem.Usage.Output, numberOfSamples);
-			//Pointer<Integer> pathLengthsData = Pointer.allocateInts((long) numberOfSamples);
-			//CLBuffer<Integer> pathLengths = context.createBuffer(CLMem.Usage.InputOutput, pathLengthsData, true);
-			CLBuffer<Integer> pathLengths = context.createIntBuffer(CLMem.Usage.Output, numberOfSamples);
+		protected abstract boolean processResults(CLQueue queue) throws PrismException;
+
+		public abstract void enqueueKernel(CLQueue queue);
+
+		protected void enqueueKernel(CLQueue queue, int gwSize)
+		{
+
+		}
+
+		protected void readResults(CLQueue queue, int start, int samples) throws PrismException
+		{
+			List<Pair<SamplerBoolean, Pointer<Byte>>> bytes = new ArrayList<>();
+			List<CLEvent> readEvents = new ArrayList<>();
+			/**
+			 * For each active sampler, add a pair of sampler and pointer to read data.
+			 */
 			for (int i = 0; i < properties.size(); ++i) {
-				//Pointer<Byte> result = Pointer.allocateBytes((long) numberOfSamples);
-				//resultBuffers.add(context.createBuffer(CLMem.Usage.InputOutput, result, true));
+				SamplerBoolean sampler = (SamplerBoolean) properties.get(i);
+				if (!sampler.isCurrentValueKnown()) {
+					bytes.add(new Pair<SamplerBoolean, Pointer<Byte>>(sampler, Pointer.allocateBytes(samples)));
+					readEvents.add(resultBuffers.get(i).read(queue, start, samples, bytes.get(i).second, false));
+				}
+			}
+			/**
+			 * Wait for reading.
+			 */
+			CLEvent.waitFor(readEvents.toArray(new CLEvent[events.size()]));
+			/**
+			 * Add read data to sampler.
+			 */
+			for (Pair<SamplerBoolean, Pointer<Byte>> pair : bytes) {
+				NativeList<Byte> results = pair.second.asList();
+				for (int j = 0; j < results.size(); ++j) {
+					Byte _byte = results.get(j);
+					/**
+					 * Property was not verified!
+					 */
+					if (_byte > 1) {
+						throw new PrismException("Property was not verified of one of the samples!");
+					}
+					/**
+					 * Deadlock at 
+					 */
+					else if (_byte < 0) {
+						throw new PrismException("Deadlock occured on one of the samples!");
+					}
+					/**
+					 * Normal result.
+					 */
+					else {
+						pair.first.addSample(_byte == 1);
+					}
+				}
+			}
+		}
+
+		protected void readPathLength(CLQueue queue, int start, int samples)
+		{
+			NativeList<Integer> lengths = pathLengths.read(queue, start, samples).asList();
+			for (Integer i : lengths) {
+				minPathLength = Math.min(minPathLength, i);
+				maxPathLength = Math.max(maxPathLength, i);
+				avgPathLength += i;
+			}
+		}
+
+		public abstract long getKernelTime();
+	}
+
+	private class KnownIterationsState extends ContextState
+	{
+		private int numberOfSamples;
+
+		public KnownIterationsState(List<Sampler> properties, int gwSize, int lwSize, int numberOfSamples)
+		{
+			super(properties, gwSize, lwSize);
+			this.numberOfSamples = numberOfSamples;
+			createBuffers();
+		}
+
+		@Override
+		protected void createBuffers()
+		{
+			pathLengths = context.createIntBuffer(CLMem.Usage.Output, numberOfSamples);
+			for (int i = 0; i < properties.size(); ++i) {
 				resultBuffers.add(context.createByteBuffer(CLMem.Usage.Output, numberOfSamples));
 			}
-			program.addInclude("src/gpu/");
-			//			program.addInclude("classes/gpu/");
-			//			program.addInclude("classes/gpu/Random123");
-			//			program.addInclude("gpu/Random123");
-			//			program.addInclude("gpu/Random123/features");
-			program.addInclude("gpu/Random123/features");
-			program.addInclude("gpu/Random123");
-			program.addInclude("gpu/");
-			program.build();
-			CLKernel programKernel = program.createKernel("main");
-			CLQueue queue = context.createDefaultProfilingQueue();
-			int localWorkSize = programKernel.getWorkGroupSize().get(currentDevice.getDevice()).intValue();
-			//localWorkSize = 128;
-			int globalWorkSize = 0;
+		}
 
-			if (config.globalWorkSize > numberOfSamples) {
-				globalWorkSize = roundUp(localWorkSize, numberOfSamples);
-			} else {
-				globalWorkSize = roundUp(localWorkSize, config.globalWorkSize);
+		@Override
+		public boolean processResults(CLQueue queue) throws PrismException
+		{
+			if (finished) {
+				return true;
 			}
-			//			for (int i = 0; i < properties.size(); ++i) {
-			//				resultBuffers.add(context.createByteBuffer(CLMem.Usage.Output, numberOfSamples));
-			//			}
-			//globalWorkSize = roundUp(localWorkSize, 10000);
-			long allTime = 0;
-			List<CLEvent> events = new ArrayList<>();
+			queue.finish();
+			readResults(queue, 0, numberOfSamples);
+			readPathLength(queue, 0, numberOfSamples);
+			samplesProcessed += numberOfSamples;
+			finished = true;
+			return true;
+		}
+
+		@Override
+		public void enqueueKernel(CLQueue queue)
+		{
+			if (finished) {
+				return;
+			}
+			int samplesProcessed = 0;
 			while (samplesProcessed < numberOfSamples) {
+				//determine how many samples allocate
 				int currentGWSize = (int) Math.min(globalWorkSize, numberOfSamples - samplesProcessed);
 				int samplesToProcess = currentGWSize;
 				if (currentGWSize != globalWorkSize) {
 					currentGWSize = roundUp(localWorkSize, currentGWSize);
 				}
 
-				mainLog.println(String.format("GW %d LW %d", currentGWSize, localWorkSize));
 				config.prngType.setKernelArg(programKernel, 0, samplesProcessed, globalWorkSize, localWorkSize);
 				int argOffset = config.prngType.kernelArgsNumber();
 				programKernel.setArg(argOffset, samplesToProcess);
@@ -142,99 +207,230 @@ public class RuntimeContext
 				for (int i = 0; i < properties.size(); ++i) {
 					programKernel.setObjectArg(3 + argOffset + i, resultBuffers.get(i));
 				}
-				long start = System.nanoTime();
-				/*
-				programKernel.enqueueNDRange(queue,
-				//global work size
-				new int[] { roundUp(localWorkSize, currentGWSize) },
-				//local work size
-				new int[] { (int) localWorkSize });*/
 
-				CLEvent kernelCompletion = programKernel.enqueueNDRange(queue,
-				//global work size
-						new int[] { currentGWSize }, new int[] { localWorkSize });
-				//new int[] { roundUp(localWorkSize, currentGWSize) });
+				CLEvent kernelCompletion = programKernel.enqueueNDRange(queue, new int[] { currentGWSize }, new int[] { localWorkSize });
 				events.add(kernelCompletion);
-				//long kernelTime = (kernelCompletion.getProfilingCommandEnd() - kernelCompletion.getProfilingCommandStart()) / 1000000;
-				//allTime += kernelTime;
-				//queue.finish();
-				//mainLog.println(String.format("%d samples done - time %d ms", roundUp(localWorkSize, currentGWSize), kernelTime));
-
-				//mainLog.flush();
 				samplesProcessed += currentGWSize;
 			}
-			queue.finish();
-			for (int i = 0; i < resultBuffers.size(); ++i) {
-				float sum = 0.0f;
-				NativeList<Byte> bytes = resultBuffers.get(i).read(queue).asList();
-				SamplerBoolean sampler = (SamplerBoolean) properties.get(i);
-				for (int j = 0; j < bytes.size(); ++j) {
-					sampler.addSample(bytes.get(j) == 1);
-					sum += bytes.get(j);
-				}
-				//mainLog.println(sum / 1000000);
-			}
+			queue.flush();
+		}
+
+		@Override
+		public long getKernelTime()
+		{
 			long kernelTime = 0;
 			for (CLEvent event : events) {
 				kernelTime += (event.getProfilingCommandEnd() - event.getProfilingCommandStart()) / 1000000;
 			}
-			mainLog.println("KernelTime " + kernelTime);
-			NativeList<Integer> lengths = pathLengths.read(queue).asList();
-			int minPathFound = 1000000;
-			int maxPathFound = 0;
-			long sum = 0;
-			for (Integer i : lengths) {
-				sum += i;
-				minPathFound = Math.min(minPathFound, i);
-				maxPathFound = Math.max(maxPathFound, i);
-			}
-			mainLog.println(((float) sum) / numberOfSamples);
-			mainLog.println(maxPathFound);
-			mainLog.println(minPathFound);
-			mainLog.flush();
-			for (CLBuffer<Byte> buffer : resultBuffers) {
-				buffer.release();
-			}
-			pathLengths.release();
-		} catch (CLBuildException exc) {
-			mainLog.println("Program build error: " + exc.getMessage());
-		} catch (Exception exc) {
-			mainLog.println(exc.getMessage());
-		} catch (Error exc) {
-			mainLog.println(exc.getMessage());
+			return kernelTime;
 		}
 	}
 
-	public void runTestSimulation(PrismLog mainLog)
+	private class NotKnownIterationsState extends ContextState
 	{
-		mainLog.println(kernel.getSource());
-		try {
-			CLProgram program = context.createProgram(kernel.getSource()).build();
-			CLKernel programKernel = program.createKernel("main");
-			CLQueue queue = context.createDefaultQueue();
-			programKernel.enqueueNDRange(queue, new int[] { 100, 100 });
-			queue.finish();
-		} catch (CLBuildException exc) {
-			mainLog.println("Program build error: " + exc.getMessage());
+		public int resultCheckPeriod = 1;
+		public int pathCheckPeriod = 1;
+
+		public NotKnownIterationsState(List<Sampler> properties, int gwSize, int lwSize, int resultCheckPeriod, int pathCheckPeriod)
+		{
+			super(properties, gwSize, lwSize);
+			this.resultCheckPeriod = resultCheckPeriod;
+			this.pathCheckPeriod = pathCheckPeriod;
+			createBuffers();
 		}
 
+		@Override
+		protected void createBuffers()
+		{
+			pathLengths = context.createIntBuffer(CLMem.Usage.Output, numberOfSamplesPerIteration * pathCheckPeriod);
+			for (int i = 0; i < properties.size(); ++i) {
+				resultBuffers.add(context.createByteBuffer(CLMem.Usage.Output, numberOfSamplesPerIteration * resultCheckPeriod));
+			}
+		}
+
+		@Override
+		public boolean processResults(CLQueue queue) throws PrismException
+		{
+			if (finished) {
+				return true;
+			}
+			return false;
+		}
+
+		@Override
+		public void enqueueKernel(CLQueue queue)
+		{
+			if (finished) {
+				return;
+			}
+
+		}
+
+		@Override
+		public long getKernelTime()
+		{
+			return 0;
+		}
+	}
+
+	CLDeviceWrapper currentDevice = null;
+	CLContext context = null;
+	Kernel kernel = null;
+	RuntimeConfig config = null;
+	List<Sampler> properties = null;
+	int numberOfSamples = 0;
+	private PrismLog mainLog = null;
+	private List<CLBuffer<Byte>> resultBuffers = new ArrayList<>();
+	private CLBuffer<Integer> pathLengths = null;
+	private ContextState state = null;
+	private int localWorkSize = 0;
+	private CLKernel programKernel = null;
+	float avgPathLength = 0.0f;
+	int minPathLength = Integer.MAX_VALUE;
+	int maxPathLength = 0;
+	long time = 0;
+	int samplesProcessed = 0;
+
+	public RuntimeContext(CLDeviceWrapper device, PrismLog mainLog)
+	{
+		this.mainLog = mainLog;
+		currentDevice = device;
+		context = currentDevice.createDeviceContext();
+	}
+
+	public void createKernel(AbstractAutomaton automaton, List<Sampler> properties, RuntimeConfig config) throws PrismException
+	{
+		try {
+			this.config = config;
+			this.config.configDevice(currentDevice);
+			this.properties = properties;
+			kernel = new Kernel(this.config, automaton, properties);
+			CLProgram program = context.createProgram(kernel.getSource());
+			//TODO: for others rng
+			program.addInclude("src/gpu/");
+			program.addInclude("gpu/Random123/features");
+			program.addInclude("gpu/Random123");
+			program.addInclude("gpu/");
+			program.build();
+			programKernel = program.createKernel("main");
+			localWorkSize = programKernel.getWorkGroupSize().get(currentDevice.getDevice()).intValue();
+
+			//check if we have some properties that are unknown
+			boolean numberOfSamplesNotKnown = false;
+			int numberOfSamples = 0;
+			for (Sampler property : properties) {
+				SimulationMethod method = property.getSimulationMethod();
+				if (method instanceof ACIiterations || method instanceof CIiterations || method instanceof SPRTMethod) {
+					numberOfSamplesNotKnown = true;
+					break;
+				} else if (method instanceof APMCMethod) {
+					numberOfSamples = Math.max(numberOfSamples, ((APMCMethod) method).getNumberOfSamples());
+				} else if (method instanceof CIMethod) {
+					numberOfSamples = Math.max(numberOfSamples, ((CIMethod) method).getNumberOfSamples());
+				}
+			}
+			int globalWorkSize;
+			//compute the minimal, but reasonable number of samples
+			//the configDevice method gives a guarantee, that we're dealing only with GPU/CPU
+			if (numberOfSamplesNotKnown) {
+				if (config.deviceType == Type.CPU) {
+					globalWorkSize = config.inDirectMethodGWSizeCPU;
+				} else {
+					globalWorkSize = config.inDirectMethodGWSizeGPU;
+				}
+				state = new NotKnownIterationsState(properties, globalWorkSize, localWorkSize, config.inDirectResultCheckPeriod,
+						config.inDirectResultCheckPeriod);
+			} else {
+				if (config.deviceType == Type.CPU) {
+					globalWorkSize = config.directMethodGWSizeCPU;
+				} else {
+					globalWorkSize = config.directMethodGWSizeGPU;
+				}
+				state = new KnownIterationsState(properties, globalWorkSize, localWorkSize, numberOfSamples);
+			}
+		} catch (CLBuildException exc) {
+			mainLog.println("Program build error: " + exc.getMessage());
+			throw new PrismException("Program build error!");
+		} catch (KernelException exc) {
+			mainLog.println("Kernel generation error: " + exc.getMessage());
+			throw new PrismException("Kernel generation error!");
+		}
+	}
+
+	public void runSimulation() throws PrismException
+	{
+		CLQueue queue = null;
+		try {
+			queue = context.createDefaultProfilingQueue();
+			do {
+				state.enqueueKernel(queue);
+				while (!state.processResults(queue)) {
+					Thread.sleep(1);
+				}
+			} while (!state.hasFinished());
+		} catch (PrismException exc) {
+			throw exc;
+		} catch (Exception exc) {
+			//TODO - kernel abort
+			mainLog.println(exc.toString());
+			mainLog.println(exc.getStackTrace());
+		} catch (Error exc) {
+			mainLog.println(exc.toString());
+			mainLog.println(exc.getStackTrace());
+		} finally {
+			queue.finish();
+			if (queue != null) {
+				queue.release();
+			}
+		}
+		avgPathLength /= state.samplesProcessed;
+		time = state.getKernelTime();
+		samplesProcessed = state.samplesProcessed;
+	}
+
+	public float getAvgPathLength()
+	{
+		return avgPathLength;
+	}
+
+	public int getMinPathLength()
+	{
+		return minPathLength;
+	}
+
+	public int getMaxPathLength()
+	{
+		return maxPathLength;
+	}
+
+	public long getTime()
+	{
+		return time;
+	}
+
+	public int getSamplesProcessed()
+	{
+		return samplesProcessed;
+	}
+
+	public void release()
+	{
+		for (CLBuffer<Byte> buffer : resultBuffers) {
+			buffer.release();
+		}
+		pathLengths.release();
+		context.release();
+		state = null;
 	}
 
 	private int roundUp(int groupSize, int globalSize)
 	{
+		Preconditions.checkCondition(groupSize != 0, "Division by zero!");
 		int r = globalSize % groupSize;
 		if (r == 0) {
 			return globalSize;
 		} else {
 			return globalSize + groupSize - r;
 		}
-	}
-
-	public String toString()
-	{
-		StringBuilder builder = new StringBuilder();
-		builder.append("Runtime context on platform: ").append(currentDevice.getDevicePlatform().getName());
-		builder.append(" with device: ").append(currentDevice).append("\n");
-		return builder.toString();
 	}
 }
