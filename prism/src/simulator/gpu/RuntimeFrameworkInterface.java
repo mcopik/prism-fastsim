@@ -71,7 +71,7 @@ public interface RuntimeFrameworkInterface
 
 	//MODEL
 
-	void simulateProperty(AbstractAutomaton model, List<Sampler> properties) throws PrismException;
+	int simulateProperty(AbstractAutomaton model, List<Sampler> properties) throws PrismException;
 
 	void setInitialState(State initialState);
 

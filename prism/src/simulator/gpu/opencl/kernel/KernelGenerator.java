@@ -413,14 +413,20 @@ public abstract class KernelGenerator
 		//ARG 1: number of simulations in this iteration
 		CLVariable numberOfSimulations = new CLVariable(new StdVariableType(StdType.UINT32), "numberOfSimulations");
 		currentMethod.addArg(numberOfSimulations);
-		//ARG 2: offset in access into global array of results
+		//ARG 2: sample number for PRNG
 		CLVariable sampleNumber = new CLVariable(new StdVariableType(StdType.UINT32), "sampleNumber");
 		currentMethod.addArg(sampleNumber);
 		//ARG 3: offset in access into global array of results
+		CLVariable resultsOffset = new CLVariable(new StdVariableType(StdType.UINT32), "resultsOffset");
+		currentMethod.addArg(resultsOffset);
+		//ARG 4: offset in access into global array of path
+		CLVariable pathOffset = new CLVariable(new StdVariableType(StdType.UINT32), "pathOffset");
+		currentMethod.addArg(pathOffset);
+		//ARG 5: path lengths buffer
 		CLVariable pathLengths = new CLVariable(new PointerType(new StdVariableType(StdType.UINT32)), "pathLengths");
 		pathLengths.memLocation = Location.GLOBAL;
 		currentMethod.addArg(pathLengths);
-		//ARG 4..N: property results
+		//ARG 6..N: property results
 		CLVariable[] propertyResults = new CLVariable[properties.size()];
 		for (int i = 0; i < propertyResults.length; ++i) {
 			propertyResults[i] = new CLVariable(new PointerType(new StdVariableType(StdType.UINT8)),
@@ -601,10 +607,11 @@ public abstract class KernelGenerator
 		 * Write results.
 		 */
 		//sampleNumber + globalID
-		Expression position = createBasicExpression(globalID.getSource(), Operator.ADD, sampleNumber.getSource());
+		Expression position = createBasicExpression(globalID.getSource(), Operator.ADD, pathOffset.getSource());
 		//path length
 		CLVariable pathLength = pathLengths.varType.accessElement(pathLengths, position);
 		currentMethod.addExpression(createAssignment(pathLength, varPathLength));
+		position = createBasicExpression(globalID.getSource(), Operator.ADD, resultsOffset.getSource());
 		//each property result
 		for (int i = 0; i < properties.size(); ++i) {
 			CLVariable result = accessArrayElement(propertyResults[i], position);

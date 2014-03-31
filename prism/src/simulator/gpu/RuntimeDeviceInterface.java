@@ -27,6 +27,9 @@ package simulator.gpu;
 
 public interface RuntimeDeviceInterface
 {
+	public boolean isCPU();
+
+	public boolean isGPU();
 
 	public String getName();
 

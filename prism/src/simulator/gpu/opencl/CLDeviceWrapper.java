@@ -78,4 +78,16 @@ public class CLDeviceWrapper implements RuntimeDeviceInterface
 	{
 		return device.toString();
 	}
+
+	@Override
+	public boolean isCPU()
+	{
+		return device.getType().contains(CLDevice.Type.CPU);
+	}
+
+	@Override
+	public boolean isGPU()
+	{
+		return device.getType().contains(CLDevice.Type.GPU);
+	}
 }

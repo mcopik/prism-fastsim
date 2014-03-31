@@ -43,11 +43,8 @@ import simulator.ModelCheckInterface;
 import simulator.gpu.automaton.AbstractAutomaton;
 import simulator.gpu.automaton.CTMC;
 import simulator.gpu.automaton.DTMC;
-import simulator.method.ACIiterations;
 import simulator.method.APMCMethod;
 import simulator.method.CIMethod;
-import simulator.method.CIiterations;
-import simulator.method.SPRTMethod;
 import simulator.method.SimulationMethod;
 import simulator.sampler.Sampler;
 
@@ -99,9 +96,9 @@ public class GPUSimulatorEngine implements ModelCheckInterface
 
 	private void createSamplers(List<Expression> properties, PropertiesFile pf, SimulationMethod simMethod) throws PrismException
 	{
-		if (simMethod instanceof SPRTMethod || simMethod instanceof CIiterations || simMethod instanceof ACIiterations) {
-			throw new PrismException("SPRT/ACI iterations/CI iterations methods are currently not implemented!");
-		}
+		//		if (simMethod instanceof SPRTMethod || simMethod instanceof CIiterations || simMethod instanceof ACIiterations) {
+		//			throw new PrismException("SPRT/ACI iterations/CI iterations methods are currently not implemented!");
+		//		}
 		simMethod.computeMissingParameterBeforeSim();
 		samplers = new Sampler[properties.size()];
 		results = new Object[properties.size()];
@@ -202,20 +199,19 @@ public class GPUSimulatorEngine implements ModelCheckInterface
 				validSamplers.add(sampler);
 			}
 		}
-		int numberOfSimulations = findMinNumberOfSimulations(validSamplers);
 		if (initialState != null) {
 			simFramework.setInitialState(initialState);
 		}
 		simFramework.setMaxPathLength(maxPathLength);
 		simFramework.setMainLog(mainLog);
 		simFramework.setPrismSettings(prism.getSettings());
-		simFramework.simulateProperty(automaton, validSamplers);
+		int samplesProcessed = simFramework.simulateProperty(automaton, validSamplers);
 		for (int i = 0; i < samplers.length; i++) {
 			Sampler sampler = samplers[i];
 			if (sampler != null) {
 				SimulationMethod sm = sampler.getSimulationMethod();
 				//TODO: temporal fix to avoid wrong width computation
-				sm.shouldStopNow(numberOfSimulations, sampler);
+				sm.shouldStopNow(samplesProcessed, sampler);
 				sm.computeMissingParameterAfterSim();
 				try {
 					results[i] = sm.getResult(sampler);

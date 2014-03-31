@@ -195,7 +195,7 @@ public class RuntimeOpenCL implements RuntimeFrameworkInterface
 	 * @see simulator.gpu.RuntimeFrameworkInterface#simulateProperty()
 	 */
 	@Override
-	public void simulateProperty(AbstractAutomaton model, List<Sampler> properties) throws PrismException
+	public int simulateProperty(AbstractAutomaton model, List<Sampler> properties) throws PrismException
 	{
 		Preconditions.checkNotNull(mainLog, "");
 		Preconditions.checkCondition(maxPathLength > 0, "");
@@ -204,10 +204,14 @@ public class RuntimeOpenCL implements RuntimeFrameworkInterface
 			config.initialState = initialState;
 		}
 		config.maxPathLength = maxPathLength;
-		config.prngType = new PRNGRandom123("rng");
-		Date date = new Date();
-		config.prngSeed = date.getTime();
+		if (prismSettings == null) {
+			config.prngType = new PRNGRandom123("rng");
+			Date date = new Date();
+			config.prngSeed = date.getTime();
+		} else {
 
+		}
+		int samplesProcessed = 0;
 		try {
 			currentContexts = new ArrayList<>();
 			for (CLDeviceWrapper device : currentDevices) {
@@ -223,6 +227,7 @@ public class RuntimeOpenCL implements RuntimeFrameworkInterface
 				mainLog.println(String.format("Sampling: %d samples in %d miliseconds.", context.getSamplesProcessed(), context.getTime()));
 				mainLog.println(String.format("Path length: min %d, max %d, avg %f", context.getMinPathLength(), context.getMaxPathLength(),
 						context.getAvgPathLength()));
+				samplesProcessed += context.getSamplesProcessed();
 			}
 		} finally {
 			for (RuntimeContext context : currentContexts) {
@@ -230,7 +235,7 @@ public class RuntimeOpenCL implements RuntimeFrameworkInterface
 				//context.currentDevice.getDevice().release();
 			}
 		}
-
+		return samplesProcessed;
 	}
 
 	//	@Override

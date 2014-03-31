@@ -27,6 +27,11 @@ package prism;
 
 public final class Preconditions
 {
+	static public <T> void checkNotNull(T object)
+	{
+		checkNotNull(object, "");
+	}
+
 	static public <T> void checkNotNull(T object, String msg)
 	{
 		if (object == null) {
@@ -34,11 +39,21 @@ public final class Preconditions
 		}
 	}
 
+	static public void checkCondition(boolean condition)
+	{
+		checkCondition(condition, "");
+	}
+
 	static public void checkCondition(boolean condition, String msg)
 	{
 		if (!condition) {
 			throw new IllegalArgumentException(msg);
 		}
+	}
+
+	static public void checkIndex(int index, int size)
+	{
+		checkIndex(index, size, "");
 	}
 
 	static public void checkIndex(int index, int size, String msg)
