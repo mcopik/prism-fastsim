@@ -42,6 +42,7 @@ import simulator.gpu.RuntimeDeviceInterface;
 import simulator.gpu.RuntimeFrameworkInterface;
 import simulator.gpu.opencl.RuntimeOpenCL;
 
+@SuppressWarnings("serial")
 public class GUISimulationPlatform extends JPanel
 {
 	/**

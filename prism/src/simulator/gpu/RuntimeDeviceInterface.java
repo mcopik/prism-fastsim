@@ -27,15 +27,31 @@ package simulator.gpu;
 
 public interface RuntimeDeviceInterface
 {
+	/**
+	 * @return true if the device is a CPU
+	 */
 	public boolean isCPU();
 
+	/**
+	 * @return true if the device is a GPU
+	 */
 	public boolean isGPU();
 
+	/**
+	 * @return name of the device
+	 */
 	public String getName();
 
+	/**
+	 * @return name of the OpenCL platform
+	 */
 	public String getPlatformName();
 
+	/**
+	 * @return supported version of OpenCL
+	 */
 	public String getFrameworkVersion();
 
+	@Override
 	public String toString();
 }

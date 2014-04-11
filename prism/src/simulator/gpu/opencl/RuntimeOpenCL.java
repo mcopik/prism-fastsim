@@ -209,7 +209,7 @@ public class RuntimeOpenCL implements RuntimeFrameworkInterface
 			Date date = new Date();
 			config.prngSeed = date.getTime();
 		} else {
-
+			//TODO:
 		}
 		int samplesProcessed = 0;
 		try {

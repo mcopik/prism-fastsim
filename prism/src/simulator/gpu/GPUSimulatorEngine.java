@@ -30,6 +30,10 @@ import java.util.List;
 
 import parser.State;
 import parser.ast.Expression;
+import parser.ast.ExpressionFilter;
+import parser.ast.ExpressionProb;
+import parser.ast.ExpressionReward;
+import parser.ast.ExpressionTemporal;
 import parser.ast.LabelList;
 import parser.ast.ModulesFile;
 import parser.ast.PropertiesFile;
@@ -43,13 +47,14 @@ import simulator.ModelCheckInterface;
 import simulator.gpu.automaton.AbstractAutomaton;
 import simulator.gpu.automaton.CTMC;
 import simulator.gpu.automaton.DTMC;
-import simulator.method.APMCMethod;
-import simulator.method.CIMethod;
 import simulator.method.SimulationMethod;
 import simulator.sampler.Sampler;
 
 public class GPUSimulatorEngine implements ModelCheckInterface
 {
+	/**
+	 * Main Prism object.
+	 */
 	protected Prism prism;
 	/**
 	 * Prism main log.
@@ -58,19 +63,30 @@ public class GPUSimulatorEngine implements ModelCheckInterface
 	/**
 	 * Represents Prism's object of current automaton.
 	 */
-	@SuppressWarnings("unused")
 	private ModulesFile modulesFile;
 	/**
 	 * Current automaton structure for GPU.
 	 */
 	private AbstractAutomaton automaton;
+	/**
+	 * Samplers for properties.
+	 * null if the property cannot be handled
+	 */
 	private Sampler[] samplers = null;
+	/**
+	 * Results of simulation.
+	 * Exception if the property cannot be handled.
+	 */
 	private Object[] results = null;
+	/**
+	 * Simulation framework, used for simulation.
+	 */
 	private RuntimeFrameworkInterface simFramework;
 
 	/**
 	 * Main constructor
-	 * @param log Prism main log
+	 * @param framework
+	 * @param prism
 	 */
 	public GPUSimulatorEngine(RuntimeFrameworkInterface framework, Prism prism)
 	{
@@ -94,11 +110,15 @@ public class GPUSimulatorEngine implements ModelCheckInterface
 		this.modulesFile = modulesFile;
 	}
 
+	/**
+	 * Create samplers for properties using selected simulation method.
+	 * @param properties
+	 * @param pf
+	 * @param simMethod
+	 * @throws PrismException
+	 */
 	private void createSamplers(List<Expression> properties, PropertiesFile pf, SimulationMethod simMethod) throws PrismException
 	{
-		//		if (simMethod instanceof SPRTMethod || simMethod instanceof CIiterations || simMethod instanceof ACIiterations) {
-		//			throw new PrismException("SPRT/ACI iterations/CI iterations methods are currently not implemented!");
-		//		}
 		simMethod.computeMissingParameterBeforeSim();
 		samplers = new Sampler[properties.size()];
 		results = new Object[properties.size()];
@@ -137,23 +157,13 @@ public class GPUSimulatorEngine implements ModelCheckInterface
 		}
 	}
 
+	/**
+	 * Change the framework used for simulation.
+	 * @param framework
+	 */
 	public void setSimulatorFramework(RuntimeFrameworkInterface framework)
 	{
 		simFramework = framework;
-	}
-
-	private int findMinNumberOfSimulations(List<Sampler> samplers)
-	{
-		int samples = 0;
-		for (Sampler sampler : samplers) {
-			SimulationMethod sm = sampler.getSimulationMethod();
-			if (sm instanceof APMCMethod) {
-				samples = Math.max(samples, ((APMCMethod) sm).getNumberOfSamples());
-			} else if (sm instanceof CIMethod) {
-				samples = Math.max(samples, ((CIMethod) sm).getNumberOfSamples());
-			}
-		}
-		return samples;
 	}
 
 	@Override
@@ -167,14 +177,54 @@ public class GPUSimulatorEngine implements ModelCheckInterface
 	@Override
 	public boolean isPropertyOKForSimulation(Expression expr)
 	{
-		//TODO: implement!
-		return false;
+		return isPropertyOKForSimulationString(expr) == null;
 	}
 
 	@Override
 	public void checkPropertyForSimulation(Expression expr) throws PrismException
 	{
-		throw new PrismException("Not implemented yet!");
+		String explanation = isPropertyOKForSimulationString(expr);
+		if (explanation != null) {
+			throw new PrismException(explanation);
+		}
+	}
+
+	/**
+	 * Function was taken from SimulationEngine.java
+	 * @param expr
+	 * @return string with explanation if the property cannot be simulated; otherwise null
+	 */
+	private String isPropertyOKForSimulationString(Expression expr)
+	{
+		// Simulator can only be applied to P or R properties (without filters)
+		if (!(expr instanceof ExpressionProb || expr instanceof ExpressionReward)) {
+			if (expr instanceof ExpressionFilter) {
+				if (((ExpressionFilter) expr).getOperand() instanceof ExpressionProb || ((ExpressionFilter) expr).getOperand() instanceof ExpressionReward)
+					return "Simulator cannot handle P or R properties with filters";
+			}
+			return "Simulator can only handle P or R properties";
+		}
+		// Check that there are no nested probabilistic operators
+		try {
+			if (expr.computeProbNesting() > 1) {
+				return "Simulator cannot handle nested P, R or S operators";
+			}
+		} catch (PrismException e) {
+			return "Simulator cannot handle this property: " + e.getMessage();
+		}
+		// Simulator cannot handle cumulative reward properties without a time bound
+		if (expr instanceof ExpressionReward) {
+			Expression exprTemp = ((ExpressionReward) expr).getExpression();
+			if (exprTemp instanceof ExpressionTemporal) {
+				if (((ExpressionTemporal) exprTemp).getOperator() == ExpressionTemporal.R_C) {
+					if (((ExpressionTemporal) exprTemp).getUpperBound() == null) {
+						return "Simulator cannot handle cumulative reward properties without time bounds";
+					}
+				}
+			}
+		}
+		// No errors
+		return null;
 	}
 
 	@Override
@@ -256,6 +306,6 @@ public class GPUSimulatorEngine implements ModelCheckInterface
 			ResultsCollection resultsCollection, Expression expr, State initialState, int maxPathLength, SimulationMethod simMethod) throws PrismException,
 			InterruptedException
 	{
-		throw new PrismException("Not implemented yet!");
+		//TODO
 	}
 }

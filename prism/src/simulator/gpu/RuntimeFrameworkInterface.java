@@ -36,48 +36,93 @@ import simulator.sampler.Sampler;
 
 public interface RuntimeFrameworkInterface
 {
+	/**
+	 * Supported device types.
+	 */
 	public enum DeviceType {
 		CPU, GPU
 	}
 
-	//FRAMEWORK
 	/**
-	 * Get name of framework
-	 * @return string with name
+	 * @return name of the framework
 	 */
 	String getFrameworkName();
 
-	//PLATFORM
 	/**
-	 *
-	 * @return
+	 * @return name of available platforms
 	 */
 	String[] getPlatformNames();
 
+	/**
+	 * @return number of available platforms
+	 */
 	int getPlatformNumber();
 
+	/**
+	 * @param i number of platform
+	 * @return string with detailed description of i-th platform
+	 */
 	String getPlatformInfo(int i);
 
-	//DEVICE
+	/**
+	 * @return array with available devices
+	 */
 	RuntimeDeviceInterface[] getDevices();
 
+	/**
+	 * @return array with device names
+	 */
 	String[] getDevicesNames();
 
+	/**
+	 * Get the device with maximum FLOPS.
+	 * @return theoretically "best" device
+	 */
 	RuntimeDeviceInterface getMaxFlopsDevice();
 
+	/**
+	 * Get the device of selected type with maximum FLOPS.
+	 * @param type type of device
+	 * @return theoretically "best" device
+	 */
 	RuntimeDeviceInterface getMaxFlopsDevice(DeviceType type);
 
+	/**
+	 * Select device used by the framework.
+	 * @param device
+	 */
 	void selectDevice(RuntimeDeviceInterface device);
 
-	//MODEL
-
+	/**
+	 * Perform simulation.
+	 * @param model
+	 * @param properties
+	 * @return number of generated samples
+	 * @throws PrismException
+	 */
 	int simulateProperty(AbstractAutomaton model, List<Sampler> properties) throws PrismException;
 
+	/**
+	 * Set initial state for simulation. When not set, use default values of variables from model.
+	 * @param initialState
+	 */
 	void setInitialState(State initialState);
 
+	/**
+	 * Set maximum length of path in sample. When not set, use default hard-coded value.
+	 * @param maxPathLength
+	 */
 	void setMaxPathLength(long maxPathLength);
 
+	/**
+	 * Set reference to PrismSettings object. When not set, use default hard-coded values.
+	 * @param settings
+	 */
 	void setPrismSettings(PrismSettings settings);
 
+	/**
+	 * Set reference to mainLog. When not set, then an exception will be thrown.
+	 * @param mainLog
+	 */
 	void setMainLog(PrismLog mainLog);
 }
