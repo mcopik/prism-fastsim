@@ -209,6 +209,9 @@ public class RuntimeOpenCL implements RuntimeFrameworkInterface
 			Date date = new Date();
 			config.prngSeed = date.getTime();
 		} else {
+			config.prngType = new PRNGRandom123("rng");
+			Date date = new Date();
+			config.prngSeed = date.getTime();
 			//TODO:
 		}
 		int samplesProcessed = 0;

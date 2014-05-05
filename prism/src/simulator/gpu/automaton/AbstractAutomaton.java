@@ -111,7 +111,7 @@ public abstract class AbstractAutomaton
 
 	public CommandInterface getCommand(int number)
 	{
-		Preconditions.checkIndex(number, commands.size(), String.format("Command number %d pis bigger than commands size", number));
+		Preconditions.checkIndex(number, commands.size(), String.format("Command number %d is bigger than commands size", number));
 		return commands.get(number);
 	}
 

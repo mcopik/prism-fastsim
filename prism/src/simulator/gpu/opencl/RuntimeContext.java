@@ -130,7 +130,7 @@ public class RuntimeContext
 			for (int i = 0; i < properties.size(); ++i) {
 				programKernel.setObjectArg(5 + argOffset + i, resultBuffers.get(i));
 			}
-			samplesProcessed += samplesToProcess;
+			//samplesProcessed += samplesToProcess;
 			return programKernel.enqueueNDRange(queue, new int[] { currentGWSize }, new int[] { localWorkSize });
 		}
 
@@ -184,11 +184,13 @@ public class RuntimeContext
 		protected void readPathLength(int start, int samples)
 		{
 			NativeList<Integer> lengths = pathLengths.read(queue, start, samples).asList();
+			long sum = 0;
 			for (Integer i : lengths) {
 				minPathLength = Math.min(minPathLength, i);
 				maxPathLength = Math.max(maxPathLength, i);
-				avgPathLength += i;
+				sum += i;
 			}
+			avgPathLength = sum / lengths.size();
 		}
 
 		public abstract long getKernelTime();
@@ -448,7 +450,7 @@ public class RuntimeContext
 	private ContextState state = null;
 	//private int localWorkSize = 0;
 	private CLKernel programKernel = null;
-	float avgPathLength = 0.0f;
+	double avgPathLength = 0.0f;
 	int minPathLength = Integer.MAX_VALUE;
 	int maxPathLength = 0;
 	/**
@@ -471,6 +473,8 @@ public class RuntimeContext
 			this.config.configDevice(currentDevice);
 			this.properties = properties;
 			kernel = new Kernel(this.config, automaton, properties);
+			mainLog.println(kernel.getSource());
+			mainLog.flush();
 			CLProgram program = context.createProgram(kernel.getSource());
 			//add include directories for PRNG
 			//has to work when applications is executed as Java class or as a jar
@@ -544,12 +548,11 @@ public class RuntimeContext
 				queue.release();
 			}
 		}
-		avgPathLength /= state.samplesProcessed;
 		kernelTime = state.getKernelTime();
 		samplesProcessed = state.samplesProcessed;
 	}
 
-	public float getAvgPathLength()
+	public double getAvgPathLength()
 	{
 		return avgPathLength;
 	}

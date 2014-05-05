@@ -102,6 +102,7 @@ public class GPUSimulatorEngine implements ModelCheckInterface
 	 */
 	private void loadModel(ModulesFile modulesFile) throws PrismException
 	{
+		checkModelForSimulation(modulesFile);
 		if (modulesFile.getModelType() == ModelType.DTMC) {
 			automaton = new DTMC(modulesFile);
 		} else if (modulesFile.getModelType() == ModelType.CTMC) {
@@ -169,7 +170,7 @@ public class GPUSimulatorEngine implements ModelCheckInterface
 	@Override
 	public void checkModelForSimulation(ModulesFile modulesFile) throws PrismException
 	{
-		if (modulesFile.getModelType() != ModelType.DTMC || modulesFile.getModelType() != ModelType.CTMC) {
+		if (modulesFile.getModelType() != ModelType.DTMC && modulesFile.getModelType() != ModelType.CTMC) {
 			throw new PrismException("Currently only DTMC/CTMC is supported!");
 		}
 	}

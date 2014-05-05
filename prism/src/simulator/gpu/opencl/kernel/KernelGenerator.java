@@ -574,7 +574,9 @@ public abstract class KernelGenerator
 		 * if all properties are known, then we can end iterating
 		 */
 		mainMethodUpdateProperties(loop);
-		//loop.addExpression(new Expression("if(get_global_id(0) < 10)printf(\"%d %f %f \",get_global_id(0),time,updatedTime);\n"));
+		//loop.addExpression(new Expression("if(get_global_id(0) < 10)printf(\"%d %f %f \\n\",get_global_id(0),time,updatedTime);\n"));
+		//		loop.addExpression(new Expression(
+		//				"if(get_global_id(0) < 10 && stateVector.__STATE_VECTOR_u >= 4)printf(\"%d guards %d %d s %d c %d x %d y %d z %d zy %d\\n\",get_global_id(0),selectionSize,guardsTab[0],stateVector.__STATE_VECTOR_s,stateVector.__STATE_VECTOR_c,stateVector.__STATE_VECTOR_x,stateVector.__STATE_VECTOR_y,stateVector.__STATE_VECTOR_z,stateVector.__STATE_VECTOR_zy);\n"));
 		/**
 		 * call update method; 
 		 * most complex case - both nonsyn and synchronized updates
@@ -599,10 +601,10 @@ public abstract class KernelGenerator
 		 */
 		mainMethodUpdateTimeAfter(currentMethod, loop);
 		mainMethodLoopDetection(loop);
-		//		loop.addExpression(new Expression(
-		//				"if(globalID<5 && pathLength < 20)printf(\"end loop gID %d %f %f %f %d %d %d\\n\",globalID,selection,selectionSize,synSelectionSize,stateVector.__STATE_VECTOR_q,stateVector.__STATE_VECTOR_s,stateVector.__STATE_VECTOR_s2);"));
-		//loop.addExpression(new Expression("if(phase==4)break;"));
+		//loop.addExpression(new Expression("if(s==4)break;"));
 		currentMethod.addExpression(loop);
+		//		currentMethod.addExpression(new Expression(
+		//				"if(globalID<100 )printf(\"end loop gID %d %d %d %d \\n\",globalID,selectionSize,stateVector.__STATE_VECTOR_s,stateVector.__STATE_VECTOR_z);"));
 		/**
 		 * Write results.
 		 */
