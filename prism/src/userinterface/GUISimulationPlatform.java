@@ -57,7 +57,7 @@ public class GUISimulationPlatform extends JPanel
 	/**
 	 * Platform selection label - caption.
 	 */
-	private final static String LABEL_PLATFORM_CAPTION = "Select platform: ";
+	private final static String LABEL_ENGINE_CAPTION = "Select engine: ";
 	/**
 	 * ComboBox with platforms.
 	 */
@@ -65,7 +65,7 @@ public class GUISimulationPlatform extends JPanel
 	/**
 	 * Hard coded, possible platforms to select from.
 	 */
-	private final static String AVAILABLE_PLATFORMS[] = { "CPU(default implementation)", "OpenCL" };
+	private final static String AVAILABLE_ENGINES[] = { "CPU(default implementation)", "OpenCL" };
 	/**
 	 * Remember current selected platform - to revert in case of error.
 	 */
@@ -171,12 +171,12 @@ public class GUISimulationPlatform extends JPanel
 
 		GridBagConstraints gridBagConstraints;
 		//SELECT PLATFORM
-		initLabel(panel, labelPlatform, LABEL_PLATFORM_CAPTION, 1, 2, GridBagConstraints.WEST);
+		initLabel(panel, labelPlatform, LABEL_ENGINE_CAPTION, 1, 2, GridBagConstraints.WEST);
 		gridBagConstraints = new GridBagConstraints();
 		gridBagConstraints.gridx = 3;
 		gridBagConstraints.gridy = 2;
 		gridBagConstraints.fill = GridBagConstraints.HORIZONTAL;
-		selectPlatform.setModel(new DefaultComboBoxModel<String>(AVAILABLE_PLATFORMS));
+		selectPlatform.setModel(new DefaultComboBoxModel<String>(AVAILABLE_ENGINES));
 		selectPlatform.addActionListener(new ActionListener()
 		{
 			public void actionPerformed(ActionEvent evt)

@@ -68,16 +68,22 @@ public class RuntimeOpenCL implements RuntimeFrameworkInterface
 	 */
 	public RuntimeOpenCL() throws PrismException
 	{
+		platforms = init();
+		List<CLDeviceWrapper> devs = new ArrayList<>();
+		for (CLPlatform platform : platforms) {
+			CLDevice[] dev = platform.listAllDevices(true);
+			for (CLDevice device : dev) {
+				devs.add(new CLDeviceWrapper(device));
+			}
+		}
+		devices = devs.toArray(new CLDeviceWrapper[devs.size()]);
+	}
+
+	private CLPlatform[] init() throws PrismException
+	{
+		CLPlatform[] platforms;
 		try {
 			platforms = JavaCL.listPlatforms();
-			List<CLDeviceWrapper> devs = new ArrayList<>();
-			for (CLPlatform platform : platforms) {
-				CLDevice[] dev = platform.listAllDevices(true);
-				for (CLDevice device : dev) {
-					devs.add(new CLDeviceWrapper(device));
-				}
-			}
-			devices = devs.toArray(new CLDeviceWrapper[devs.size()]);
 		} catch (CLException exc) {
 			throw new PrismException("An error has occured!\n" + exc.getMessage());
 		} catch (Exception exc) {
@@ -95,6 +101,7 @@ public class RuntimeOpenCL implements RuntimeFrameworkInterface
 				throw new PrismException("An error has occured!\n" + err.getMessage());
 			}
 		}
+		return platforms;
 	}
 
 	/* (non-Javadoc)

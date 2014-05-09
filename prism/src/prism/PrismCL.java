@@ -40,6 +40,7 @@ import parser.ast.PropertiesFile;
 import parser.ast.Property;
 import simulator.GenerateSimulationPath;
 import simulator.SimulationSettings;
+import simulator.gpu.RuntimeDeviceInterface;
 import simulator.gpu.RuntimeFrameworkInterface;
 import simulator.gpu.opencl.RuntimeOpenCL;
 import simulator.method.ACIconfidence;
@@ -942,6 +943,11 @@ public class PrismCL implements PrismModelListener
 				// print version
 				else if (sw.equals("version")) {
 					printVersion();
+					exit();
+				}
+				// print version
+				else if (sw.equals("simdevices")) {
+					printSimulationDevices();
 					exit();
 				}
 				// load settings
@@ -2141,6 +2147,7 @@ public class PrismCL implements PrismModelListener
 		mainLog.println();
 		mainLog.println("-help .......................... Display this help message");
 		mainLog.println("-version ....................... Display PRISM version info");
+		mainLog.println("-simdevices .................... Display devices available in simulators");
 		mainLog.println("-settings <file>................ Load settings from <file>");
 		mainLog.println();
 		mainLog.println("-pf <props> (or -pctl or -csl) . Model check properties <props>");
@@ -2286,6 +2293,27 @@ public class PrismCL implements PrismModelListener
 	private void printVersion()
 	{
 		mainLog.println("PRISM version " + Prism.getVersion());
+	}
+
+	/**
+	 * Print devices in simulators.
+	 */
+	private void printSimulationDevices()
+	{
+		mainLog.println("PRISM simulation engines: default, OpenCL");
+		mainLog.println("Devices available in OpenCL engine:");
+		try {
+			RuntimeOpenCL runtime = new RuntimeOpenCL();
+			RuntimeDeviceInterface[] devs = runtime.getDevices();
+			for (int i = 0; i < devs.length; ++i) {
+				mainLog.println(String.format("#%d : %s", i, devs[i].getName()));
+				mainLog.println("Platform: " + devs[i].getPlatformName());
+				mainLog.println("OpenCL version: " + devs[i].getFrameworkVersion());
+				mainLog.println();
+			}
+		} catch (PrismException e) {
+			mainLog.println(e);
+		}
 	}
 
 	/**

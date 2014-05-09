@@ -43,9 +43,6 @@ public class CLDeviceWrapper implements RuntimeDeviceInterface
 
 	public String getName()
 	{
-		System.out.println(device.getExecutionCapabilities());
-		for (String str : device.getExtensions())
-			System.out.println(str);
 		return device.getName();
 	}
 
