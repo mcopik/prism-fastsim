@@ -30,6 +30,7 @@ import java.util.List;
 
 import parser.ast.Expression;
 import prism.Pair;
+import prism.Preconditions;
 import simulator.gpu.automaton.PrismVariable;
 
 public class Action
@@ -39,6 +40,23 @@ public class Action
 	public void addExpr(PrismVariable var, Expression expr)
 	{
 		expressions.add(new Pair<>(var, expr));
+	}
+
+	public int getUpdatesNumber()
+	{
+		return expressions.size();
+	}
+
+	public PrismVariable getUpdateDestination(int updateNumber)
+	{
+		Preconditions.checkIndex(updateNumber, expressions.size());
+		return expressions.get(updateNumber).first;
+	}
+
+	public Expression getUpdateExpression(int updateNumber)
+	{
+		Preconditions.checkIndex(updateNumber, expressions.size());
+		return expressions.get(updateNumber).second;
 	}
 
 	public String toString()

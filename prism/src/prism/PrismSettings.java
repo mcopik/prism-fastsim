@@ -139,6 +139,18 @@ public class PrismSettings implements Observer
 	public static final	String SIMULATOR_RENDER_ALL_VALUES			= "simulator.renderAllValues";
 	public static final String SIMULATOR_NETWORK_FILE				= "simulator.networkFile";
 	
+	//OpenCL Simulator
+	public static final String OPENCL_SIMULATOR_DEFAULT_NUM_SAMPLES_CPU				= "opencl.defaultNumSamplesCPU";
+	public static final String OPENCL_SIMULATOR_DEFAULT_NUM_SAMPLES_GPU				= "opencl.defaultNumSamplesGPU";
+	public static final String OPENCL_SIMULATOR_DEFAULT_NUM_SAMPLES_CPU_INDIRECT	= "opencl.defaultNumSamplesCPUIndirect";
+	public static final String OPENCL_SIMULATOR_DEFAULT_NUM_SAMPLES_GPU_INDIRECT	= "opencl.defaultNumSamplesGPUIndirect";
+	public static final String OPENCL_SIMULATOR_PATH_PERIOD							= "opencl.pathPeriod";
+	public static final String OPENCL_SIMULATOR_RESULT_PERIOD 						= "opencl.resultPeriod";
+	public static final String OPENCL_SIMULATOR_DEFAULT_MAX_PATH					= "opencl.maxPathLength";
+	public static final String OPENCL_SIMULATOR_PROPERTIES_SIMULTANEOUS				= "opencl.simultaneous";
+	public static final	String OPENCL_SIMULATOR_PRNG								= "opencl.prng";
+	public static final String OPENCL_SIMULATOR_PRNG_SEED							= "opencl.prngSeed";
+	
 	//GUI Model
 	public static final	String MODEL_AUTO_PARSE						= "model.autoParse";
 	public static final	String MODEL_AUTO_MANUAL					= "model.autoManual";
@@ -182,6 +194,7 @@ public class PrismSettings implements Observer
 	{
 		"PRISM",
 		"Simulator",
+		"OpenCL simulator",
 		"Model",
 		"Properties",
 		"Log"
@@ -190,6 +203,7 @@ public class PrismSettings implements Observer
 	{
 		PropertyConstants.PRISM,
 		PropertyConstants.SIMULATOR,
+		PropertyConstants.OPENCL_SIMULATOR,
 		PropertyConstants.MODEL,
 		PropertyConstants.PROPERTIES,
 		PropertyConstants.LOG		
@@ -349,6 +363,28 @@ public class PrismSettings implements Observer
 																			"Display style for paths in the simulator user interface: only show variable values when they change, or show all values regardless." },
 			{ FILE_TYPE,		SIMULATOR_NETWORK_FILE,					"Network profile",						"2.1",		new File(""),				"",
 																			"File specifying the network profile used by the distributed PRISM simulator." }
+		},
+		{
+			{ INTEGER_TYPE,		OPENCL_SIMULATOR_DEFAULT_NUM_SAMPLES_CPU,			"Default number of samples (CPU, direct approach)",			"4.1",		new Integer(250000),			"",
+																			"Default number of samples per iteration when computing on CPU and number of samples is known a priori." },
+			{ INTEGER_TYPE,		OPENCL_SIMULATOR_DEFAULT_NUM_SAMPLES_GPU,			"Default number of samples (GPU, direct approach)",			"4.1",		new Integer(100000),			"",
+																			"Default number of samples per iteration when computing on GPU and number of samples is known a priori." },
+			{ INTEGER_TYPE,		OPENCL_SIMULATOR_DEFAULT_NUM_SAMPLES_CPU_INDIRECT,	"Default number of samples (CPU, indirect approach)",	"4.1",		new Integer(25000),			"",
+																			"Default number of samples per iteration when computing on CPU and number of samples is not known a priori." },
+			{ INTEGER_TYPE,		OPENCL_SIMULATOR_DEFAULT_NUM_SAMPLES_GPU_INDIRECT,	"Default number of samples (GPU, indirect approach)",	"4.1",		new Integer(25000),			"",
+																			"Default number of samples per iteration when computing on GPU and number of samples is not known a priori." },
+			{ INTEGER_TYPE,		OPENCL_SIMULATOR_PATH_PERIOD,				"Default period of reading results",		"4.1",		new Integer(1),			"",
+																			"Number of sampling iterations before reading partial results. Rare reading improves efficiency of simulation, but number of generated samples may be above required." },
+			{ INTEGER_TYPE,		OPENCL_SIMULATOR_RESULT_PERIOD,				"Default period of reading path lengths",		"4.1",		new Integer(3),			"",
+																			"Number of sampling iterations before reading and updating path lengths." },
+			{ INTEGER_TYPE,		OPENCL_SIMULATOR_DEFAULT_MAX_PATH,			"Default maximum path length",			"4.1",		new Integer(10000),			"",
+																			"Default maximum path length when using approximate (simulation-based) model checking." },
+			{ BOOLEAN_TYPE,		OPENCL_SIMULATOR_PROPERTIES_SIMULTANEOUS,	"Check properties simultaneously",		"4.1",		new Boolean(true),			"",
+																			"Check multiple properties simultaneously over the same set of execution paths." },
+			{ CHOICE_TYPE,		OPENCL_SIMULATOR_PRNG,						"Pseudorandom number generator",				"4.1",		"Random123",			"Random123,mwc64x",
+																			"Which PRNG will be used by simulator. Default choice is Random123 which provides much better performance." },
+			{ STRING_TYPE,		OPENCL_SIMULATOR_PRNG_SEED,					"PRNG seed",			"4.1",		"",			"",
+																			"If non-empty, the seed will be used to initialize PRNG. Otherwise, current time will be used." }
 		},
 		{
 			{ BOOLEAN_TYPE,		MODEL_AUTO_PARSE,						"Auto parse",							"2.1",			new Boolean(true),															"",																							"Parse PRISM models automatically as they are loaded/edited in the text editor." },
