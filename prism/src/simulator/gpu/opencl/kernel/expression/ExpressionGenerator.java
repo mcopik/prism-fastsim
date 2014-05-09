@@ -246,7 +246,7 @@ public class ExpressionGenerator
 			list.addExpression(createAssignment(oldValue, new Expression(expr.first.name)));
 			Expression mainAssignment = new Expression(String.format("%s = %s", expr.first.name, convertUpdate(expr.second, translations)));
 			addParentheses(mainAssignment);
-			list.addExpression(createAssignment(changeFlag, createConditionalAssignment(
+			list.addExpression(createBasicExpression(changeFlag.getSource(), Operator.LAND_AUGM, createConditionalAssignment(
 			//destination == new_value
 					createBasicExpression(mainAssignment, Operator.EQ, oldValue.getSource()), "true", "false")));
 			//builder.append(expr.first.name).append(" = ").append(oldValue.getSource()).append(";").append("\n");

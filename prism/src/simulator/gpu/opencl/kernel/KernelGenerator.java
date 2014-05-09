@@ -863,6 +863,17 @@ public abstract class KernelGenerator
 		CLVariable oldValue = new CLVariable(new StdVariableType(StdType.INT32), "oldValue");
 		oldValue.setInitValue(StdVariableType.initialize(0));
 		currentMethod.addLocalVar(oldValue);
+		//oldSV
+		CLVariable oldSV = new CLVariable(stateVectorType, "oldSV");
+		oldSV.setInitValue(sv.dereference());
+		currentMethod.addLocalVar(oldSV);
+
+		Map<String, String> translations = new HashMap<>();
+		for (CLVariable var : stateVectorType.getFields()) {
+			String name = var.varName.substring(STATE_VECTOR_PREFIX.length());
+			CLVariable second = oldSV.accessField(var.varName);
+			translations.put(name, second.varName);
+		}
 
 		updateMethodAdditionalArgs(currentMethod);
 		updateMethodLocalVars(currentMethod);
@@ -878,9 +889,9 @@ public abstract class KernelGenerator
 				IfElse ifElse = new IfElse(createBasicExpression(selectionSum.getSource(), Operator.LT, fromString(convertPrismRate(vars, rate))));
 				if (!update.isActionTrue(0)) {
 					if (!timingProperty) {
-						ifElse.addExpression(0, convertPrismAction(update.getAction(0), changeFlag, oldValue));
+						ifElse.addExpression(0, convertPrismAction(update.getAction(0), translations, changeFlag, oldValue));
 					} else {
-						ifElse.addExpression(0, convertPrismAction(update.getAction(0)));
+						ifElse.addExpression(0, convertPrismAction(update.getAction(0), translations));
 					}
 				}
 				for (int j = 1; j < update.getActionsNumber(); ++j) {
@@ -888,9 +899,9 @@ public abstract class KernelGenerator
 					ifElse.addElif(createBasicExpression(selectionSum.getSource(), Operator.LT, fromString(convertPrismRate(vars, rate))));
 					if (!update.isActionTrue(j)) {
 						if (!timingProperty) {
-							ifElse.addExpression(j, convertPrismAction(update.getAction(j), changeFlag, oldValue));
+							ifElse.addExpression(j, convertPrismAction(update.getAction(j), translations, changeFlag, oldValue));
 						} else {
-							ifElse.addExpression(j, convertPrismAction(update.getAction(j)));
+							ifElse.addExpression(j, convertPrismAction(update.getAction(j), translations));
 						}
 					}
 				}
@@ -900,9 +911,9 @@ public abstract class KernelGenerator
 				if (!update.isActionTrue(0)) {
 					_switch.addCase(new Expression(Integer.toString(i)));
 					if (!timingProperty) {
-						_switch.addExpression(switchCounter++, convertPrismAction(update.getAction(0), changeFlag, oldValue));
+						_switch.addExpression(switchCounter++, convertPrismAction(update.getAction(0), translations, changeFlag, oldValue));
 					} else {
-						_switch.addExpression(switchCounter++, convertPrismAction(update.getAction(0)));
+						_switch.addExpression(switchCounter++, convertPrismAction(update.getAction(0), translations));
 					}
 				}
 			}
