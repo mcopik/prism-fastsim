@@ -478,11 +478,17 @@ public class RuntimeContext
 			CLProgram program = context.createProgram(kernel.getSource());
 			//add include directories for PRNG
 			//has to work when applications is executed as Java class or as a jar
-			//TODO: for others rng
-			program.addInclude("src/gpu/");
-			program.addInclude("gpu/Random123/features");
-			program.addInclude("gpu/Random123");
-			program.addInclude("gpu/");
+			//			//TODO: for others rng
+			//			program.addInclude("src/gpu/");
+			//			program.addInclude("gpu/Random123/features");
+			//			program.addInclude("gpu/Random123");
+			//			program.addInclude("gpu/");
+
+			String location = this.getClass().getPackage().getName().replace(".", "/") + "/includes";
+			//when running a Java class
+			program.addInclude("src/" + location);
+			//when running a *.jar
+			program.addInclude("src/" + location + "/Random123");
 			program.build();
 			programKernel = program.createKernel("main");
 			int localWorkSize = programKernel.getWorkGroupSize().get(currentDevice.getDevice()).intValue();
