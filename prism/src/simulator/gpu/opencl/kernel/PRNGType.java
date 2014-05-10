@@ -41,13 +41,22 @@ public abstract class PRNGType
 	protected final String varName;
 	protected final List<Include> includes;
 	protected final List<CLVariable> additionalArgs;
-	protected RandomNumberGenerator random = new RandomNumberGenerator();
+	protected RandomNumberGenerator random;
+
+	protected PRNGType(String varName, List<Include> includes, List<CLVariable> additionalArgs, long seed)
+	{
+		this.varName = varName;
+		this.includes = includes;
+		this.additionalArgs = additionalArgs;
+		random = new RandomNumberGenerator((int) seed);
+	}
 
 	protected PRNGType(String varName, List<Include> includes, List<CLVariable> additionalArgs)
 	{
 		this.varName = varName;
 		this.includes = includes;
 		this.additionalArgs = additionalArgs;
+		random = new RandomNumberGenerator();
 	}
 
 	public abstract KernelComponent initializeGenerator();

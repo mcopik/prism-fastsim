@@ -26,7 +26,6 @@
 package simulator.gpu.opencl;
 
 import java.util.ArrayList;
-import java.util.Date;
 import java.util.List;
 
 import parser.State;
@@ -37,7 +36,6 @@ import prism.PrismSettings;
 import simulator.gpu.RuntimeDeviceInterface;
 import simulator.gpu.RuntimeFrameworkInterface;
 import simulator.gpu.automaton.AbstractAutomaton;
-import simulator.gpu.opencl.kernel.PRNGRandom123;
 import simulator.sampler.Sampler;
 
 import com.nativelibs4java.opencl.CLDevice;
@@ -206,21 +204,15 @@ public class RuntimeOpenCL implements RuntimeFrameworkInterface
 	{
 		Preconditions.checkNotNull(mainLog, "");
 		Preconditions.checkCondition(maxPathLength > 0, "");
-		RuntimeConfig config = new RuntimeConfig();
+		Preconditions.checkNotNull(prismSettings);
+		/**
+		 * Configure simulator.
+		 */
+		RuntimeConfig config = new RuntimeConfig(prismSettings);
 		if (initialState != null) {
 			config.initialState = initialState;
 		}
 		config.maxPathLength = maxPathLength;
-		if (prismSettings == null) {
-			config.prngType = new PRNGRandom123("rng");
-			Date date = new Date();
-			config.prngSeed = date.getTime();
-		} else {
-			config.prngType = new PRNGRandom123("rng");
-			Date date = new Date();
-			config.prngSeed = date.getTime();
-			//TODO:
-		}
 		int samplesProcessed = 0;
 		try {
 			currentContexts = new ArrayList<>();

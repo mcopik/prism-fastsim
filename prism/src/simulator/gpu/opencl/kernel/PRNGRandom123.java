@@ -72,7 +72,12 @@ public class PRNGRandom123 extends PRNGType
 
 	public PRNGRandom123(String varName)
 	{
-		super(varName, INCLUDES, ADDITIONAL_ARGS);
+		super(varName, INCLUDES, ADDITIONAL_ARGS, 0);
+	}
+
+	public PRNGRandom123(String varName, long seed)
+	{
+		super(varName, INCLUDES, ADDITIONAL_ARGS, seed);
 	}
 
 	/* (non-Javadoc)

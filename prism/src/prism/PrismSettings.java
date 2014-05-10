@@ -150,6 +150,25 @@ public class PrismSettings implements Observer
 	public static final String OPENCL_SIMULATOR_PROPERTIES_SIMULTANEOUS				= "opencl.simultaneous";
 	public static final	String OPENCL_SIMULATOR_PRNG								= "opencl.prng";
 	public static final String OPENCL_SIMULATOR_PRNG_SEED							= "opencl.prngSeed";
+	// available prngs
+	public enum OPENCL_SIMULATOR_PRNG_CHOICES { 
+		RANDOM123(0), MWC64X(1); 
+		public final int id; 
+		OPENCL_SIMULATOR_PRNG_CHOICES(int id)
+		{
+			this.id = id;
+		}
+		};
+	private static final EnumMap<OPENCL_SIMULATOR_PRNG_CHOICES,String> OPENCL_SIMULATOR_PRNG_CAPTIONS;
+	private static final String OPENCL_SIMULATOR_PRNG_CAPTIONS_ALL;
+	private static final String OPENCL_SIMULATOR_PRNG_CAPTIONS_DEFAULT;
+	static {
+		OPENCL_SIMULATOR_PRNG_CAPTIONS = new EnumMap<>(OPENCL_SIMULATOR_PRNG_CHOICES.class);
+		OPENCL_SIMULATOR_PRNG_CAPTIONS.put(OPENCL_SIMULATOR_PRNG_CHOICES.RANDOM123, "Random123 (default)");
+		OPENCL_SIMULATOR_PRNG_CAPTIONS.put(OPENCL_SIMULATOR_PRNG_CHOICES.MWC64X, "mwc64x");
+		OPENCL_SIMULATOR_PRNG_CAPTIONS_ALL = "Random123 (default),mwc64x";
+		OPENCL_SIMULATOR_PRNG_CAPTIONS_DEFAULT = "Random123 (default)";
+	}
 	
 	//GUI Model
 	public static final	String MODEL_AUTO_PARSE						= "model.autoParse";
@@ -381,7 +400,7 @@ public class PrismSettings implements Observer
 																			"Default maximum path length when using approximate (simulation-based) model checking." },
 			{ BOOLEAN_TYPE,		OPENCL_SIMULATOR_PROPERTIES_SIMULTANEOUS,	"Check properties simultaneously",		"4.1",		new Boolean(true),			"",
 																			"Check multiple properties simultaneously over the same set of execution paths." },
-			{ CHOICE_TYPE,		OPENCL_SIMULATOR_PRNG,						"Pseudorandom number generator",				"4.1",		"Random123",			"Random123,mwc64x",
+			{ CHOICE_TYPE,		OPENCL_SIMULATOR_PRNG,						"Pseudorandom number generator",				"4.1",		OPENCL_SIMULATOR_PRNG_CAPTIONS_DEFAULT,			OPENCL_SIMULATOR_PRNG_CAPTIONS_ALL,
 																			"Which PRNG will be used by simulator. Default choice is Random123 which provides much better performance." },
 			{ STRING_TYPE,		OPENCL_SIMULATOR_PRNG_SEED,					"PRNG seed",			"4.1",		"",			"",
 																			"If non-empty, the seed will be used to initialize PRNG. Otherwise, current time will be used." }

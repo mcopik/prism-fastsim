@@ -600,7 +600,7 @@ public abstract class KernelGenerator
 		 * For CTMC&bounded until -> update current time.
 		 */
 		mainMethodUpdateTimeAfter(currentMethod, loop);
-		mainMethodLoopDetection(loop);
+		//mainMethodLoopDetection(loop);
 		//loop.addExpression(new Expression("if(s==4)break;"));
 		currentMethod.addExpression(loop);
 		//		currentMethod.addExpression(new Expression(

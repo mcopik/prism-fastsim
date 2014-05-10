@@ -2100,6 +2100,7 @@ public class PrismCL implements PrismModelListener
 				simSettings = new SimulationSettings(aSimMethod);
 			} else {
 				RuntimeOpenCL runtime = new RuntimeOpenCL();
+				simMaxPath = prism.getSettings().getInteger(PrismSettings.OPENCL_SIMULATOR_DEFAULT_MAX_PATH);
 				if (simDeviceGiven) {
 					String[] names = runtime.getDevicesNames();
 					int device = -1;

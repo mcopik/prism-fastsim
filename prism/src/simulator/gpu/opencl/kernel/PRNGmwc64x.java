@@ -46,9 +46,14 @@ public class PRNGmwc64x extends PRNGType
 		super(name, INCLUDES, ADDITIONAL_ARGS);
 	}
 
-	public PRNGmwc64x(String name, long rngOffset)
+	public PRNGmwc64x(String name, long seed)
 	{
-		super(name, INCLUDES, ADDITIONAL_ARGS);
+		super(name, INCLUDES, ADDITIONAL_ARGS, seed);
+	}
+
+	public PRNGmwc64x(String name, long rngOffset, long seed)
+	{
+		super(name, INCLUDES, ADDITIONAL_ARGS, seed);
 		this.rngOffset = rngOffset;
 	}
 

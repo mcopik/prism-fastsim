@@ -6,8 +6,6 @@ package simulator.gpu.opencl.kernel;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.bridj.Pointer;
-
 import simulator.gpu.opencl.kernel.expression.Expression;
 import simulator.gpu.opencl.kernel.expression.Include;
 import simulator.gpu.opencl.kernel.expression.KernelComponent;
@@ -20,14 +18,9 @@ import simulator.gpu.opencl.kernel.memory.StdVariableType;
 import simulator.gpu.opencl.kernel.memory.StdVariableType.StdType;
 
 import com.nativelibs4java.opencl.CLBuffer;
-import com.nativelibs4java.opencl.CLContext;
 import com.nativelibs4java.opencl.CLKernel;
-import com.nativelibs4java.opencl.CLMem;
 
-/**
- * @author mcopik
- *
- */
+@Deprecated
 public class PRNGMersenneTwister extends PRNGType
 {
 	private static final List<Include> INCLUDES = new ArrayList<>();
@@ -46,7 +39,7 @@ public class PRNGMersenneTwister extends PRNGType
 
 	public PRNGMersenneTwister(String name)
 	{
-		super(name, INCLUDES, ADDITIONAL_ARGS);
+		super(name, INCLUDES, ADDITIONAL_ARGS, 0);
 	}
 
 	public KernelComponent initializeGenerator()
@@ -101,13 +94,13 @@ public class PRNGMersenneTwister extends PRNGType
 	@Override
 	public void setKernelArg(CLKernel kernel, int argNumber, int sampleOffset, int globalWorkSize, int localWorkSize)
 	{
-		if (initBuffer == null) {
-			int[] initializeData = gpu.GPU.initializeMersenneTwister(globalWorkSize / localWorkSize, (int) random.randomUnifInt(Integer.MAX_VALUE));
-			Pointer<Integer> ptr = Pointer.allocateInts(initializeData.length);
-			ptr.setInts(initializeData);
-			CLContext context = kernel.getProgram().getContext();
-			initBuffer = context.createIntBuffer(CLMem.Usage.InputOutput, ptr, true);
-			kernel.setArg(0, initBuffer);
-		}
+		//		if (initBuffer == null) {
+		//			int[] initializeData = gpu.GPU.initializeMersenneTwister(globalWorkSize / localWorkSize, (int) random.randomUnifInt(Integer.MAX_VALUE));
+		//			Pointer<Integer> ptr = Pointer.allocateInts(initializeData.length);
+		//			ptr.setInts(initializeData);
+		//			CLContext context = kernel.getProgram().getContext();
+		//			initBuffer = context.createIntBuffer(CLMem.Usage.InputOutput, ptr, true);
+		//			kernel.setArg(0, initBuffer);
+		//		}
 	}
 }
