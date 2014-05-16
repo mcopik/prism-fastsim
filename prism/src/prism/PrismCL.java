@@ -43,6 +43,7 @@ import simulator.SimulationSettings;
 import simulator.gpu.RuntimeDeviceInterface;
 import simulator.gpu.RuntimeFrameworkInterface;
 import simulator.gpu.opencl.RuntimeOpenCL;
+import simulator.gpu.RuntimeDeviceInterface;
 import simulator.method.ACIconfidence;
 import simulator.method.ACIiterations;
 import simulator.method.ACIwidth;

@@ -15,7 +15,7 @@
 # either uncomment one of the lines directly below
 # or pass a value to make directly, e.g.: make OSTYPE=linux
 
-#OSTYPE = linux
+OSTYPE = linux
 #OSTYPE = solaris
 #OSTYPE = cygwin
 #OSTYPE = darwin
@@ -112,8 +112,8 @@ JAVA_DIR = /usr/lib/jvm/default-java
 # Compilers etc. #
 ##################
 
-C = gcc-4.8
-CPP = g++-4.8
+C = gcc
+CPP = g++
 LD = $(CPP)
 JAVAC = javac
 JAVACC = javacc

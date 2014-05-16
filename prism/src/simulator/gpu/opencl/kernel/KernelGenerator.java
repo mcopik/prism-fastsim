@@ -43,6 +43,7 @@ import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.LinkedHashMap;
 
 import parser.ast.ExpressionLiteral;
 import simulator.gpu.automaton.AbstractAutomaton;
@@ -161,7 +162,7 @@ public abstract class KernelGenerator
 		PROPERTY_STATE_STRUCTURE = type;
 	}
 	protected final static String STATE_VECTOR_PREFIX = "__STATE_VECTOR_";
-	protected Map<String, StructureType> synchronizedStates = null;
+	protected Map<String, StructureType> synchronizedStates = new LinkedHashMap<>();
 	protected StructureType synCmdState = null;
 	protected AbstractAutomaton model = null;
 	protected RuntimeConfig config = null;

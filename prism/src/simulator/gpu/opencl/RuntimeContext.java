@@ -474,6 +474,10 @@ public class RuntimeContext
 			this.properties = properties;
 			kernel = new Kernel(this.config, automaton, properties);
 			mainLog.println(kernel.getSource());
+//			lengths.finalize();
+			lengths = null;
+			}
+			
 			mainLog.flush();
 			CLProgram program = context.createProgram(kernel.getSource());
 			//add include directories for PRNG

@@ -178,7 +178,8 @@ public class Kernel
 		for (Include include : includes) {
 			builder.append(include.getSource()).append("\n");
 		}
-		//builder.append(KERNEL_TYPEDEFS).append("\n");
+//		builder.append(KERNEL_TYPEDEFS).append("\n");
+		builder.append("typedef unsigned char uchar;\n");
 		for (KernelComponent expr : globalDeclarations) {
 			builder.append(expr.getSource()).append("\n");
 		}
