@@ -101,15 +101,15 @@ public class GUIPathPlotDialog extends JDialog
 	private ModulesFile modulesFile;
 	private boolean cancelled;
 	private String simPathString;
-	private int maxPathLength;
+	private long maxPathLength;
 
 	// GUI objects
 	private final JPanel topPanel = new JPanel();
 	private JTextField textFieldTime;
 	private JTextField textFieldInterval;
 	private JLabel lblInterval;
-	private JComboBox<ShowChoice> comboBoxShow;
-	private JComboBox<SimulateChoice> comboBoxSimulate;
+	private JComboBox comboBoxShow;
+	private JComboBox comboBoxSimulate;
 	private JButton okButton;
 	private JButton cancelButton;
 	private JTabbedPane tabbedPane;
@@ -179,7 +179,7 @@ public class GUIPathPlotDialog extends JDialog
 		return simPathString;
 	}
 
-	public int getMaxPathLength()
+	public long getMaxPathLength()
 	{
 		return maxPathLength;
 	}
@@ -256,8 +256,8 @@ public class GUIPathPlotDialog extends JDialog
 				topPanel.add(lblSimulate, gbc_lblSimulate);
 			}
 			{
-				comboBoxSimulate = new JComboBox<SimulateChoice>();
-				comboBoxSimulate.setModel(new DefaultComboBoxModel<SimulateChoice>(SimulateChoice.values()));
+				comboBoxSimulate = new JComboBox();
+				comboBoxSimulate.setModel(new DefaultComboBoxModel(SimulateChoice.values()));
 				GridBagConstraints gbc_comboBoxSimulate = new GridBagConstraints();
 				gbc_comboBoxSimulate.anchor = GridBagConstraints.WEST;
 				gbc_comboBoxSimulate.insets = new Insets(0, 0, 5, 5);
@@ -285,7 +285,7 @@ public class GUIPathPlotDialog extends JDialog
 				topPanel.add(lblShow, gbc_lblShow);
 			}
 			{
-				comboBoxShow = new JComboBox<ShowChoice>();
+				comboBoxShow = new JComboBox();
 				comboBoxShow.addActionListener(new ActionListener()
 				{
 					public void actionPerformed(ActionEvent e)
@@ -293,7 +293,7 @@ public class GUIPathPlotDialog extends JDialog
 						comboBoxShowActionPerformed(e);
 					}
 				});
-				comboBoxShow.setModel(new DefaultComboBoxModel<ShowChoice>(ShowChoice.values()));
+				comboBoxShow.setModel(new DefaultComboBoxModel(ShowChoice.values()));
 				GridBagConstraints gbc_comboBoxShow = new GridBagConstraints();
 				gbc_comboBoxShow.anchor = GridBagConstraints.WEST;
 				gbc_comboBoxShow.insets = new Insets(0, 0, 5, 5);
@@ -486,7 +486,7 @@ public class GUIPathPlotDialog extends JDialog
 			textFieldInterval.setText("");
 		}
 		chckbxChanges.setSelected(true);
-		textFieldMaxLen.setText("" + gui.getPrism().getSettings().getInteger(PrismSettings.SIMULATOR_DEFAULT_MAX_PATH));
+		textFieldMaxLen.setText("" + gui.getPrism().getSettings().getLong(PrismSettings.SIMULATOR_DEFAULT_MAX_PATH));
 		rdbtnVarsAll.setSelected(true);
 		for (int i = 0; i < modulesFile.getNumVars(); i++) {
 			varsCheckBoxes.add(new JCheckBox(modulesFile.getVarName(i)));
@@ -582,10 +582,10 @@ public class GUIPathPlotDialog extends JDialog
 		}
 		simPathString += ",rewards=" + rdbtnRewardsAll.isSelected();
 		try {
-			int i = Integer.parseInt(textFieldMaxLen.getText());
-			if (i < 0)
+			long l = Long.parseLong(textFieldMaxLen.getText());
+			if (l < 0)
 				throw new NumberFormatException();
-			maxPathLength = i;
+			maxPathLength = l;
 		} catch (NumberFormatException e) {
 			gui.errorDialog("Invalid maximum path length \"" + textFieldMaxLen.getText() + "\"");
 			return;

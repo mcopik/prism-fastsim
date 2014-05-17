@@ -30,6 +30,7 @@ package explicit;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.util.BitSet;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.TreeMap;
@@ -38,6 +39,7 @@ import prism.ModelType;
 import prism.PrismException;
 import prism.PrismLog;
 import prism.PrismUtils;
+import strat.MDStrategy;
 import explicit.rewards.MDPRewards;
 
 /**
@@ -76,7 +78,7 @@ public abstract class MDPExplicit extends ModelExplicit implements MDP
 	}
 
 	@Override
-	public void exportToPrismExplicitTra(PrismLog out) throws PrismException
+	public void exportToPrismExplicitTra(PrismLog out)
 	{
 		int i, j, numChoices;
 		Object action;
@@ -106,75 +108,63 @@ public abstract class MDPExplicit extends ModelExplicit implements MDP
 	}
 
 	@Override
-	public void exportToDotFile(String filename, BitSet mark) throws PrismException
+	public void exportToDotFile(PrismLog out, BitSet mark)
 	{
 		int i, j, numChoices;
 		String nij;
 		Object action;
-		try {
-			FileWriter out = new FileWriter(filename);
-			out.write("digraph " + getModelType() + " {\nsize=\"8,5\"\nnode [shape=box];\n");
-			for (i = 0; i < numStates; i++) {
-				if (mark != null && mark.get(i))
-					out.write(i + " [style=filled  fillcolor=\"#cccccc\"]\n");
-				numChoices = getNumChoices(i);
-				for (j = 0; j < numChoices; j++) {
-					action = getAction(i, j);
-					nij = "n" + i + "_" + j;
-					out.write(i + " -> " + nij + " [ arrowhead=none,label=\"" + j);
-					if (action != null)
-						out.write(":" + action);
-					out.write("\" ];\n");
-					out.write(nij + " [ shape=point,width=0.1,height=0.1,label=\"\" ];\n");
-					Iterator<Map.Entry<Integer, Double>> iter = getTransitionsIterator(i, j);
-					while (iter.hasNext()) {
-						Map.Entry<Integer, Double> e = iter.next();
-						out.write(nij + " -> " + e.getKey() + " [ label=\"" + e.getValue() + "\" ];\n");
-					}
+		out.print("digraph " + getModelType() + " {\nsize=\"8,5\"\nnode [shape=box];\n");
+		for (i = 0; i < numStates; i++) {
+			if (mark != null && mark.get(i))
+				out.print(i + " [style=filled  fillcolor=\"#cccccc\"]\n");
+			numChoices = getNumChoices(i);
+			for (j = 0; j < numChoices; j++) {
+				action = getAction(i, j);
+				nij = "n" + i + "_" + j;
+				out.print(i + " -> " + nij + " [ arrowhead=none,label=\"" + j);
+				if (action != null)
+					out.print(":" + action);
+				out.print("\" ];\n");
+				out.print(nij + " [ shape=point,width=0.1,height=0.1,label=\"\" ];\n");
+				Iterator<Map.Entry<Integer, Double>> iter = getTransitionsIterator(i, j);
+				while (iter.hasNext()) {
+					Map.Entry<Integer, Double> e = iter.next();
+					out.print(nij + " -> " + e.getKey() + " [ label=\"" + e.getValue() + "\" ];\n");
 				}
 			}
-			out.write("}\n");
-			out.close();
-		} catch (IOException e) {
-			throw new PrismException("Could not write " + getModelType() + " to file \"" + filename + "\"" + e);
 		}
+		out.print("}\n");
 	}
 
 	@Override
-	public void exportToDotFileWithStrat(String filename, BitSet mark, int strat[]) throws PrismException
+	public void exportToDotFileWithStrat(PrismLog out, BitSet mark, int strat[])
 	{
 		int i, j, numChoices;
 		String nij;
 		Object action;
 		String style;
-		try {
-			FileWriter out = new FileWriter(filename);
-			out.write("digraph " + getModelType() + " {\nsize=\"8,5\"\nnode [shape=box];\n");
-			for (i = 0; i < numStates; i++) {
-				if (mark != null && mark.get(i))
-					out.write(i + " [style=filled  fillcolor=\"#cccccc\"]\n");
-				numChoices = getNumChoices(i);
-				for (j = 0; j < numChoices; j++) {
-					style = (strat[i] == j) ? ",color=\"#ff0000\",fontcolor=\"#ff0000\"" : "";
-					action = getAction(i, j);
-					nij = "n" + i + "_" + j;
-					out.write(i + " -> " + nij + " [ arrowhead=none,label=\"" + j);
-					if (action != null)
-						out.write(":" + action);
-					out.write("\"" + style + " ];\n");
-					out.write(nij + " [ shape=point,height=0.1,label=\"\"" + style + " ];\n");
-					Iterator<Map.Entry<Integer, Double>> iter = getTransitionsIterator(i, j);
-					while (iter.hasNext()) {
-						Map.Entry<Integer, Double> e = iter.next();
-						out.write(nij + " -> " + e.getKey() + " [ label=\"" + e.getValue() + "\"" + style + " ];\n");
-					}
+		out.print("digraph " + getModelType() + " {\nsize=\"8,5\"\nnode [shape=box];\n");
+		for (i = 0; i < numStates; i++) {
+			if (mark != null && mark.get(i))
+				out.print(i + " [style=filled  fillcolor=\"#cccccc\"]\n");
+			numChoices = getNumChoices(i);
+			for (j = 0; j < numChoices; j++) {
+				style = (strat[i] == j) ? ",color=\"#ff0000\",fontcolor=\"#ff0000\"" : "";
+				action = getAction(i, j);
+				nij = "n" + i + "_" + j;
+				out.print(i + " -> " + nij + " [ arrowhead=none,label=\"" + j);
+				if (action != null)
+					out.print(":" + action);
+				out.print("\"" + style + " ];\n");
+				out.print(nij + " [ shape=point,height=0.1,label=\"\"" + style + " ];\n");
+				Iterator<Map.Entry<Integer, Double>> iter = getTransitionsIterator(i, j);
+				while (iter.hasNext()) {
+					Map.Entry<Integer, Double> e = iter.next();
+					out.print(nij + " -> " + e.getKey() + " [ label=\"" + e.getValue() + "\"" + style + " ];\n");
 				}
 			}
-			out.write("}\n");
-			out.close();
-		} catch (IOException e) {
-			throw new PrismException("Could not write " + getModelType() + " to file \"" + filename + "\"" + e);
 		}
+		out.print("}\n");
 	}
 
 	@Override
@@ -222,6 +212,26 @@ public abstract class MDPExplicit extends ModelExplicit implements MDP
 		} catch (IOException e) {
 			throw new PrismException("Could not export " + getModelType() + " to file \"" + filename + "\"" + e);
 		}
+	}
+
+	// Accessors (for NondetModel)
+	
+	@Override
+	public boolean areAllChoiceActionsUnique()
+	{
+		HashSet<Object> sActions = new HashSet<Object>();
+		for (int s = 0; s < numStates; s++) {
+			int n = getNumChoices(s);
+			if (n > 1) {
+				sActions.clear();
+				for (int i = 0; i < n; i++) {
+					if (!sActions.add(getAction(s, i))) {
+						return false;
+					}
+				}
+			}
+		}
+		return true;
 	}
 
 	// Accessors (for MDP)
@@ -338,5 +348,11 @@ public abstract class MDPExplicit extends ModelExplicit implements MDP
 			}
 		}*/
 		return maxDiff;
+	}
+
+	@Override
+	public Model constructInducedModel(MDStrategy strat)
+	{
+		return new DTMCFromMDPAndMDStrategy(this, strat);
 	}
 }

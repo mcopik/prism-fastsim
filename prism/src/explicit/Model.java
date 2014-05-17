@@ -109,14 +109,20 @@ public interface Model
 	public boolean isDeadlockState(int i);
 	
 	/**
-	 * Get access to an (optional) list of states.
+	 * Get access to a list of states (optionally stored).
 	 */
 	public List<State> getStatesList();
 	
 	/**
-	 * Get access to an (optional) list of constant values.
+	 * Get access to a list of constant values (optionally stored).
 	 */
 	public Values getConstantValues();
+	
+	/**
+	 * Get the states that satisfy a label in this model (optionally stored).
+	 * Returns null if there is no label of this name.
+	 */
+	public BitSet getLabelStates(String name);
 	
 	/**
 	 * Get the total number of transitions in the model.
@@ -185,7 +191,7 @@ public interface Model
 	/**
 	 * Export transition matrix to explicit format readable by PRISM (i.e. a .tra file).
 	 */
-	public void exportToPrismExplicitTra(PrismLog log) throws PrismException;
+	public void exportToPrismExplicitTra(PrismLog log);
 	
 	/**
 	 * Export to a dot file.
@@ -196,6 +202,16 @@ public interface Model
 	 * Export to a dot file, highlighting states in 'mark'.
 	 */
 	public void exportToDotFile(String filename, BitSet mark) throws PrismException;
+
+	/**
+	 * Export to a dot file.
+	 */
+	public void exportToDotFile(PrismLog out);
+
+	/**
+	 * Export to a dot file, highlighting states in 'mark'.
+	 */
+	public void exportToDotFile(PrismLog out, BitSet mark);
 
 	/**
 	 * Export to a equivalent PRISM language model description.

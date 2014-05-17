@@ -735,7 +735,7 @@ public class GUISimulator extends GUIPlugin implements MouseListener, ListSelect
 			String simPathDetails = pathPlotDialog.getSimPathString();
 			if (simPathDetails == null)
 				return;
-			int maxPathLength = pathPlotDialog.getMaxPathLength();
+			long maxPathLength = pathPlotDialog.getMaxPathLength();
 						
 			// Create a new path in the simulator and plot it 
 			a_clearPath();
@@ -1013,13 +1013,13 @@ public class GUISimulator extends GUIPlugin implements MouseListener, ListSelect
 		innerAutomaticExplorationPanel = new javax.swing.JPanel();
 		randomExplorationButton = new javax.swing.JButton();
 		noStepsExplorePanel = new javax.swing.JPanel();
-		typeExploreCombo = new javax.swing.JComboBox<String>();
+		typeExploreCombo = new javax.swing.JComboBox();
 		inputExploreField = new javax.swing.JTextField();
 		backtrackPanel = new javax.swing.JPanel();
 		innerBacktrackPanel = new javax.swing.JPanel();
 		backtrackButton = new javax.swing.JButton();
 		noStepsBacktrackPanel = new javax.swing.JPanel();
-		typeBacktrackCombo = new javax.swing.JComboBox<String>();
+		typeBacktrackCombo = new javax.swing.JComboBox();
 		inputBacktrackField = new javax.swing.JTextField();
 		manualUpdatesPanel = new javax.swing.JPanel();
 		innerManualUpdatesPanel = new javax.swing.JPanel();
@@ -1262,7 +1262,7 @@ public class GUISimulator extends GUIPlugin implements MouseListener, ListSelect
 		noStepsExplorePanel.setLayout(new java.awt.GridBagLayout());
 
 		noStepsExplorePanel.setMinimumSize(new java.awt.Dimension(107, 0));
-		typeExploreCombo.setModel(new javax.swing.DefaultComboBoxModel<String>(new String[] { "Num. steps", "Upto state", "Max. time" }));
+		typeExploreCombo.setModel(new javax.swing.DefaultComboBoxModel(new String[] { "Num. steps", "Upto state", "Max. time" }));
 		typeExploreCombo.setToolTipText("");
 		gridBagConstraints = new java.awt.GridBagConstraints();
 		gridBagConstraints.fill = java.awt.GridBagConstraints.BOTH;
@@ -1320,7 +1320,7 @@ public class GUISimulator extends GUIPlugin implements MouseListener, ListSelect
 		noStepsBacktrackPanel.setLayout(new java.awt.GridBagLayout());
 
 		noStepsBacktrackPanel.setMinimumSize(new java.awt.Dimension(107, 0));
-		typeBacktrackCombo.setModel(new javax.swing.DefaultComboBoxModel<String>(new String[] { "Num. steps", "To state" }));
+		typeBacktrackCombo.setModel(new javax.swing.DefaultComboBoxModel(new String[] { "Num. steps", "To state" }));
 		gridBagConstraints = new java.awt.GridBagConstraints();
 		gridBagConstraints.fill = java.awt.GridBagConstraints.BOTH;
 		gridBagConstraints.weightx = 2.0;
@@ -1442,7 +1442,7 @@ public class GUISimulator extends GUIPlugin implements MouseListener, ListSelect
 						throw new NumberFormatException();
 					// If number is too big, just set as max possible (i.e. path size)
 					if (noSteps > engine.getPathSize())
-						noSteps = engine.getPathSize();
+						noSteps = (int) engine.getPathSize();
 					// If number is 0, nothing to do
 					else if (noSteps == 0)
 						return;
@@ -2062,8 +2062,8 @@ public class GUISimulator extends GUIPlugin implements MouseListener, ListSelect
 	private javax.swing.JPanel topValues;
 	private javax.swing.JLabel totalTime;
 	private javax.swing.JLabel totalTimeLabel;
-	private javax.swing.JComboBox<String> typeBacktrackCombo;
-	private javax.swing.JComboBox<String> typeExploreCombo;
+	private javax.swing.JComboBox typeBacktrackCombo;
+	private javax.swing.JComboBox typeExploreCombo;
 
 	// End of variables declaration//GEN-END:variables
 
@@ -2167,9 +2167,8 @@ public class GUISimulator extends GUIPlugin implements MouseListener, ListSelect
 				switch (column) {
 				case 0:
 					return "Module/[action]";
-				case 1: {
+				case 1:
 					return parsedModel == null ? "Probability" : parsedModel.getModelType().probabilityOrRate();
-				}
 				case 2:
 					return "Update";
 				default:
@@ -2249,13 +2248,13 @@ public class GUISimulator extends GUIPlugin implements MouseListener, ListSelect
 	{
 		displayStyleFast = settings.getInteger(PrismSettings.SIMULATOR_RENDER_ALL_VALUES) == 0;
 
-		if (displayStyleFast != view.isChangeRenderer()) {
+		/*if (displayStyleFast != view.isChangeRenderer()) {
 			String[] answers = { "Yes", "No" };
 			if (GUISimulator.this.question("You have changed the default rendering style of paths. Do you wish \nto reflect this in your current trace?",
 					answers, 0) == 0) {
 				view.setRenderer(displayStyleFast);
 			}
-		}
+		}*/
 	}
 
 	/**

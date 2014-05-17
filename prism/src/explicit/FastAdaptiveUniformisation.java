@@ -28,7 +28,10 @@
 
 package explicit;
 
+import java.io.BufferedReader;
 import java.io.File;
+import java.io.FileReader;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -37,15 +40,20 @@ import java.util.LinkedHashMap;
 import java.util.ListIterator;
 import java.util.Map;
 
+import dv.DoubleVector;
+
 import parser.ast.Expression;
 import parser.ast.ExpressionIdent;
 import parser.ast.LabelList;
 import parser.ast.RewardStruct;
+import parser.type.TypeBool;
 import parser.type.TypeDouble;
+import parser.type.TypeInt;
 import parser.Values;
 
 import parser.State;
 import prism.*;
+import prism.Model;
 
 /*
  * TODO
@@ -72,12 +80,9 @@ import prism.*;
  */
 
 /**
- * Implementation of fast adaptive uniformisation
- * @author Dave Parker <david.parker@comlab.ox.ac.uk> (University of Oxford)
- * @author Frits Dannenberg <frits.dannenberg@cs.ox.ac.uk> (University of Oxford)
- * @author Ernst Moritz Hahn <emhahn@cs.ox.ac.uk>  (University of Oxford)
+ * Implementation of fast adaptive uniformisation (FAU).
  */
-public class FastAdaptiveUniformisation
+public class FastAdaptiveUniformisation extends PrismComponent
 {
 	/**
 	 * Stores properties of states needed for fast adaptive method.
@@ -87,8 +92,6 @@ public class FastAdaptiveUniformisation
 	 * states and the rates to them, the number of incoming transitions
 	 * (references) and a flag whether the state has a significant probability
 	 * mass (alive).
-	 * 
-	 * @author Ernst Moritz Hahn <emhahn@cs.ox.ac.uk>  (University of Oxford)
 	 */
 	private final class StateProp
 	{
@@ -118,13 +121,12 @@ public class FastAdaptiveUniformisation
 		{
 			prob = 0.0;
 			nextProb = 0.0;
-			prob = 0.0;
+			sum = 0.0;
 			reward = 0.0;
-			references = 0;
-			alive = true;
 			succRates = null;
 			succStates = null;
-			totalProbLoss = 0.0;
+			references = 0;
+			alive = true;
 		}
 		
 		/**
@@ -410,12 +412,10 @@ public class FastAdaptiveUniformisation
 		REW_CUMUL
 	}
 
-	/** PRISM settings to read analysis parameters from */
-	private PrismSettings settings = null;
 	/** model exploration component to generate new states */
 	private ModelExplorer modelExplorer;
 	/** probability allowed to drop birth process */
-	private double termCritParam;
+	private double epsilon;
 	/** probability threshold when to drop states in discrete-time process */
 	private double delta;
 	/** number of intervals to divide time into */
@@ -466,13 +466,14 @@ public class FastAdaptiveUniformisation
 	/**
 	 * Constructor.
 	 */
-	public FastAdaptiveUniformisation(PrismSettings settings, ModelExplorer modelExplorer) throws PrismException
+	public FastAdaptiveUniformisation(PrismComponent parent, ModelExplorer modelExplorer) throws PrismException
 	{
-		maxNumStates = 0;
-		this.settings = settings;
+		super(parent);
+		
 		this.modelExplorer = modelExplorer;
+		maxNumStates = 0;
 
-		termCritParam = settings.getDouble(PrismSettings.PRISM_TERM_CRIT_PARAM);
+		epsilon = settings.getDouble(PrismSettings.PRISM_FAU_EPSILON);
 		delta = settings.getDouble(PrismSettings.PRISM_FAU_DELTA);
 		numIntervals = settings.getInteger(PrismSettings.PRISM_FAU_INTERVALS);
 		arrayThreshold = settings.getInteger(PrismSettings.PRISM_FAU_ARRAYTHRESHOLD);
@@ -604,11 +605,58 @@ public class FastAdaptiveUniformisation
 	 * If null, start from initial state (or uniform distribution over multiple initial states).
 	 * @param t Time point
 	 * @param initDistFile File containing initial distribution
+	 * @param currentModel 
 	 */
-	public StateValues doTransient(double t, File initDistFile) throws PrismException
+	public StateValues doTransient(double t, File initDistFile, Model model)
+			throws PrismException
 	{
 		StateValues initDist = null;
+		if (initDistFile != null) {
+			int numValues = countNumStates(initDistFile);
+			initDist = new StateValues(TypeDouble.getInstance(), numValues);
+			initDist.readFromFile(initDistFile);
+		}
 		return doTransient(t, initDist);
+	}
+
+	/**
+	 * Counts number of states in a file.
+	 * We need this function because the functions to read values into
+	 * StateValues object expect that these objects have been initialised with
+	 * the right number of states.
+	 * 
+	 * @param file file to count states of
+	 * @return number of states in file
+	 * @throws PrismException thrown in case of I/O errors
+	 */
+	private int countNumStates(File file) throws PrismException {
+		BufferedReader in;
+		String s;
+		int lineNum = 0, count = 0;
+
+		try {
+			// open file for reading
+			in = new BufferedReader(new FileReader(file));
+			// read remaining lines
+			s = in.readLine();
+			lineNum++;
+			while (s != null) {
+				s = s.trim();
+				if (!("".equals(s))) {
+					count++;
+				}
+				s = in.readLine();
+				lineNum++;
+			}
+			// close file
+			in.close();
+		} catch (IOException e) {
+			throw new PrismException("File I/O error reading from \"" + file + "\"");
+		} catch (NumberFormatException e) {
+			throw new PrismException("Error detected at line " + lineNum + " of file \"" + file + "\"");
+		}
+
+		return count;
 	}
 
 	/**
@@ -621,6 +669,8 @@ public class FastAdaptiveUniformisation
 	 */
 	public StateValues doTransient(double time, StateValues initDist) throws PrismException
 	{
+		mainLog.println("\nComputing probabilities (fast adaptive uniformisation)...");
+		
 		if (initDist == null) {
 			initDist = new StateValues();
 			initDist.type = TypeDouble.getInstance();
@@ -643,6 +693,10 @@ public class FastAdaptiveUniformisation
 		for (int stateNr = 0; stateNr < initDist.size; stateNr++) {
 			State initState = it.next();
 			addToModel(initState);
+		}
+		it = initDist.statesList.listIterator();
+		for (int stateNr = 0; stateNr < initDist.size; stateNr++) {
+			State initState = it.next();
 			computeStateRatesAndRewards(initState);
 			states.get(initState).setProb(values[stateNr]);
 			maxRate = Math.max(maxRate, states.get(initState).sumRates() * 1.02);			
@@ -665,6 +719,10 @@ public class FastAdaptiveUniformisation
 		probs.size = probsArr.length;
 		probs.valuesD = probsArr;
 		probs.statesList = statesList;		
+
+		mainLog.println("\nTotal probability lost is : " + getTotalDiscreteLoss());
+		mainLog.println("Maximal number of states stored during analysis : " + getMaxNumStates());
+		
 		return probs;
 	}
 
@@ -740,14 +798,14 @@ public class FastAdaptiveUniformisation
 	{
 		birthProc = new BirthProcess();
 		birthProc.setTime(interval);
-		birthProc.setTermCritParam(termCritParam);
+		birthProc.setEpsilon(epsilon);
 
 		int iters = 0;
 		birthProbSum = 0.0;
 		itersUnchanged = 0;
 		keepSumProb = false;
-		while (birthProbSum < (1 - termCritParam)) {
-			if (birthProbSum >= termCritParam/2) {
+		while (birthProbSum < (1 - epsilon)) {
+			if (birthProbSum >= epsilon/2) {
 				keepSumProb = true;
 			}
 			if ((itersUnchanged == arrayThreshold)) {
@@ -883,7 +941,7 @@ public class FastAdaptiveUniformisation
 
 		/* iterate using matrix */
 		boolean canArray = true;
-		while (birthProbSum < (1 - 1E-9) && canArray) {
+		while (birthProbSum < (1 - epsilon) && canArray) {
 			//			timer2 = System.currentTimeMillis();
 			double prob = birthProc.calculateNextProb(maxRate);
 			birthProbSum += prob;

@@ -42,7 +42,6 @@ import sparse.*;
 import strat.MDStrategyIV;
 import hybrid.*;
 import parser.ast.*;
-import parser.visitor.ASTTraverse;
 
 /*
  * Model checker for MDPs
@@ -111,12 +110,9 @@ public class NondetModelChecker extends NonProbModelChecker
 		PrismNative.setExportAdvFilename(prism.getExportAdvFilename());
 	}
 
-	// -----------------------------------------------------------------------------------
-	// Check a property, i.e. an expression
-	// -----------------------------------------------------------------------------------
+	// Model checking functions
 
-	// Check expression (recursive)
-
+	@Override
 	public StateValues checkExpression(Expression expr) throws PrismException
 	{
 		StateValues res;
@@ -153,17 +149,14 @@ public class NondetModelChecker extends NonProbModelChecker
 		return res;
 	}
 
-	// -----------------------------------------------------------------------------------
-	// Check method for each operator
-	// -----------------------------------------------------------------------------------
-
-	// P operator
-
+	/**
+	 * Model check a P operator expression and return the values for all states.
+	 */
 	protected StateValues checkExpressionProb(ExpressionProb expr) throws PrismException
 	{
 		Expression pb; // probability bound (expression)
 		double p = 0; // probability bound (actual value)
-		String relOp; // relational operator
+		RelOp relOp; // relational operator
 		boolean min; // are we finding min (true) or max (false) probs
 
 		JDDNode sol;
@@ -177,28 +170,18 @@ public class NondetModelChecker extends NonProbModelChecker
 			if (p < 0 || p > 1)
 				throw new PrismException("Invalid probability bound " + p + " in P operator");
 		}
+		min = relOp.isLowerBound();
 
 		// Check for trivial (i.e. stupid) cases
 		if (pb != null) {
-			if ((p == 0 && relOp.equals(">=")) || (p == 1 && relOp.equals("<="))) {
+			if ((p == 0 && relOp == RelOp.GEQ) || (p == 1 && relOp == RelOp.LEQ)) {
 				mainLog.printWarning("Checking for probability " + relOp + " " + p + " - formula trivially satisfies all states");
 				JDD.Ref(reach);
 				return new StateValuesMTBDD(reach, model);
-			} else if ((p == 0 && relOp.equals("<")) || (p == 1 && relOp.equals(">"))) {
+			} else if ((p == 0 && relOp == RelOp.LT) || (p == 1 && relOp == RelOp.GT)) {
 				mainLog.printWarning("Checking for probability " + relOp + " " + p + " - formula trivially satisfies no states");
 				return new StateValuesMTBDD(JDD.Constant(0), model);
 			}
-		}
-
-		// Determine whether min or max probabilities needed
-		if (relOp.equals(">") || relOp.equals(">=") || relOp.equals("min=")) {
-			// min
-			min = true;
-		} else if (relOp.equals("<") || relOp.equals("<=") || relOp.equals("max=")) {
-			// max
-			min = false;
-		} else {
-			throw new PrismException("Can't use \"P=?\" for MDPs; use \"Pmin=?\" or \"Pmax=?\"");
 		}
 
 		// Compute probabilities
@@ -227,14 +210,15 @@ public class NondetModelChecker extends NonProbModelChecker
 		}
 	}
 
-	// R operator
-
+	/**
+	 * Model check an R operator expression and return the values for all states.
+	 */
 	protected StateValues checkExpressionReward(ExpressionReward expr) throws PrismException
 	{
 		Object rs; // reward struct index
 		Expression rb; // reward bound (expression)
 		double r = 0; // reward bound (actual value)
-		String relOp; // relational operator
+		RelOp relOp; // relational operator
 		boolean min; // are we finding min (true) or max (false) rewards
 		Expression expr2; // expression
 
@@ -251,6 +235,7 @@ public class NondetModelChecker extends NonProbModelChecker
 			if (r < 0)
 				throw new PrismException("Invalid reward bound " + r + " in R operator");
 		}
+		min = relOp.isLowerBound();
 
 		// get reward info
 		if (model.getNumRewardStructs() == 0)
@@ -272,25 +257,14 @@ public class NondetModelChecker extends NonProbModelChecker
 
 		// check for trivial (i.e. stupid) cases
 		if (rb != null) {
-			if (r == 0 && relOp.equals(">=")) {
+			if (r == 0 && relOp == RelOp.GEQ) {
 				mainLog.printWarning("Checking for reward " + relOp + " " + r + " - formula trivially satisfies all states");
 				JDD.Ref(reach);
 				return new StateValuesMTBDD(reach, model);
-			} else if (r == 0 && relOp.equals("<")) {
+			} else if (r == 0 && relOp == RelOp.LT) {
 				mainLog.printWarning("Checking for reward " + relOp + " " + r + " - formula trivially satisfies no states");
 				return new StateValuesMTBDD(JDD.Constant(0), model);
 			}
-		}
-
-		// determine whether min or max rewards needed
-		if (relOp.equals(">") || relOp.equals(">=") || relOp.equals("min=")) {
-			// min
-			min = true;
-		} else if (relOp.equals("<") || relOp.equals("<=") || relOp.equals("max=")) {
-			// max
-			min = false;
-		} else {
-			throw new PrismException("Can't use \"R=?\" for MDPs; use \"Rmin=?\" or \"Rmax=?\"");
 		}
 
 		// compute rewards
@@ -298,7 +272,8 @@ public class NondetModelChecker extends NonProbModelChecker
 		if (expr2 instanceof ExpressionTemporal) {
 			switch (((ExpressionTemporal) expr2).getOperator()) {
 			case ExpressionTemporal.R_C:
-				throw new PrismException("Cumulative reward operator (C<=k) not yet supported for MDPs");
+				rewards = checkRewardCumul((ExpressionTemporal) expr2, stateRewards, transRewards, min);
+				break;
 			case ExpressionTemporal.R_I:
 				rewards = checkRewardInst((ExpressionTemporal) expr2, stateRewards, transRewards, min);
 				break;
@@ -336,22 +311,19 @@ public class NondetModelChecker extends NonProbModelChecker
 	protected void extractInfoFromMultiObjectiveOperand(Expression operand, OpsAndBoundsList opsAndBounds, List<JDDNode> rewardsIndex, List<String> targetName,
 			List<Expression> targetExprs, boolean isFirst) throws PrismException
 	{
-		String relOp;
 		int stepBound = 0;
 		ExpressionProb exprProb = null;
 		ExpressionReward exprReward = null;
 		ExpressionTemporal exprTemp;
-		// Only do P or R operators
-		if (!(operand instanceof ExpressionProb || operand instanceof ExpressionReward))
-			throw new PrismException("Multiple objectives must be P or R operators");
-		//if (expr.getOperand(i) instanceof ExpressionReward && i > 0)
-		//	throw new PrismException("R operator can only be used as first argument of multi function");
+		RelOp relOp;
 		if (operand instanceof ExpressionProb) {
 			exprProb = (ExpressionProb) operand;
 			exprReward = null;
-		} else {
+			relOp = exprProb.getRelOp();
+		} else if (operand instanceof ExpressionReward) {
 			exprReward = (ExpressionReward) operand;
 			exprProb = null;
+			relOp = exprReward.getRelOp();
 			Object rs = exprReward.getRewardStructIndex();
 			JDDNode transRewards = null;
 			JDDNode stateRewards = null;
@@ -376,6 +348,8 @@ public class NondetModelChecker extends NonProbModelChecker
 			if (transRewards == null)
 				throw new PrismException("Invalid reward structure index \"" + rs + "\"");
 			rewardsIndex.add(transRewards);
+		} else {
+			throw new PrismException("Multi-objective properties can only contain P and R operators");
 		}
 		// Get the cumulative step bound for reward 
 		if (exprReward != null) {
@@ -409,23 +383,17 @@ public class NondetModelChecker extends NonProbModelChecker
 		}
 
 		// Get info from P/R operator
-		// Store relational operator as an integer
-		// Only do max=? or lower bounds
-		relOp = (exprProb != null) ? exprProb.getRelOp() : exprReward.getRelOp();
+		// Store relational operator
+		if (relOp.isStrict())
+			throw new PrismException("Multi-objective properties can not use strict inequalities on P/R operators");
 		Operator op;
-		if (relOp.equals("max=")) {
+		if (relOp == RelOp.MAX) {
 			op = (exprProb != null) ? Operator.P_MAX : Operator.R_MAX;
-		} else if (relOp.equals(">")) // currently do not support
-			//relOps.add(1);
-			throw new PrismException("Multi-objective properties can not use strict inequalities on P/R operators");
-		else if (relOp.equals(">=")) {
+		} else if (relOp == RelOp.GEQ) {
 			op = (exprProb != null) ? Operator.P_GE : Operator.R_GE;
-		} else if (relOp.equals("min=")) {
+		} else if (relOp == RelOp.MIN) {
 			op = (exprProb != null) ? Operator.P_MIN : Operator.R_MIN;
-		} else if (relOp.equals("<")) // currently do not support
-			//relOps.add(6);
-			throw new PrismException("Multi-objective properties can not use strict inequalities on P/R operators");
-		else if (relOp.equals("<=")) {
+		} else if (relOp == RelOp.LEQ) {
 			op = (exprProb != null) ? Operator.P_LE : Operator.R_LE;
 		} else
 			throw new PrismException("Multi-objective properties can only contain P/R operators with max/min=? or lower/upper probability bounds");
@@ -437,7 +405,7 @@ public class NondetModelChecker extends NonProbModelChecker
 				throw new PrismException("Invalid probability bound " + p + " in P operator");
 			if ((exprProb == null) && (p < 0))
 				throw new PrismException("Invalid reward bound " + p + " in P operator");
-			if (exprProb != null && relOp.equals("<="))
+			if (exprProb != null && relOp == RelOp.LEQ)
 				p = 1 - p;
 
 			opsAndBounds.add(op, p, stepBound);
@@ -555,7 +523,7 @@ public class NondetModelChecker extends NonProbModelChecker
 				Vector<JDDNode> tmptargetDDs = new Vector<JDDNode>();
 				List<JDDNode> tmpmultitargetDDs = new ArrayList<JDDNode>();
 				List<Integer> tmpmultitargetIDs = new ArrayList<Integer>();
-				ArrayList<DRA> tmpdra = new ArrayList<DRA>();
+				ArrayList<DRA<BitSet>> tmpdra = new ArrayList<DRA<BitSet>>();
 				ArrayList<JDDVars> tmpdraDDRowVars = new ArrayList<JDDVars>();
 				ArrayList<JDDVars> tmpdraDDColVars = new ArrayList<JDDVars>();
 				int count = 0;
@@ -676,32 +644,6 @@ public class NondetModelChecker extends NonProbModelChecker
 				for (JDDNode n : tmpLH)
 					JDD.Deref(n);
 			}
-	}
-
-	/**
-	 * This function throws an exception if the parameter expr contains
-	 * a subexpression which is a time-bounded operator.
-	 * @param expr A multi objective 
-	 * @throws PrismException
-	 */
-	protected void ensureNoTimeBounded(ExpressionFunc expr) throws PrismException
-	{
-		try {
-			expr.accept(new ASTTraverse()
-			{
-				public void visitPre(ExpressionTemporal e) throws PrismLangException
-				{
-					if (e.getLowerBound() != null)
-						throw new PrismLangException(e.getOperatorSymbol());
-					if (e.getUpperBound() != null)
-						throw new PrismLangException(e.getOperatorSymbol());
-				}
-			});
-		} catch (PrismLangException e) {
-			String s = "Temporal operators (like " + e.getMessage() + ")";
-			s += " cannot have time bounds for multi-objective properties";
-			throw new PrismException(s);
-		}
 	}
 
 	protected void addDummyFormula(NondetModel modelProduct, LTLModelChecker mcLtl, List<JDDNode> targetDDs, OpsAndBoundsList opsAndBounds)
@@ -844,10 +786,12 @@ public class NondetModelChecker extends NonProbModelChecker
 		List<JDDNode> rewards = new ArrayList<JDDNode>(numTargets);
 		List<JDDNode> rewardsIndex = new ArrayList<JDDNode>(numTargets);
 
-		// No time-bounded variants of the temporal operators allowed for multi-objective (or LTL)
+		// Can't do LTL with time-bounded variants of the temporal operators
 		// TODO removed since it is allowed for valiter.
 		// TODO make sure it is treated correctly for all params
-		//ensureNoTimeBounded(expr);
+		/*if (Expression.containsTemporalTimeBounds(expr)) {
+			throw new PrismException("Time-bounded operators not supported in LTL: " + expr);
+		}*/
 
 		ArrayList<String> targetName = new ArrayList<String>();
 		targetExprs = new ArrayList<Expression>(numTargets);
@@ -1215,8 +1159,11 @@ public class NondetModelChecker extends NonProbModelChecker
 			JDD.Deref(ec);
 	}
 
-	// Contents of a P operator, i.e. a path formula
-
+	// Model checking functions
+	
+	/**
+	 * Compute probabilities for the contents of a P operator.
+	 */
 	protected StateValues checkProbPathFormula(Expression expr, boolean qual, boolean min) throws PrismException
 	{
 		// Test whether this is a simple path formula (i.e. PCTL)
@@ -1228,8 +1175,9 @@ public class NondetModelChecker extends NonProbModelChecker
 		}
 	}
 
-	// Simple path formula for P operator (one temporal op, possibly negated)
-
+	/**
+	 * Compute probabilities for a simple, non-LTL path operator.
+	 */
 	protected StateValues checkProbPathFormulaSimple(Expression expr, boolean qual, boolean min) throws PrismException
 	{
 		StateValues probs = null;
@@ -1276,130 +1224,9 @@ public class NondetModelChecker extends NonProbModelChecker
 		return probs;
 	}
 
-	// LTL-like path formula for P operator
-
-	protected StateValues checkProbPathFormulaLTL(Expression expr, boolean qual, boolean min) throws PrismException
-	{
-		LTLModelChecker mcLtl;
-		StateValues probsProduct = null, probs = null;
-		Expression ltl;
-		Vector<JDDNode> labelDDs;
-		DRA dra;
-		NondetModel modelProduct;
-		NondetModelChecker mcProduct;
-		JDDNode startMask;
-		JDDVars draDDRowVars, draDDColVars;
-		int i;
-		long l;
-
-		// Can't do LTL with time-bounded variants of the temporal operators
-		try {
-			expr.accept(new ASTTraverse()
-			{
-				public void visitPre(ExpressionTemporal e) throws PrismLangException
-				{
-					if (e.getLowerBound() != null)
-						throw new PrismLangException(e.getOperatorSymbol());
-					if (e.getUpperBound() != null)
-						throw new PrismLangException(e.getOperatorSymbol());
-				}
-			});
-		} catch (PrismLangException e) {
-			String s = "Temporal operators (like " + e.getMessage() + ")";
-			s += " cannot have time bounds for LTL properties";
-			throw new PrismException(s);
-		}
-
-		// Can't do "dfa" properties yet
-		if (expr instanceof ExpressionFunc && ((ExpressionFunc) expr).getName().equals("dfa")) {
-			throw new PrismException("Model checking for \"dfa\" specifications not supported yet");
-		}
-
-		// For LTL model checking routines
-		mcLtl = new LTLModelChecker(prism);
-
-		// Model check maximal state formulas
-		labelDDs = new Vector<JDDNode>();
-		ltl = mcLtl.checkMaximalStateFormulas(this, model, expr.deepCopy(), labelDDs);
-
-		// Convert LTL formula to deterministic Rabin automaton (DRA)
-		// For min probabilities, need to negate the formula
-		// (But check fairness setting since this may affect min/max)
-		// (add parentheses to allow re-parsing if required)
-		if (min && !fairness) {
-			ltl = Expression.Not(Expression.Parenth(ltl));
-		}
-		mainLog.println("\nBuilding deterministic Rabin automaton (for " + ltl + ")...");
-		l = System.currentTimeMillis();
-		dra = LTLModelChecker.convertLTLFormulaToDRA(ltl);
-		mainLog.println("\nDRA has " + dra.size() + " states, " + dra.getNumAcceptancePairs() + " pairs.");
-		/*try{
-			mainLog.println("Printing dra...   ");
-			dra.print(System.out);
-			dra.printDot(new java.io.PrintStream("dra.dot"));
-			mainLog.println("done...   ");
-		} catch(Exception e) {}*/
-		l = System.currentTimeMillis() - l;
-		mainLog.println("\nTime for Rabin translation: " + l / 1000.0 + " seconds.");
-
-		// Build product of MDP and automaton
-		mainLog.println("\nConstructing MDP-DRA product...");
-		draDDRowVars = new JDDVars();
-		draDDColVars = new JDDVars();
-		modelProduct = mcLtl.constructProductMDP(dra, model, labelDDs, draDDRowVars, draDDColVars);
-		mainLog.println();
-		modelProduct.printTransInfo(mainLog, prism.getExtraDDInfo());
-		// Output product, if required
-		if (prism.getExportProductTrans()) {
-			try {
-				mainLog.println("\nExporting product transition matrix to file \"" + prism.getExportProductTransFilename() + "\"...");
-				modelProduct.exportToFile(Prism.EXPORT_PLAIN, true, new File(prism.getExportProductTransFilename()));
-			} catch (FileNotFoundException e) {
-				mainLog.printWarning("Could not export product transition matrix to file \"" + prism.getExportProductTransFilename() + "\"");
-			}
-		}
-		if (prism.getExportProductStates()) {
-			mainLog.println("\nExporting product state space to file \"" + prism.getExportProductStatesFilename() + "\"...");
-			modelProduct.exportStates(Prism.EXPORT_PLAIN, new PrismFileLog(prism.getExportProductStatesFilename()));
-		}
-
-		// Find accepting MECs + compute reachability probabilities
-		mainLog.println("\nFinding accepting end components...");
-		JDDNode acc = mcLtl.findAcceptingECStatesForRabin(dra, modelProduct, draDDRowVars, draDDColVars, fairness);
-		mainLog.println("\nComputing reachability probabilities...");
-		mcProduct = new NondetModelChecker(prism, modelProduct, null);
-		probsProduct = mcProduct.checkProbUntil(modelProduct.getReach(), acc, qual, min && fairness);
-
-		// subtract from 1 if we're model checking a negated formula for regular Pmin
-		if (min && !fairness) {
-			probsProduct.subtractFromOne();
-		}
-
-		// Convert probability vector to original model
-		// First, filter over DRA start states
-		startMask = mcLtl.buildStartMask(dra, labelDDs, draDDRowVars);
-		JDD.Ref(model.getReach());
-		startMask = JDD.And(model.getReach(), startMask);
-		probsProduct.filter(startMask);
-		// Then sum over DD vars for the DRA state
-		probs = probsProduct.sumOverDDVars(draDDRowVars, model);
-
-		// Deref, clean up
-		probsProduct.clear();
-		modelProduct.clear();
-		for (i = 0; i < labelDDs.size(); i++) {
-			JDD.Deref(labelDDs.get(i));
-		}
-		JDD.Deref(acc);
-		JDD.Deref(startMask);
-		draDDRowVars.derefAll();
-		draDDColVars.derefAll();
-
-		return probs;
-	}
-
-	// next
-
+	/**
+	 * Compute probabilities for a next operator.
+	 */
 	protected StateValues checkProbNext(ExpressionTemporal expr, boolean min) throws PrismException
 	{
 		JDDNode b;
@@ -1421,8 +1248,9 @@ public class NondetModelChecker extends NonProbModelChecker
 		return probs;
 	}
 
-	// bounded until
-
+	/**
+	 * Compute probabilities for a bounded until operator.
+	 */
 	protected StateValues checkProbBoundedUntil(ExpressionTemporal expr, boolean min) throws PrismException
 	{
 		int time;
@@ -1477,10 +1305,10 @@ public class NondetModelChecker extends NonProbModelChecker
 		return probs;
 	}
 
-	// until (unbounded)
-
-	// this method is split into two steps so that the LTL model checker can use the second part directly
-
+	/**
+	 * Compute probabilities for an (unbounded) until operator.
+	 * Note: This method is split into two steps so that the LTL model checker can use the second part directly.
+	 */
 	protected StateValues checkProbUntil(ExpressionTemporal expr, boolean qual, boolean min) throws PrismException
 	{
 		JDDNode b1, b2;
@@ -1516,8 +1344,13 @@ public class NondetModelChecker extends NonProbModelChecker
 		return probs;
 	}
 
-	// until (unbounded): b1/b2 are bdds for until operands
-
+	/**
+	 * Compute probabilities for an (unbounded) until operator.
+	 * @param b1 Remain in these states
+	 * @param b2 Target states
+	 * @param qual True if only qualititative (0/1) results are needed
+	 * @param min Min or max probabilities (true=min, false=max)
+	 */
 	protected StateValues checkProbUntil(JDDNode b1, JDDNode b2, boolean qual, boolean min) throws PrismException
 	{
 		JDDNode splus, newb1, newb2;
@@ -1592,8 +1425,153 @@ public class NondetModelChecker extends NonProbModelChecker
 		return probs;
 	}
 
-	// inst reward
+	/**
+	 * Compute probabilities for an LTL path formula
+	 */
+	protected StateValues checkProbPathFormulaLTL(Expression expr, boolean qual, boolean min) throws PrismException
+	{
+		LTLModelChecker mcLtl;
+		StateValues probsProduct = null, probs = null;
+		Expression ltl;
+		Vector<JDDNode> labelDDs;
+		DRA<BitSet> dra;
+		NondetModel modelProduct;
+		NondetModelChecker mcProduct;
+		JDDNode startMask;
+		JDDVars draDDRowVars, draDDColVars;
+		int i;
+		long l;
 
+		// Can't do LTL with time-bounded variants of the temporal operators
+		if (Expression.containsTemporalTimeBounds(expr)) {
+			throw new PrismException("Time-bounded operators not supported in LTL: " + expr);
+		}
+
+		// Can't do "dfa" properties yet
+		if (expr instanceof ExpressionFunc && ((ExpressionFunc) expr).getName().equals("dfa")) {
+			throw new PrismException("Model checking for \"dfa\" specifications not supported yet");
+		}
+
+		// For LTL model checking routines
+		mcLtl = new LTLModelChecker(prism);
+
+		// Model check maximal state formulas
+		labelDDs = new Vector<JDDNode>();
+		ltl = mcLtl.checkMaximalStateFormulas(this, model, expr.deepCopy(), labelDDs);
+
+		// Convert LTL formula to deterministic Rabin automaton (DRA)
+		// For min probabilities, need to negate the formula
+		// (But check fairness setting since this may affect min/max)
+		// (add parentheses to allow re-parsing if required)
+		if (min && !fairness) {
+			ltl = Expression.Not(Expression.Parenth(ltl));
+		}
+		mainLog.println("\nBuilding deterministic Rabin automaton (for " + ltl + ")...");
+		l = System.currentTimeMillis();
+		dra = LTLModelChecker.convertLTLFormulaToDRA(ltl);
+		mainLog.println("\nDRA has " + dra.size() + " states, " + dra.getNumAcceptancePairs() + " pairs.");
+		/*try {
+			mainLog.print(dra);
+			dra.printDot(new java.io.PrintStream("dra.dot"));
+		} catch(Exception e) {}*/
+		l = System.currentTimeMillis() - l;
+		mainLog.println("\nTime for Rabin translation: " + l / 1000.0 + " seconds.");
+
+		// Build product of MDP and automaton
+		mainLog.println("\nConstructing MDP-DRA product...");
+		draDDRowVars = new JDDVars();
+		draDDColVars = new JDDVars();
+		modelProduct = mcLtl.constructProductMDP(dra, model, labelDDs, draDDRowVars, draDDColVars);
+		mainLog.println();
+		modelProduct.printTransInfo(mainLog, prism.getExtraDDInfo());
+		// Output product, if required
+		if (prism.getExportProductTrans()) {
+			try {
+				mainLog.println("\nExporting product transition matrix to file \"" + prism.getExportProductTransFilename() + "\"...");
+				modelProduct.exportToFile(Prism.EXPORT_PLAIN, true, new File(prism.getExportProductTransFilename()));
+			} catch (FileNotFoundException e) {
+				mainLog.printWarning("Could not export product transition matrix to file \"" + prism.getExportProductTransFilename() + "\"");
+			}
+		}
+		if (prism.getExportProductStates()) {
+			mainLog.println("\nExporting product state space to file \"" + prism.getExportProductStatesFilename() + "\"...");
+			PrismFileLog out = new PrismFileLog(prism.getExportProductStatesFilename());
+			modelProduct.exportStates(Prism.EXPORT_PLAIN, out);
+			out.close();
+		}
+
+		// Find accepting MECs + compute reachability probabilities
+		mainLog.println("\nFinding accepting end components...");
+		JDDNode acc = mcLtl.findAcceptingECStatesForRabin(dra, modelProduct, draDDRowVars, draDDColVars, fairness);
+		mainLog.println("\nComputing reachability probabilities...");
+		mcProduct = new NondetModelChecker(prism, modelProduct, null);
+		probsProduct = mcProduct.checkProbUntil(modelProduct.getReach(), acc, qual, min && fairness);
+
+		// subtract from 1 if we're model checking a negated formula for regular Pmin
+		if (min && !fairness) {
+			probsProduct.subtractFromOne();
+		}
+
+		// Convert probability vector to original model
+		// First, filter over DRA start states
+		startMask = mcLtl.buildStartMask(dra, labelDDs, draDDRowVars);
+		JDD.Ref(model.getReach());
+		startMask = JDD.And(model.getReach(), startMask);
+		probsProduct.filter(startMask);
+		// Then sum over DD vars for the DRA state
+		probs = probsProduct.sumOverDDVars(draDDRowVars, model);
+
+		// Deref, clean up
+		probsProduct.clear();
+		modelProduct.clear();
+		for (i = 0; i < labelDDs.size(); i++) {
+			JDD.Deref(labelDDs.get(i));
+		}
+		JDD.Deref(acc);
+		JDD.Deref(startMask);
+		draDDRowVars.derefAll();
+		draDDColVars.derefAll();
+
+		return probs;
+	}
+
+	/**
+	 * Compute rewards for a cumulative reward operator.
+	 */
+	protected StateValues checkRewardCumul(ExpressionTemporal expr, JDDNode stateRewards, JDDNode transRewards, boolean min) throws PrismException
+	{
+		int time; // time
+		StateValues rewards = null;
+
+		// check that there is an upper time bound
+		if (expr.getUpperBound() == null) {
+			throw new PrismException("Cumulative reward operator without time bound (C) is only allowed for multi-objective queries");
+		}
+
+		// get info from inst reward
+		time = expr.getUpperBound().evaluateInt(constantValues);
+		if (time < 0) {
+			throw new PrismException("Invalid time bound " + time + " in cumulative reward formula");
+		}
+
+		// a trivial case: "<=0"
+		if (time == 0) {
+			rewards = new StateValuesMTBDD(JDD.Constant(0), model);
+		} else {
+			// compute rewards
+			try {
+				rewards = computeCumulRewards(trans, stateRewards, transRewards, time, min);
+			} catch (PrismException e) {
+				throw e;
+			}
+		}
+
+		return rewards;
+	}
+
+	/**
+	 * Compute rewards for an instantaneous reward operator.
+	 */
 	protected StateValues checkRewardInst(ExpressionTemporal expr, JDDNode stateRewards, JDDNode transRewards, boolean min) throws PrismException
 	{
 		int time; // time bound
@@ -1611,8 +1589,9 @@ public class NondetModelChecker extends NonProbModelChecker
 		return rewards;
 	}
 
-	// reach reward
-
+	/**
+	 * Compute rewards for a reachability reward operator.
+	 */
 	protected StateValues checkRewardReach(ExpressionTemporal expr, JDDNode stateRewards, JDDNode transRewards, boolean min) throws PrismException
 	{
 		JDDNode b;
@@ -2162,6 +2141,36 @@ public class NondetModelChecker extends NonProbModelChecker
 		}
 		
 		return value;
+	}
+
+	// compute cumulative rewards
+
+	protected StateValues computeCumulRewards(JDDNode tr, JDDNode sr, JDDNode trr, int time, boolean min) throws PrismException
+	{
+		DoubleVector rewardsDV;
+		StateValues rewards = null;
+
+		// compute rewards
+		mainLog.println("\nComputing rewards...");
+		mainLog.println("Engine: " + Prism.getEngineString(engine));
+		try {
+			switch (engine) {
+			case Prism.MTBDD:
+				throw new PrismException("MTBDD engine does not yet support this type of property (use the sparse engine instead)");
+			case Prism.SPARSE:
+				rewardsDV = PrismSparse.NondetCumulReward(tr, sr, trr, odd, allDDRowVars, allDDColVars, allDDNondetVars, time, min);
+				rewards = new StateValuesDV(rewardsDV, model);
+				break;
+			case Prism.HYBRID:
+				throw new PrismException("Hybrid engine does not yet support this type of property (use the sparse engine instead)");
+			default:
+				throw new PrismException("Unknown engine");
+			}
+		} catch (PrismException e) {
+			throw e;
+		}
+
+		return rewards;
 	}
 
 	// compute rewards for inst reward

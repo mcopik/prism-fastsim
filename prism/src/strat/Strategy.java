@@ -45,6 +45,21 @@ public interface Strategy
 	public void exportActions(PrismLog out);
 	
 	/**
+	 * Export the strategy to a PrismLog, displaying strategy choices as indices.
+	 */
+	public void exportIndices(PrismLog out);
+	
+	/**
+	 * Export the model induced by this strategy to a PrismLog.
+	 */
+	public void exportInducedModel(PrismLog out);
+	
+	/**
+	 * Export the strategy to a dot file (of the model showing the strategy).
+	 */
+	public void exportDotFile(PrismLog out);
+	
+	/**
 	 * Initialise the strategy, based on an initial model state.
 	 * @param s Initial state of the model
 	 */
@@ -55,7 +70,7 @@ public interface Strategy
 	 * @param action The action taken in the previous state of the model
 	 * @param s The new state of the model
 	 */
-	public void update(int action, int s);
+	public void update(Object action, int s);
 	
 	/**
 	 * Get the action chosen by the strategy in the current state (assuming it is deterministic). 

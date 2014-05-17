@@ -70,7 +70,7 @@ public class SimulationInformation
 	private double width;
 	private double confidence;
 	private int numSamples;
-	private int maxPathLength;
+	private long maxPathLength;
 
 	private boolean distributed;
 	private boolean maxRewardGiven;
@@ -91,7 +91,7 @@ public class SimulationInformation
 		this.width = settings.getDouble(PrismSettings.SIMULATOR_DEFAULT_WIDTH);
 		this.confidence = settings.getDouble(PrismSettings.SIMULATOR_DEFAULT_CONFIDENCE);
 		this.numSamples = settings.getInteger(PrismSettings.SIMULATOR_DEFAULT_NUM_SAMPLES);
-		this.maxPathLength = settings.getInteger(PrismSettings.SIMULATOR_DEFAULT_MAX_PATH);
+		this.maxPathLength = settings.getLong(PrismSettings.SIMULATOR_DEFAULT_MAX_PATH);
 
 		this.distributed = false;
 
@@ -232,7 +232,7 @@ public class SimulationInformation
 	 * Getter for property maxPathLength.
 	 * @return Value of property maxPathLength.
 	 */
-	public int getMaxPathLength()
+	public long getMaxPathLength()
 	{
 		return maxPathLength;
 	}
@@ -241,7 +241,7 @@ public class SimulationInformation
 	 * Setter for property maxPathLength.
 	 * @param maxPathLength New value of property maxPathLength.
 	 */
-	public void setMaxPathLength(int maxPathLength)
+	public void setMaxPathLength(long maxPathLength)
 	{
 		this.maxPathLength = maxPathLength;
 	}

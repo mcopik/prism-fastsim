@@ -41,6 +41,7 @@ import java.util.Map.Entry;
 
 import prism.PrismException;
 import prism.PrismUtils;
+import explicit.rewards.MCRewards;
 import explicit.rewards.MDPRewards;
 
 /**
@@ -508,7 +509,7 @@ public class MDPSimple extends MDPExplicit implements NondetModelSimple
 	}
 
 	// Accessors (for NondetModel)
-	
+
 	@Override
 	public int getNumChoices(int s)
 	{
@@ -547,13 +548,13 @@ public class MDPSimple extends MDPExplicit implements NondetModelSimple
 	{
 		return trans.get(s).get(i).isSubsetOf(set);
 	}
-	
+
 	@Override
 	public boolean someSuccessorsInSet(int s, int i, BitSet set)
 	{
 		return trans.get(s).get(i).containsOneOf(set);
 	}
-	
+
 	// Accessors (for MDP)
 
 	@Override
@@ -672,6 +673,13 @@ public class MDPSimple extends MDPExplicit implements NondetModelSimple
 	}
 
 	@Override
+	public boolean prob1stepSingle(int s, int i, BitSet u, BitSet v)
+	{
+		Distribution distr = trans.get(s).get(i);
+		return distr.containsOneOf(v) && distr.isSubsetOf(u);
+	}
+
+	@Override
 	public double mvMultMinMaxSingle(int s, double vect[], boolean min, int strat[])
 	{
 		int j, k, stratCh = -1;
@@ -748,11 +756,12 @@ public class MDPSimple extends MDPExplicit implements NondetModelSimple
 	}
 
 	@Override
-	public double mvMultSingle(int s, int k, double vect[])
+	public double mvMultSingle(int s, int i, double vect[])
 	{
 		double d, prob;
+		int k;
 
-		Distribution distr = trans.get(s).get(k);
+		Distribution distr = trans.get(s).get(i);
 		// Compute sum for this distribution
 		d = 0.0;
 		for (Map.Entry<Integer, Double> e : distr) {
@@ -816,19 +825,20 @@ public class MDPSimple extends MDPExplicit implements NondetModelSimple
 	}
 
 	@Override
-	public double mvMultJacSingle(int s, int k, double vect[])
+	public double mvMultJacSingle(int s, int i, double vect[])
 	{
 		double diag, d, prob;
+		int k;
 		Distribution distr;
 
-		distr = trans.get(s).get(k);
+		distr = trans.get(s).get(i);
 		diag = 1.0;
 		// Compute sum for this distribution
 		d = 0.0;
 		for (Map.Entry<Integer, Double> e : distr) {
 			k = (Integer) e.getKey();
 			prob = (Double) e.getValue();
-			if (k != s) {
+			if (i != s) {
 				d += prob * vect[k];
 			} else {
 				diag -= prob;
@@ -885,6 +895,27 @@ public class MDPSimple extends MDPExplicit implements NondetModelSimple
 		return minmax;
 	}
 
+	@Override
+	public double mvMultRewSingle(int s, int i, double[] vect, MCRewards mcRewards)
+	{
+		double d, prob;
+		int k;
+
+		Distribution distr = trans.get(s).get(i);
+		// Compute sum for this distribution
+		// TODO: use transition rewards when added to DTMCss
+		// d = mcRewards.getTransitionReward(s);
+		d = 0;
+		for (Map.Entry<Integer, Double> e : distr) {
+			k = (Integer) e.getKey();
+			prob = (Double) e.getValue();
+			d += prob * vect[k];
+		}
+		d += mcRewards.getStateReward(s);
+		
+		return d;
+	}
+	
 	@Override
 	public double mvMultRewJacMinMaxSingle(int s, double vect[], MDPRewards mdpRewards, boolean min, int strat[])
 	{
@@ -960,6 +991,7 @@ public class MDPSimple extends MDPExplicit implements NondetModelSimple
 				prob = (Double) e.getValue();
 				d += prob * vect[k];
 			}
+			d += mdpRewards.getStateReward(s);
 			// Store strategy info if value matches
 			//if (PrismUtils.doublesAreClose(val, d, termCritParam, termCrit == TermCrit.ABSOLUTE)) {
 			if (PrismUtils.doublesAreClose(val, d, 1e-12, false)) {

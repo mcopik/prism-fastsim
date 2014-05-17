@@ -68,7 +68,7 @@ public class SamplerBoundedUntilDisc extends SamplerBoolean
 		if (valueKnown)
 			return true;
 
-		int pathSize = path.size();
+		long pathSize = path.size();
 		// Upper bound exceeded
 		if (pathSize > ub) {
 			valueKnown = true;

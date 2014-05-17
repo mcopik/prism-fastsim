@@ -28,7 +28,6 @@ package explicit;
 
 import java.util.BitSet;
 import java.util.Iterator;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Vector;
@@ -36,17 +35,18 @@ import java.util.Vector;
 import parser.ast.Expression;
 import parser.ast.ExpressionTemporal;
 import parser.ast.ExpressionUnaryOp;
-import parser.visitor.ASTTraverse;
+import parser.type.TypeDouble;
 import prism.DRA;
 import prism.Pair;
 import prism.PrismComponent;
 import prism.PrismDevNullLog;
 import prism.PrismException;
 import prism.PrismFileLog;
-import prism.PrismLangException;
 import prism.PrismLog;
 import prism.PrismUtils;
 import strat.MDStrategyArray;
+import explicit.rewards.MCRewards;
+import explicit.rewards.MCRewardsFromMDPRewards;
 import explicit.rewards.MDPRewards;
 
 /**
@@ -226,23 +226,10 @@ public class MDPModelChecker extends ProbModelChecker
 		long time;
 
 		// Can't do LTL with time-bounded variants of the temporal operators
-		try {
-			expr.accept(new ASTTraverse()
-			{
-				public void visitPre(ExpressionTemporal e) throws PrismLangException
-				{
-					if (e.getLowerBound() != null)
-						throw new PrismLangException(e.getOperatorSymbol());
-					if (e.getUpperBound() != null)
-						throw new PrismLangException(e.getOperatorSymbol());
-				}
-			});
-		} catch (PrismLangException e) {
-			String s = "Temporal operators (like " + e.getMessage() + ")";
-			s += " cannot have time bounds for LTL properties";
-			throw new PrismException(s);
+		if (Expression.containsTemporalTimeBounds(expr)) {
+			throw new PrismException("Time-bounded operators not supported in LTL: " + expr);
 		}
-
+		
 		// For LTL model checking routines
 		mcLtl = new LTLModelChecker(this);
 
@@ -277,6 +264,7 @@ public class MDPModelChecker extends ProbModelChecker
 		BitSet acceptingMECs = mcLtl.findAcceptingECStatesForRabin(dra, modelProduct, invMap);
 		mainLog.println("\nComputing reachability probabilities...");
 		mcProduct = new MDPModelChecker(this);
+		mcProduct.inheritSettings(this);
 		probsProduct = StateValues.createFromDoubleArray(mcProduct.computeReachProbs((MDP) modelProduct, acceptingMECs, false).soln, modelProduct);
 
 		// Subtract from 1 if we're model checking a negated formula for regular Pmin
@@ -289,15 +277,11 @@ public class MDPModelChecker extends ProbModelChecker
 		double[] probsProductDbl = probsProduct.getDoubleArray();
 		double[] probsDbl = new double[model.getNumStates()];
 
-		LinkedList<Integer> queue = new LinkedList<Integer>();
-		for (int s : model.getInitialStates())
-			queue.add(s);
-
-		for (int i = 0; i < invMap.length; i++) {
-			int j = invMap[i];
-			int s = j / draSize;
-			// TODO: check whether this is the right way to compute probabilities in the original model
-			probsDbl[s] = Math.max(probsDbl[s], probsProductDbl[i]);
+		// Get the probabilities for the original model by taking the initial states
+		// of the product and projecting back to the states of the original model
+		for (int i : modelProduct.getInitialStates()) {
+			int s = invMap[i] / draSize;
+			probsDbl[s] = probsProductDbl[i];
 		}
 
 		probs = StateValues.createFromDoubleArray(probsDbl, model);
@@ -316,6 +300,9 @@ public class MDPModelChecker extends ProbModelChecker
 		if (expr instanceof ExpressionTemporal) {
 			ExpressionTemporal exprTemp = (ExpressionTemporal) expr;
 			switch (exprTemp.getOperator()) {
+			case ExpressionTemporal.R_C:
+				rewards = checkRewardCumul(model, modelRewards, exprTemp, min);
+				break;
 			case ExpressionTemporal.R_F:
 				rewards = checkRewardReach(model, modelRewards, exprTemp, min);
 				break;
@@ -326,6 +313,43 @@ public class MDPModelChecker extends ProbModelChecker
 
 		if (rewards == null)
 			throw new PrismException("Unrecognised operator in R operator");
+
+		return rewards;
+	}
+
+	/**
+	 * Compute rewards for a cumulative reward operator.
+	 */
+	protected StateValues checkRewardCumul(NondetModel model, MDPRewards modelRewards, ExpressionTemporal expr, boolean min) throws PrismException
+	{
+		int time; // time
+		StateValues rewards = null;
+		ModelCheckerResult res = null;
+
+		// check that there is an upper time bound
+		if (expr.getUpperBound() == null) {
+			throw new PrismException("Cumulative reward operator without time bound (C) is only allowed for multi-objective queries");
+		}
+
+		// get info from inst reward
+		time = expr.getUpperBound().evaluateInt(constantValues);
+		if (time < 0) {
+			throw new PrismException("Invalid time bound " + time + " in cumulative reward formula");
+		}
+
+		// a trivial case: "<=0"
+		if (time == 0) {
+			rewards = new StateValues(TypeDouble.getInstance(), model.getNumStates(), new Double(0));
+		} else {
+			// compute rewards
+			try {
+				res = computeCumulRewards((MDP) model, modelRewards, time, min);
+				rewards = StateValues.createFromDoubleArray(res.soln, model);
+				result.setStrategy(res.strat);
+			} catch (PrismException e) {
+				throw e;
+			}
+		}
 
 		return rewards;
 	}
@@ -560,6 +584,7 @@ public class MDPModelChecker extends ProbModelChecker
 			// Export
 			PrismLog out = new PrismFileLog(exportAdvFilename);
 			new DTMCFromMDPMemorylessAdversary(mdp, strat).exportToPrismExplicitTra(out);
+			out.close();
 		}
 
 		// Update time taken
@@ -839,8 +864,8 @@ public class MDPModelChecker extends ProbModelChecker
 		mainLog.print("Value iteration (" + (min ? "min" : "max") + ")");
 		mainLog.println(" took " + iters + " iterations and " + timer / 1000.0 + " seconds.");
 
-		// Non-convergence is an error
-		if (!done) {
+		// Non-convergence is an error (usually)
+		if (!done && errorOnNonConverge) {
 			String msg = "Iterative method did not converge within " + iters + " iterations.";
 			msg += "\nConsider using a different numerical method or increasing the maximum number of iterations";
 			throw new PrismException(msg);
@@ -926,8 +951,8 @@ public class MDPModelChecker extends ProbModelChecker
 		mainLog.print("Gauss-Seidel");
 		mainLog.println(" took " + iters + " iterations and " + timer / 1000.0 + " seconds.");
 
-		// Non-convergence is an error
-		if (!done) {
+		// Non-convergence is an error (usually)
+		if (!done && errorOnNonConverge) {
 			String msg = "Iterative method did not converge within " + iters + " iterations.";
 			msg += "\nConsider using a different numerical method or increasing the maximum number of iterations";
 			throw new PrismException(msg);
@@ -943,6 +968,7 @@ public class MDPModelChecker extends ProbModelChecker
 
 	/**
 	 * Compute reachability probabilities using policy iteration.
+	 * Optionally, store optimal (memoryless) strategy info. 
 	 * @param mdp: The MDP
 	 * @param no: Probability 0 states
 	 * @param yes: Probability 1 states
@@ -962,7 +988,7 @@ public class MDPModelChecker extends ProbModelChecker
 		// Re-use solution to solve each new policy (strategy)?
 		boolean reUseSoln = true;
 
-		// Start value iteration
+		// Start policy iteration
 		timer = System.currentTimeMillis();
 		mainLog.println("Starting policy iteration (" + (min ? "min" : "max") + ")...");
 
@@ -1067,6 +1093,7 @@ public class MDPModelChecker extends ProbModelChecker
 
 		// Limit iters for DTMC solution - this implements "modified" policy iteration
 		mcDTMC.setMaxIters(100);
+		mcDTMC.setErrorOnNonConverge(false);
 
 		// Store num states
 		n = mdp.getNumStates();
@@ -1265,6 +1292,62 @@ public class MDPModelChecker extends ProbModelChecker
 	}
 
 	/**
+	 * Compute expected cumulative (step-bounded) rewards.
+	 * i.e. compute the min/max reward accumulated within {@code k} steps.
+	 * @param mdp The MDP
+	 * @param mdpRewards The rewards
+	 * @param target Target states
+	 * @param min Min or max rewards (true=min, false=max)
+	 */
+	public ModelCheckerResult computeCumulRewards(MDP mdp, MDPRewards mdpRewards, int k, boolean min) throws PrismException
+	{
+		ModelCheckerResult res = null;
+		int i, n, iters;
+		long timer;
+		double soln[], soln2[], tmpsoln[];
+
+		// Start expected cumulative reward
+		timer = System.currentTimeMillis();
+		mainLog.println("\nStarting expected cumulative reward (" + (min ? "min" : "max") + ")...");
+
+		// Store num states
+		n = mdp.getNumStates();
+
+		// Create/initialise solution vector(s)
+		soln = new double[n];
+		soln2 = new double[n];
+		for (i = 0; i < n; i++)
+			soln[i] = soln2[i] = 0.0;
+
+		// Start iterations
+		iters = 0;
+		while (iters < k) {
+			iters++;
+			// Matrix-vector multiply and min/max ops
+			int strat[] = new int[n];
+			mdp.mvMultRewMinMax(soln, mdpRewards, min, soln2, null, false, strat);
+			mainLog.println(strat);
+			// Swap vectors for next iter
+			tmpsoln = soln;
+			soln = soln2;
+			soln2 = tmpsoln;
+		}
+
+		// Finished value iteration
+		timer = System.currentTimeMillis() - timer;
+		mainLog.print("Expected cumulative reward (" + (min ? "min" : "max") + ")");
+		mainLog.println(" took " + iters + " iterations and " + timer / 1000.0 + " seconds.");
+
+		// Return results
+		res = new ModelCheckerResult();
+		res.soln = soln;
+		res.numIters = iters;
+		res.timeTaken = timer / 1000.0;
+
+		return res;
+	}
+
+	/**
 	 * Compute expected reachability rewards.
 	 * @param mdp The MDP
 	 * @param mdpRewards The rewards
@@ -1299,7 +1382,7 @@ public class MDPModelChecker extends ProbModelChecker
 		MDPSolnMethod mdpSolnMethod = this.mdpSolnMethod;
 
 		// Switch to a supported method, if necessary
-		if (!(mdpSolnMethod == MDPSolnMethod.VALUE_ITERATION || mdpSolnMethod == MDPSolnMethod.GAUSS_SEIDEL)) {
+		if (!(mdpSolnMethod == MDPSolnMethod.VALUE_ITERATION || mdpSolnMethod == MDPSolnMethod.GAUSS_SEIDEL || mdpSolnMethod == MDPSolnMethod.POLICY_ITERATION)) {
 			mdpSolnMethod = MDPSolnMethod.GAUSS_SEIDEL;
 			mainLog.printWarning("Switching to MDP solution method \"" + mdpSolnMethod.fullName() + "\"");
 		}
@@ -1326,7 +1409,7 @@ public class MDPModelChecker extends ProbModelChecker
 		// If required, create/initialise strategy storage
 		// Set choices to -1, denoting unknown
 		// (except for target states, which are -2, denoting arbitrary)
-		if (genStrat || exportAdv) {
+		if (genStrat || exportAdv || mdpSolnMethod == MDPSolnMethod.POLICY_ITERATION) {
 			strat = new int[n];
 			for (i = 0; i < n; i++) {
 				strat[i] = target.get(i) ? -2 : -1;
@@ -1335,17 +1418,17 @@ public class MDPModelChecker extends ProbModelChecker
 		
 		// Precomputation (not optional)
 		timerProb1 = System.currentTimeMillis();
-		inf = prob1(mdp, null, target, !min, null);
+		inf = prob1(mdp, null, target, !min, strat);
 		inf.flip(0, n);
 		timerProb1 = System.currentTimeMillis() - timerProb1;
-
+		
 		// Print results of precomputation
 		numTarget = target.cardinality();
 		numInf = inf.cardinality();
 		mainLog.println("target=" + numTarget + ", inf=" + numInf + ", rest=" + (n - (numTarget + numInf)));
 
 		// If required, generate strategy for "inf" states.
-		if (genStrat || exportAdv) {
+		if (genStrat || exportAdv || mdpSolnMethod == MDPSolnMethod.POLICY_ITERATION) {
 			if (min) {
 				// If min reward is infinite, all choices give infinity
 				// So the choice can be arbitrary, denoted by -2; 
@@ -1375,6 +1458,9 @@ public class MDPModelChecker extends ProbModelChecker
 		case GAUSS_SEIDEL:
 			res = computeReachRewardsGaussSeidel(mdp, mdpRewards, target, inf, min, init, known, strat);
 			break;
+		case POLICY_ITERATION:
+			res = computeReachRewardsPolIter(mdp, mdpRewards, target, inf, min, strat);
+			break;
 		default:
 			throw new PrismException("Unknown MDP solution method " + mdpSolnMethod.fullName());
 		}
@@ -1396,6 +1482,7 @@ public class MDPModelChecker extends ProbModelChecker
 			// Export
 			PrismLog out = new PrismFileLog(exportAdvFilename);
 			new DTMCFromMDPMemorylessAdversary(mdp, strat).exportToPrismExplicitTra(out);
+			out.close();
 		}
 
 		// Finished expected reachability
@@ -1487,8 +1574,8 @@ public class MDPModelChecker extends ProbModelChecker
 		mainLog.print("Value iteration (" + (min ? "min" : "max") + ")");
 		mainLog.println(" took " + iters + " iterations and " + timer / 1000.0 + " seconds.");
 
-		// Non-convergence is an error
-		if (!done) {
+		// Non-convergence is an error (usually)
+		if (!done && errorOnNonConverge) {
 			String msg = "Iterative method did not converge within " + iters + " iterations.";
 			msg += "\nConsider using a different numerical method or increasing the maximum number of iterations";
 			throw new PrismException(msg);
@@ -1575,8 +1662,8 @@ public class MDPModelChecker extends ProbModelChecker
 		mainLog.print("Gauss-Seidel (" + (min ? "min" : "max") + ")");
 		mainLog.println(" took " + iters + " iterations and " + timer / 1000.0 + " seconds.");
 
-		// Non-convergence is an error
-		if (!done) {
+		// Non-convergence is an error (usually)
+		if (!done && errorOnNonConverge) {
 			String msg = "Iterative method did not converge within " + iters + " iterations.";
 			msg += "\nConsider using a different numerical method or increasing the maximum number of iterations";
 			throw new PrismException(msg);
@@ -1586,6 +1673,104 @@ public class MDPModelChecker extends ProbModelChecker
 		res = new ModelCheckerResult();
 		res.soln = soln;
 		res.numIters = iters;
+		res.timeTaken = timer / 1000.0;
+		return res;
+	}
+
+	/**
+	 * Compute expected reachability rewards using policy iteration.
+	 * The array {@code strat} is used both to pass in the initial strategy for policy iteration,
+	 * and as storage for the resulting optimal strategy (if needed).
+	 * Passing in an initial strategy is required when some states have infinite reward,
+	 * to avoid the possibility of policy iteration getting stuck on an infinite-value strategy.
+	 * @param mdp The MDP
+	 * @param mdpRewards The rewards
+	 * @param target Target states
+	 * @param inf States for which reward is infinite
+	 * @param min Min or max rewards (true=min, false=max)
+	 * @param strat Storage for (memoryless) strategy choice indices (ignored if null)
+	 */
+	protected ModelCheckerResult computeReachRewardsPolIter(MDP mdp, MDPRewards mdpRewards, BitSet target, BitSet inf, boolean min, int strat[])
+			throws PrismException
+	{
+		ModelCheckerResult res;
+		int i, n, iters, totalIters;
+		double soln[], soln2[];
+		boolean done;
+		long timer;
+		DTMCModelChecker mcDTMC;
+		DTMC dtmc;
+		MCRewards mcRewards;
+
+		// Re-use solution to solve each new policy (strategy)?
+		boolean reUseSoln = true;
+
+		// Start policy iteration
+		timer = System.currentTimeMillis();
+		mainLog.println("Starting policy iteration (" + (min ? "min" : "max") + ")...");
+
+		// Create a DTMC model checker (for solving policies)
+		mcDTMC = new DTMCModelChecker(this);
+		mcDTMC.inheritSettings(this);
+		mcDTMC.setLog(new PrismDevNullLog());
+
+		// Store num states
+		n = mdp.getNumStates();
+
+		// Create solution vector(s)
+		soln = new double[n];
+		soln2 = new double[n];
+
+		// Initialise solution vectors.
+		for (i = 0; i < n; i++)
+			soln[i] = soln2[i] = target.get(i) ? 0.0 : inf.get(i) ? Double.POSITIVE_INFINITY : 0.0;
+
+		// If not passed in, create new storage for strategy and initialise
+		// Initial strategy just picks first choice (0) everywhere
+		if (strat == null) {
+			strat = new int[n];
+			for (i = 0; i < n; i++)
+				strat[i] = 0;
+		}
+			
+		// Start iterations
+		iters = totalIters = 0;
+		done = false;
+		while (!done && iters < maxIters) {
+			iters++;
+			// Solve induced DTMC for strategy
+			dtmc = new DTMCFromMDPMemorylessAdversary(mdp, strat);
+			mcRewards = new MCRewardsFromMDPRewards(mdpRewards, strat);
+			res = mcDTMC.computeReachRewardsValIter(dtmc, mcRewards, target, inf, reUseSoln ? soln : null, null);
+			soln = res.soln;
+			totalIters += res.numIters;
+			// Check if optimal, improve non-optimal choices
+			mdp.mvMultRewMinMax(soln, mdpRewards, min, soln2, null, false, null);
+			done = true;
+			for (i = 0; i < n; i++) {
+				// Don't look at target/inf states - we may not have strategy info for them,
+				// so they might appear non-optimal
+				if (target.get(i) || inf.get(i))
+					continue;
+				if (!PrismUtils.doublesAreClose(soln[i], soln2[i], termCritParam, termCrit == TermCrit.ABSOLUTE)) {
+					done = false;
+					List<Integer> opt = mdp.mvMultRewMinMaxSingleChoices(i, soln, mdpRewards, min, soln2[i]);
+					// Only update strategy if strictly better
+					if (!opt.contains(strat[i]))
+						strat[i] = opt.get(0);
+				}
+			}
+		}
+
+		// Finished policy iteration
+		timer = System.currentTimeMillis() - timer;
+		mainLog.print("Policy iteration");
+		mainLog.println(" took " + iters + " cycles (" + totalIters + " iterations in total) and " + timer / 1000.0 + " seconds.");
+
+		// Return results
+		res = new ModelCheckerResult();
+		res.soln = soln;
+		res.numIters = totalIters;
 		res.timeTaken = timer / 1000.0;
 		return res;
 	}

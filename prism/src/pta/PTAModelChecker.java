@@ -193,7 +193,7 @@ public class PTAModelChecker extends PrismComponent
 		if (expr.getProb() != null) {
 			throw new PrismException("PTA model checking currently only supports Pmin=? and Pmax=? properties (try the digital clocks engine instead)");
 		}
-		min = expr.getRelOp().equals("min=");
+		min = expr.getRelOp().isLowerBound();
 
 		// Check this is a F path property (only case allowed at the moment)
 		if (!(expr.getExpression() instanceof ExpressionTemporal))
@@ -306,9 +306,8 @@ public class PTAModelChecker extends PrismComponent
 		// Do probability computation through abstraction/refinement/stochastic games  
 		if (ptaMethod.equals("Stochastic games")) {
 			PTAAbstractRefine ptaAR;
-			ptaAR = new PTAAbstractRefine();
+			ptaAR = new PTAAbstractRefine(this);
 			String arOptions = settings.getString(PrismSettings.PRISM_AR_OPTIONS);
-			ptaAR.setLog(mainLog);
 			ptaAR.parseOptions(arOptions.split(","));
 			return ptaAR.forwardsReachAbstractRefine(pta, targetLocs, null, min);
 		}

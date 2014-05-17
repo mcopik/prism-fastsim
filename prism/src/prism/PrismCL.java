@@ -38,6 +38,7 @@ import parser.ast.ExpressionReward;
 import parser.ast.ModulesFile;
 import parser.ast.PropertiesFile;
 import parser.ast.Property;
+import prism.Prism.StrategyExportType;
 import simulator.GenerateSimulationPath;
 import simulator.SimulationSettings;
 import simulator.gpu.RuntimeDeviceInterface;
@@ -78,6 +79,7 @@ public class PrismCL implements PrismModelListener
 	private boolean exportdot = false;
 	private boolean exporttransdot = false;
 	private boolean exporttransdotstates = false;
+	private boolean exportsccs = false;
 	private boolean exportbsccs = false;
 	private boolean exportmecs = false;
 	private boolean exportresults = false;
@@ -133,6 +135,7 @@ public class PrismCL implements PrismModelListener
 	private String exportDotFilename = null;
 	private String exportTransDotFilename = null;
 	private String exportTransDotStatesFilename = null;
+	private String exportSCCsFilename = null;
 	private String exportBSCCsFilename = null;
 	private String exportMECsFilename = null;
 	private String exportResultsFilename = null;
@@ -183,7 +186,7 @@ public class PrismCL implements PrismModelListener
 	private double simWidth;
 	private int reqIterToConclude;
 	private double simMaxReward;
-	private int simMaxPath;
+	private long simMaxPath;
 	private boolean simApproxGiven = false;
 	private boolean simConfidenceGiven = false;
 	private boolean simNumSamplesGiven = false;
@@ -197,6 +200,9 @@ public class PrismCL implements PrismModelListener
 	private boolean simManual = false;
 	private SimulationMethod simMethod = null;
 
+	// strategy export info
+	private Prism.StrategyExportType exportStratType = StrategyExportType.ACTIONS;
+	
 	// parametric analysis info
 	private String[] paramLowerBounds = null;
 	private String[] paramUpperBounds = null;
@@ -280,7 +286,7 @@ public class PrismCL implements PrismModelListener
 			if (simpath) {
 				try {
 					if (!simMaxPathGiven)
-						simMaxPath = prism.getSettings().getInteger(PrismSettings.SIMULATOR_DEFAULT_MAX_PATH);
+						simMaxPath = prism.getSettings().getLong(PrismSettings.SIMULATOR_DEFAULT_MAX_PATH);
 					File f = (simpathFilename.equals("stdout")) ? null : new File(simpathFilename);
 					prism.generateSimulationPath(modulesFile, simpathDetails, simMaxPath, f);
 				} catch (PrismException e) {
@@ -388,7 +394,7 @@ public class PrismCL implements PrismModelListener
 						// if a strategy was generated, and we need to export it, do so
 						if (exportstrat && res.getStrategy() != null) {
 							try {
-								prism.exportStrategy(res.getStrategy(), exportStratFilename.equals("stdout") ? null : new File(exportStratFilename));
+								prism.exportStrategy(res.getStrategy(), exportStratType, exportStratFilename.equals("stdout") ? null : new File(exportStratFilename));
 							}
 							// in case of error, report it and proceed
 							catch (FileNotFoundException e) {
@@ -401,6 +407,7 @@ public class PrismCL implements PrismModelListener
 						// if required, check result against expected value
 						if (test) {
 							try {
+								mainLog.println();
 								Values allConsts = new Values(definedMFConstants);
 								allConsts.addValues(definedPFConstants);
 								if (propertiesToCheck.get(j).checkAgainstExpectedResult(res.getResult(), allConsts)) {
@@ -430,7 +437,7 @@ public class PrismCL implements PrismModelListener
 			}
 
 			// Explicitly request a build if necessary
-			if (propertiesToCheck.size() == 0 && !simpath && !nobuild && prism.modelCanBeBuilt() && !prism.modelIsBuilt()) {
+			if (propertiesToCheck.size() == 0 && !steadystate && !dotransient && !simpath && !nobuild && prism.modelCanBeBuilt() && !prism.modelIsBuilt()) {
 				try {
 					prism.buildModel();
 				} catch (PrismException e) {
@@ -770,6 +777,20 @@ public class PrismCL implements PrismModelListener
 				mainLog.println("Couldn't open file \"" + exportLabelsFilename + "\" for output");
 			} catch (PrismException e) {
 				mainLog.println("\nError: " + e.getMessage() + ".");
+			}
+		}
+
+		// export SCCs to a file
+		if (exportsccs) {
+			try {
+				File f = (exportSCCsFilename.equals("stdout")) ? null : new File(exportSCCsFilename);
+				prism.exportSCCsToFile(exportType, f);
+			}
+			// in case of error, report it and proceed
+			catch (FileNotFoundException e) {
+				error("Couldn't open file \"" + exportSCCsFilename + "\" for output");
+			} catch (PrismException e) {
+				error(e.getMessage());
 			}
 		}
 
@@ -1258,6 +1279,15 @@ public class PrismCL implements PrismModelListener
 						errorAndExit("No file specified for -" + sw + " switch");
 					}
 				}
+				// export sccs to file
+				else if (sw.equals("exportsccs")) {
+					if (i < args.length - 1) {
+						exportsccs = true;
+						exportSCCsFilename = args[++i];
+					} else {
+						errorAndExit("No file specified for -" + sw + " switch");
+					}
+				}
 				// export bsccs to file
 				else if (sw.equals("exportbsccs")) {
 					if (i < args.length - 1) {
@@ -1500,7 +1530,7 @@ public class PrismCL implements PrismModelListener
 				else if (sw.equals("simpathlen")) {
 					if (i < args.length - 1) {
 						try {
-							simMaxPath = Integer.parseInt(args[++i]);
+							simMaxPath = Long.parseLong(args[++i]);
 							if (simMaxPath <= 0)
 								throw new NumberFormatException("");
 							simMaxPathGiven = true;
@@ -1546,14 +1576,6 @@ public class PrismCL implements PrismModelListener
 				// zero-reward loops check on
 				else if (sw.equals("zerorewardcheck")) {
 					prism.setCheckZeroLoops(true);
-				}
-				// MDP solution method
-				else if (sw.equals("valiter")) {
-					prism.setMDPSolnMethod(Prism.MDP_VALITER);
-				} else if (sw.equals("politer")) {
-					prism.setMDPSolnMethod(Prism.MDP_POLITER);
-				} else if (sw.equals("modpoliter")) {
-					prism.setMDPSolnMethod(Prism.MDP_MODPOLITER);
 				}
 				// explicit-state model construction
 				else if (sw.equals("explicitbuild")) {
@@ -1626,6 +1648,10 @@ public class PrismCL implements PrismModelListener
 					prism.setReachMethod(Prism.REACH_FRONTIER);
 				} else if (sw.equals("bfs")) {
 					prism.setReachMethod(Prism.REACH_BFS);
+				}
+				// enable bisimulation minimisation before model checking (hidden option)
+				else if (sw.equals("bisim")) {
+					prism.setDoBisim(true);
 				}
 
 				// Other switches - pass to PrismSettings
@@ -1836,7 +1862,21 @@ public class PrismCL implements PrismModelListener
 			// Ignore ""
 			if (opt.equals("")) {
 			}
-			// TODO: add some options
+			else if (opt.startsWith("type")) {
+				if (!opt.startsWith("type="))
+					throw new PrismException("No value provided for \"type\" option of -exportstrat");
+				String optVal = opt.substring(5);
+				if (optVal.equals("actions"))
+					exportStratType = StrategyExportType.ACTIONS;
+				else if (optVal.equals("indices"))
+					exportStratType = StrategyExportType.INDICES;
+				else if (optVal.equals("induced"))
+					exportStratType = StrategyExportType.INDUCED_MODEL;
+				else if (optVal.equals("dot"))
+					exportStratType = StrategyExportType.DOT_FILE;
+				else
+					throw new PrismException("Unknown value \"" + optVal + "\" provided for \"type\" option of -exportstrat");
+			}
 			// Unknown option
 			else {
 				throw new PrismException("Unknown option \"" + opt + "\" for -exportstrat switch");
@@ -1890,7 +1930,7 @@ public class PrismCL implements PrismModelListener
 
 	// do some processing of the options
 
-	private void processOptions()
+	private void processOptions() throws PrismException
 	{
 		int j;
 
@@ -1950,6 +1990,8 @@ public class PrismCL implements PrismModelListener
 					paramNames[pdNr] = paramDefSplit[0];
 					paramDefSplit[1] = paramDefSplit[1].trim();
 					String[] upperLower = paramDefSplit[1].split(":");
+					if (upperLower.length != 2)
+						throw new PrismException("Invalid range \"" + paramDefSplit[1] + "\" for parameter " + paramNames[pdNr]);
 					paramLowerBounds[pdNr] = upperLower[0].trim();
 					paramUpperBounds[pdNr] = upperLower[1].trim();
 				}
@@ -2006,7 +2048,7 @@ public class PrismCL implements PrismModelListener
 		if (!simMaxRewardGiven)
 			simMaxReward = prism.getSettings().getDouble(PrismSettings.SIMULATOR_MAX_REWARD);
 		if (!simMaxPathGiven)
-			simMaxPath = prism.getSettings().getInteger(PrismSettings.SIMULATOR_DEFAULT_MAX_PATH);
+			simMaxPath = prism.getSettings().getLong(PrismSettings.SIMULATOR_DEFAULT_MAX_PATH);
 
 		// Pick a default method, if not specified
 		// (CI for quantitative, SPRT for bounded)
@@ -2190,7 +2232,9 @@ public class PrismCL implements PrismModelListener
 		mainLog.println("-exporttransdot <file> ......... Export the transition matrix graph to a dot file");
 		mainLog.println("-exporttransdotstates <file> ... Export the transition matrix graph to a dot file, with state info");
 		mainLog.println("-exportdot <file> .............. Export the transition matrix MTBDD to a dot file");
+		mainLog.println("-exportsccs <file> ............. Compute and export all SCCs of the model");
 		mainLog.println("-exportbsccs <file> ............ Compute and export all BSCCs of the model");
+		mainLog.println("-exportmecs <file> ............. Compute and export all maximal end components (MDPs only)");
 		mainLog.println("-exportsteadystate <file> ...... Export steady-state probabilities to a file");
 		mainLog.println("-exporttransient <file> ........ Export transient probabilities to a file");
 		mainLog.println("-exportprism <file> ............ Export final PRISM model to a file");
@@ -2223,6 +2267,10 @@ public class PrismCL implements PrismModelListener
 	 */
 	private void printHelpSwitch(String sw)
 	{
+		// Remove "-" from start of switch, in case present (it shouldn't be really)
+		if (sw.charAt(0) == '-')
+			sw = sw.substring(1);
+
 		// -const
 		if (sw.equals("const")) {
 			mainLog.println("Switch: -const <vals>\n");
@@ -2255,7 +2303,7 @@ public class PrismCL implements PrismModelListener
 		}
 		// -exportresults
 		else if (sw.equals("exportresults")) {
-			mainLog.println("Switch: -exportresults <file[,options]>\n");
+			mainLog.println("Switch: -exportresults <file[:options]>\n");
 			mainLog.println("Exports the results of model checking to <file> (or to the screen if <file>=\"stdout\").");
 			mainLog.println("The default behaviour is to export a list of results in text form, using tabs to separate items.");
 			mainLog.println("If provided, <options> is a comma-separated list of options taken from:");
@@ -2277,8 +2325,8 @@ public class PrismCL implements PrismModelListener
 			mainLog.println(" * mrmc - export data in MRMC format");
 			mainLog.println(" * matlab - export data in Matlab format");
 			mainLog.println(" * rows - export matrices with one row/distribution on each line");
-			mainLog.println(" * ordered - output states indices inb ascending ordered [default]");
-			mainLog.println(" * unordered - don't output states indices inb ascending ordered [default]");
+			mainLog.println(" * ordered - output states indices in ascending order [default]");
+			mainLog.println(" * unordered - don't output states indices in ascending order");
 		}
 		// Try PrismSettings
 		else if (PrismSettings.printHelpSwitch(mainLog, sw)) {

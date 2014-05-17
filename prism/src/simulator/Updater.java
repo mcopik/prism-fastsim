@@ -32,12 +32,14 @@ import parser.*;
 import parser.ast.*;
 import prism.*;
 
-public class Updater
+public class Updater extends PrismComponent
 {
-	// Parent simulator/prism
-	protected SimulatorEngine simulator;
-	protected Prism prism;
-
+	// Settings:
+	// Do we check that probabilities sum to 1?
+	protected boolean doProbChecks = true;
+	// The precision to which we check probabilities sum to 1
+	protected double sumRoundOff = 1e-5;
+	
 	// Model to which the path corresponds
 	protected ModulesFile modulesFile;
 	protected ModelType modelType;
@@ -62,14 +64,21 @@ public class Updater
 	// (where j=0 denotes independent, otherwise 1-indexed action label)
 	protected BitSet enabledModules[];
 
-	public Updater(SimulatorEngine simulator, ModulesFile modulesFile, VarList varList)
+	public Updater(ModulesFile modulesFile, VarList varList)
+	{
+		this(modulesFile, varList, null);
+	}
+	
+	public Updater(ModulesFile modulesFile, VarList varList, PrismComponent parent)
 	{
 		int i, j;
 		String s;
 
+		// Store some settings
+		doProbChecks = parent.getSettings().getBoolean(PrismSettings.PRISM_DO_PROB_CHECKS);
+		sumRoundOff = parent.getSettings().getDouble(PrismSettings.PRISM_SUM_ROUND_OFF);
+		
 		// Get info from simulator/model
-		this.simulator = simulator;
-		prism = simulator.getPrism();
 		this.modulesFile = modulesFile;
 		modelType = modulesFile.getModelType();
 		numModules = modulesFile.getNumModules();
@@ -102,6 +111,22 @@ public class Updater
 		for (j = 0; j < numSynchs + 1; j++) {
 			enabledModules[j] = new BitSet(numModules);
 		}
+	}
+
+	/**
+	 * Set the precision to which we check that probabilities sum to 1.
+	 */
+	public void setSumRoundOff(double sumRoundOff)
+	{
+		this.sumRoundOff = sumRoundOff;
+	}
+
+	/**
+	 * Get the precision to which we check that probabilities sum to 1.
+	 */
+	public double getSumRoundOff()
+	{
+		return sumRoundOff;
 	}
 
 	/**
@@ -201,6 +226,14 @@ public class Updater
 			}
 		}
 		
+		// For a DTMC, we need to normalise across all transitions
+		// This is partly to handle "local nondeterminism"
+		// and also to handle any dubious trickery done by disabling probability checks
+		if (modelType == ModelType.DTMC) {
+			double probSum = transitionList.getProbabilitySum();
+			transitionList.scaleProbabilitiesBy(1.0 / probSum);
+		}
+	
 		// Check validity of the computed transitions
 		// (not needed currently)
 		//transitionList.checkValid(modelType);
@@ -267,7 +300,7 @@ public class Updater
 	 * @param m The module index
 	 * @param state State from which to explore
 	 */
-	private void calculateUpdatesForModule(int m, State state) throws PrismLangException
+	protected void calculateUpdatesForModule(int m, State state) throws PrismLangException
 	{
 		Module module;
 		Command command;
@@ -334,7 +367,7 @@ public class Updater
 			throw new PrismLangException(msg, ups);
 		}
 		// Check distribution sums to 1 (if required, and if is non-empty)
-		if (ch.size() > 0 && modelType.choicesSumToOne() && Math.abs(sum - 1) > prism.getSumRoundOff()) {
+		if (doProbChecks && ch.size() > 0 && modelType.choicesSumToOne() && Math.abs(sum - 1) > sumRoundOff) {
 			throw new PrismLangException("Probabilities sum to " + sum + " in state " + state.toString(modulesFile), ups);
 		}
 		return ch;

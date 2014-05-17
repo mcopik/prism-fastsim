@@ -157,6 +157,26 @@ public class Prism extends PrismComponent implements PrismSettingsListener
 	public static final int LOCKSTEP = 2;
 	public static final int SCCFIND = 3;
 
+	// Options for type of strategy export
+	public enum StrategyExportType {
+		ACTIONS, INDICES, INDUCED_MODEL, DOT_FILE;
+		public String description()
+		{
+			switch (this) {
+			case ACTIONS:
+				return "as actions";
+			case INDICES:
+				return "as indices";
+			case INDUCED_MODEL:
+				return "as an induced model";
+			case DOT_FILE:
+				return "as a dot file";
+			default:
+				return this.toString();
+			}
+		}
+	}
+	
 	//------------------------------------------------------------------------------
 	// Settings / flags / options
 	//------------------------------------------------------------------------------
@@ -179,6 +199,8 @@ public class Prism extends PrismComponent implements PrismSettingsListener
 	protected String exportProductStatesFilename = null;
 	// Generate/store a strategy during model checking?
 	protected boolean genStrat = false;
+	// Do bisimulation minimisation before model checking?
+	protected boolean doBisim = false;
 
 	// A few miscellaneous options (i.e. defunct/hidden/undocumented/etc.)
 	// See constructor below for default values
@@ -258,6 +280,15 @@ public class Prism extends PrismComponent implements PrismSettingsListener
 	//------------------------------------------------------------------------------
 	// Constructors + options methods
 	//------------------------------------------------------------------------------
+
+	/**
+	 * Construct a new Prism object.
+	 * @param mainLog PrismLog where all output will be sent.
+	 */
+	public Prism(PrismLog mainLog)
+	{
+		this(mainLog, mainLog);
+	}
 
 	/**
 	 * Construct a new Prism object.
@@ -569,6 +600,14 @@ public class Prism extends PrismComponent implements PrismSettingsListener
 		this.genStrat = genStrat;
 	}
 
+	/**
+	 * Specify whether or not to do bisimulation minimisation before model checking.
+	 */
+	public void setDoBisim(boolean doBisim)
+	{
+		this.doBisim = doBisim;
+	}
+
 	public void setDoReach(boolean b) throws PrismException
 	{
 		doReach = b;
@@ -857,6 +896,14 @@ public class Prism extends PrismComponent implements PrismSettingsListener
 	public boolean getGenStrat()
 	{
 		return genStrat;
+	}
+
+	/**
+	 * Whether or not to do bisimulation minimisation before model checking.
+	 */
+	public boolean getDoBisim()
+	{
+		return doBisim;
 	}
 
 	public boolean getDoReach()
@@ -1824,7 +1871,7 @@ public class Prism extends PrismComponent implements PrismSettingsListener
 	private void doBuildModel() throws PrismException
 	{
 		long l; // timer
-
+		
 		// Clear any existing built model(s)
 		clearBuiltModel();
 
@@ -1849,7 +1896,7 @@ public class Prism extends PrismComponent implements PrismSettingsListener
 					currentModel = mod2mtbdd.translate();
 					currentModelExpl = null;
 				} else {
-					ConstructModel constructModel = new ConstructModel(getSimulator(), mainLog);
+					ConstructModel constructModel = new ConstructModel(this, getSimulator());
 					constructModel.setFixDeadlocks(getFixDeadlocks());
 					currentModelExpl = constructModel.constructModel(currentModulesFile, false, true);
 					currentModel = null;
@@ -2002,7 +2049,7 @@ public class Prism extends PrismComponent implements PrismSettingsListener
 		if (currentDefinedMFConstants != null && currentDefinedMFConstants.getNumValues() > 0)
 			mainLog.println("Model constants: " + currentDefinedMFConstants);
 
-		constructModel = new ConstructModel(getSimulator(), mainLog);
+		constructModel = new ConstructModel(this, getSimulator());
 		modelExpl = constructModel.constructModel(modulesFile);
 		statesList = constructModel.getStatesList();
 
@@ -2158,7 +2205,9 @@ public class Prism extends PrismComponent implements PrismSettingsListener
 				currentModelExpl.exportToPrismExplicitTra(tmpLog);
 				break;
 			case Prism.EXPORT_MATLAB:
+				throw new PrismException("Export not yet supported");
 			case Prism.EXPORT_DOT:
+				currentModelExpl.exportToDotFile(tmpLog);
 			case Prism.EXPORT_MRMC:
 			case Prism.EXPORT_ROWS:
 			case Prism.EXPORT_DOT_STATES:
@@ -2450,6 +2499,99 @@ public class Prism extends PrismComponent implements PrismSettingsListener
 		if (file != null)
 			tmpLog.close();
 	}
+	
+	/**
+	 * Export the (states of the) currently loaded model's strongly connected components (SCCs) to a file
+	 * @param exportType Type of export; one of: <ul>
+	 * <li> {@link #EXPORT_PLAIN} 
+	 * <li> {@link #EXPORT_MATLAB}
+	 * </ul>
+	 * @param file File to export to (if null, print to the log instead)
+	 */
+	public void exportSCCsToFile(int exportType, File file) throws FileNotFoundException, PrismException
+	{
+		int i, n;
+		long l; // timer
+		PrismLog tmpLog;
+		SCCComputer sccComputer = null;
+		explicit.SCCComputer sccComputerExpl = null;
+
+		// no specific states format for MRMC
+		if (exportType == EXPORT_MRMC)
+			exportType = EXPORT_PLAIN;
+		// rows format does not apply to states output
+		if (exportType == EXPORT_ROWS)
+			exportType = EXPORT_PLAIN;
+
+		// Build model, if necessary
+		buildModelIfRequired();
+
+		// Compute SCCs
+		mainLog.println("\nComputing SCCs...");
+		l = System.currentTimeMillis();
+		if (!getExplicit()) {
+			sccComputer = getSCCComputer(currentModel);
+			sccComputer.computeSCCs();
+		} else {
+			sccComputerExpl = getExplicitSCCComputer(currentModelExpl);
+			sccComputerExpl.computeSCCs();
+		}
+		l = System.currentTimeMillis() - l;
+		mainLog.println("\nTime for SCC computation: " + l / 1000.0 + " seconds.");
+
+		// print message
+		mainLog.print("\nExporting SCCs ");
+		mainLog.print(getStringForExportType(exportType) + " ");
+		mainLog.println(getDestinationStringForFile(file));
+
+		// create new file log or use main log
+		tmpLog = getPrismLogForFile(file);
+
+		// print header: list of model vars
+		if (exportType == EXPORT_MATLAB)
+			tmpLog.print("% ");
+		tmpLog.print("Variables: (");
+		for (i = 0; i < currentModulesFile.getNumVars(); i++) {
+			tmpLog.print(currentModulesFile.getVarName(i));
+			if (i < currentModulesFile.getNumVars() - 1)
+				tmpLog.print(",");
+		}
+		tmpLog.println(")");
+
+		// print states for each scc
+		if (!getExplicit()) {
+			n = sccComputer.getSCCs().size();
+		} else {
+			n = sccComputerExpl.getSCCs().size();
+		}
+		for (i = 0; i < n; i++) {
+			tmpLog.println();
+			if (exportType == EXPORT_MATLAB)
+				tmpLog.print("% ");
+			tmpLog.println("SCC " + (i + 1) + "/" + n + ":");
+			if (exportType == EXPORT_MATLAB)
+				tmpLog.println("scc" + (i + 1) + "=[");
+			if (!getExplicit()) {
+				if (exportType != EXPORT_MATLAB)
+					new StateListMTBDD(sccComputer.getSCCs().get(i), currentModel).print(tmpLog);
+				else
+					new StateListMTBDD(sccComputer.getSCCs().get(i), currentModel).printMatlab(tmpLog);
+				JDD.Deref(sccComputer.getSCCs().get(i));
+			} else {
+				explicit.StateValues.createFromBitSet(sccComputerExpl.getSCCs().get(i), currentModelExpl).print(tmpLog, true, exportType == EXPORT_MATLAB, true, true);
+			}
+			if (exportType == EXPORT_MATLAB)
+				tmpLog.println("];");
+		}
+
+		if (!getExplicit()) {
+			JDD.Deref(sccComputer.getNotInSCCs());
+		}
+
+		// tidy up
+		if (file != null)
+			tmpLog.close();
+	}
 
 	/**
 	 * Export the states satisfying labels from the currently loaded model and a properties file to a file.
@@ -2603,7 +2745,7 @@ public class Prism extends PrismComponent implements PrismSettingsListener
 		// For fast adaptive uniformisation
 		if (currentModelType == ModelType.CTMC && settings.getString(PrismSettings.PRISM_TRANSIENT_METHOD).equals("Fast adaptive uniformisation")) {
 			FastAdaptiveUniformisationModelChecker fauMC;
-			fauMC = new FastAdaptiveUniformisationModelChecker(this, currentModulesFile, propertiesFile);
+			fauMC = new FastAdaptiveUniformisationModelChecker(this, currentModulesFile, propertiesFile, getSimulator());
 			return fauMC.check(prop.getExpression());
 		}
 		// Auto-switch engine if required
@@ -2615,10 +2757,17 @@ public class Prism extends PrismComponent implements PrismSettingsListener
 				setEngine(Prism.EXPLICIT);
 			}
 		}
-
 		try {
 			// Build model, if necessary
 			buildModelIfRequired();
+
+			// Compatibility check
+			if (genStrat && currentModelType.nondeterministic() && !getExplicit()) {
+				if (!((NondetModel) currentModel).areAllChoiceActionsUnique())
+					throw new PrismException("Cannot generate strategies with the current engine "
+							+ "because some state of the model do not have unique action labels for each choice. "
+							+ "Either switch to the explicit engine or add more action labels to the model");
+			}
 
 			// Create new model checker object and do model checking
 			if (!getExplicit()) {
@@ -2724,7 +2873,7 @@ public class Prism extends PrismComponent implements PrismSettingsListener
 	 * @param maxPathLength The maximum path length for sampling
 	 * @param simMethod Object specifying details of method to use for simulation
 	 */
-	public Result modelCheckSimulator(PropertiesFile propertiesFile, Expression expr, Values definedPFConstants, State initialState, int maxPathLength,
+	public Result modelCheckSimulator(PropertiesFile propertiesFile, Expression expr, Values definedPFConstants, State initialState, long maxPathLength,
 			SimulationSettings simSettings) throws PrismException
 	{
 		return modelCheckSimulator(propertiesFile, expr, definedPFConstants, initialState, maxPathLength, simSettings.getMethod(), getSimulator(simSettings));
@@ -2809,7 +2958,7 @@ public class Prism extends PrismComponent implements PrismSettingsListener
 	 * @param simMethod Object specifying details of simulation method
 	 */
 	public Result[] modelCheckSimulatorSimultaneously(PropertiesFile propertiesFile, List<Expression> exprs, Values definedPFConstants, State initialState,
-			int maxPathLength, SimulationInformation simInfo) throws PrismException
+			long maxPathLength, SimulationInformation simInfo) throws PrismException
 	{
 		return modelCheckSimulatorSimultaneously(propertiesFile, exprs, definedPFConstants, initialState, maxPathLength, simInfo.createSimulationMethod(),
 				getSimulator(simInfo));
@@ -2869,7 +3018,7 @@ public class Prism extends PrismComponent implements PrismSettingsListener
 	 * @throws InterruptedException if the thread is interrupted
 	 */
 	public void modelCheckSimulatorExperiment(PropertiesFile propertiesFile, UndefinedConstants undefinedConstants, ResultsCollection results, Expression expr,
-			State initialState, int pathLength, SimulationInformation simInfo) throws PrismException, InterruptedException
+			State initialState, long pathLength, SimulationInformation simInfo) throws PrismException, InterruptedException
 	{
 		SimulationSettings settings = new SimulationSettings(simInfo.createSimulationMethod());
 		modelCheckSimulatorExperiment(propertiesFile, undefinedConstants, results, expr, initialState, pathLength, settings);
@@ -2910,27 +3059,81 @@ public class Prism extends PrismComponent implements PrismSettingsListener
 	}
 
 	/**
-	 * Export a strategy (for the currently loaded model);
-	 * TODO: is it necessarily loaded?
+	 * Perform parametric model checking on the currently loaded model.
+	 * @param propertiesFile parent properties file
+	 * @param prop property to model check
+	 * @param paramNames parameter names
+	 * @param paramLowerBounds lower bounds of parameters
+	 * @param paramUpperBounds upper bounds of parameters
+	 */
+	public Result modelCheckParametric(PropertiesFile propertiesFile, Property prop, String[] paramNames, String[] paramLowerBounds, String[] paramUpperBounds)
+			throws PrismException
+	{
+		// Some checks
+		if (paramNames == null) {
+			throw new PrismException("Must specify some parameters when using " + "the parametric analysis");
+		}
+		if (!(currentModelType == ModelType.DTMC || currentModelType == ModelType.CTMC || currentModelType == ModelType.MDP))
+			throw new PrismException("Parametric model checking is only supported for DTMCs, CTMCs and MDPs");
+
+		Values definedPFConstants = propertiesFile.getConstantValues();
+		Values constlist = currentModulesFile.getConstantValues();
+		for (int pnr = 0; pnr < paramNames.length; pnr++) {
+			constlist.removeValue(paramNames[pnr]);
+		}
+
+		// Print info
+		mainLog.printSeparator();
+		mainLog.println("\nParametric model checking: " + prop);
+		if (currentDefinedMFConstants != null && currentDefinedMFConstants.getNumValues() > 0)
+			mainLog.println("Model constants: " + currentDefinedMFConstants);
+		if (definedPFConstants != null && definedPFConstants.getNumValues() > 0)
+			mainLog.println("Property constants: " + definedPFConstants);
+
+		param.ModelBuilder builder = new ModelBuilder(this);
+		builder.setModulesFile(currentModulesFile);
+		builder.setParameters(paramNames, paramLowerBounds, paramUpperBounds);
+		builder.build();
+		explicit.Model modelExpl = builder.getModel();
+		ParamModelChecker mc = new ParamModelChecker(this);
+		mc.setModelBuilder(builder);
+		mc.setParameters(paramNames, paramLowerBounds, paramUpperBounds);
+		mc.setModulesFileAndPropertiesFile(currentModulesFile, propertiesFile);
+		return mc.check(modelExpl, prop.getExpression());
+	}
+	
+	/**
+	 * Export a strategy. The associated model should be attached to the strategy.
+	 * Strictly, speaking that does not need to be the currently loaded model,
+	 * but it would probably have been discarded if that was not the case.
 	 * @param strat The strategy
+	 * @param exportType The type of output
 	 * @param file File to output the path to (stdout if null)
 	 */
-	public void exportStrategy(Strategy strat, File file) throws FileNotFoundException, PrismException
+	public void exportStrategy(Strategy strat, StrategyExportType exportType, File file) throws FileNotFoundException, PrismException
 	{
 		PrismLog tmpLog;
 
 		// Print message
-		mainLog.print("\nExporting strategy ");
-		//mainLog.print(getStringForExportType(exportType) + " ");
+		mainLog.print("\nExporting strategy " + exportType.description() + " ");
 		mainLog.println(getDestinationStringForFile(file));
 
-		// Create new file log or use main log
+		// Export to file (or use main log)
 		tmpLog = getPrismLogForFile(file);
-
-		// Export
-		strat.exportActions(tmpLog);
-
-		// Tidy up
+		switch (exportType) {
+		case ACTIONS:
+			strat.exportActions(tmpLog);
+			break;
+		case INDICES:
+			strat.exportIndices(tmpLog);
+			break;
+		case INDUCED_MODEL:
+			strat.exportInducedModel(tmpLog);
+			break;
+		case DOT_FILE:
+			strat.exportDotFile(tmpLog);
+			break;
+		}
 		if (file != null)
 			tmpLog.close();
 	}
@@ -2942,7 +3145,7 @@ public class Prism extends PrismComponent implements PrismSettingsListener
 	 * @param maxPathLength The maximum length of path to generate
 	 * @param file File to output the path to (stdout if null)
 	 */
-	public void generateSimulationPath(ModulesFile modulesFile, String details, int maxPathLength, File file) throws PrismException, PrismLangException
+	public void generateSimulationPath(ModulesFile modulesFile, String details, long maxPathLength, File file) throws PrismException, PrismLangException
 	{
 		GenerateSimulationPath genPath = new GenerateSimulationPath(getSimulator(), mainLog);
 		genPath.generateSimulationPath(modulesFile, null, details, maxPathLength, file);
@@ -2971,25 +3174,23 @@ public class Prism extends PrismComponent implements PrismSettingsListener
 		explicit.StateValues probsExpl = null;
 		PrismLog tmpLog;
 
+		// Do some checks
 		if (!(currentModelType == ModelType.CTMC || currentModelType == ModelType.DTMC))
 			throw new PrismException("Steady-state probabilities only computed for DTMCs/CTMCs");
-
 		if (fileOut != null && getEngine() == MTBDD)
+			// TODO: auto-switch?
 			throw new PrismException("Steady-state probability export not supported for MTBDD engine");
-		// TODO: auto-switch?
+		if (exportType == EXPORT_MRMC)
+			exportType = EXPORT_PLAIN; // no specific states format for MRMC
+		if (exportType == EXPORT_ROWS)
+			exportType = EXPORT_PLAIN; // rows format does not apply to states output
 
+		// Print message
 		mainLog.printSeparator();
 		mainLog.println("\nComputing steady-state probabilities...");
 
 		// Build model, if necessary
 		buildModelIfRequired();
-
-		// no specific states format for MRMC
-		if (exportType == EXPORT_MRMC)
-			exportType = EXPORT_PLAIN;
-		// rows format does not apply to states output
-		if (exportType == EXPORT_ROWS)
-			exportType = EXPORT_PLAIN;
 
 		l = System.currentTimeMillis();
 
@@ -3068,43 +3269,35 @@ public class Prism extends PrismComponent implements PrismSettingsListener
 		explicit.StateValues probsExpl = null;
 		PrismLog tmpLog;
 
+		// Do some checks
 		if (!(currentModelType == ModelType.CTMC || currentModelType == ModelType.DTMC))
 			throw new PrismException("Steady-state probabilities only computed for DTMCs/CTMCs");
-
 		if (time < 0)
 			throw new PrismException("Cannot compute transient probabilities for negative time value");
-
 		if (fileOut != null && getEngine() == MTBDD)
 			throw new PrismException("Transient probability export only supported for sparse/hybrid engines");
-
-		mainLog.printSeparator();
-		if (currentModelType.continuousTime()) {
-			mainLog.println("\nComputing transient probabilities (time = " + time + ")...");
-		} else {
-			mainLog.println("\nComputing transient probabilities (time = " + (int) time + ")...");
-		}
-
-		// Build model, if necessary
-		buildModelIfRequired();
-
-		// no specific states format for MRMC
 		if (exportType == EXPORT_MRMC)
-			exportType = EXPORT_PLAIN;
-		// rows format does not apply to states output
+			exportType = EXPORT_PLAIN; // no specific states format for MRMC
 		if (exportType == EXPORT_ROWS)
-			exportType = EXPORT_PLAIN;
+			exportType = EXPORT_PLAIN; // rows format does not apply to states output
+
+		// Print message
+		mainLog.printSeparator();
+		String strTime = currentModelType.continuousTime() ? Double.toString(time) : Integer.toString((int) time);
+			mainLog.println("\nComputing transient probabilities (time = " + strTime + ")...");
 
 		l = System.currentTimeMillis();
 
+		// FAU
 		if (currentModelType == ModelType.CTMC && settings.getString(PrismSettings.PRISM_TRANSIENT_METHOD).equals("Fast adaptive uniformisation")) {
 			PrismModelExplorer modelExplorer = new PrismModelExplorer(getSimulator(), currentModulesFile);
-			FastAdaptiveUniformisation fau = new FastAdaptiveUniformisation(settings, modelExplorer);
+			FastAdaptiveUniformisation fau = new FastAdaptiveUniformisation(this, modelExplorer);
 			fau.setConstantValues(currentModulesFile.getConstantValues());
-			mainLog.println("Starting transient probability computation using fast adaptive uniformisation...");
-			probsExpl = fau.doTransient(time, fileIn);
-			mainLog.println("\nTotal probability lost is : " + fau.getTotalDiscreteLoss());
-			mainLog.println("Maximal number of states stored during analysis : " + fau.getMaxNumStates());
-		} else if (!getExplicit()) {
+			probsExpl = fau.doTransient(time, fileIn, currentModel);
+		}
+		// Symbolic
+		else if (!getExplicit()) {
+			buildModelIfRequired();
 			if (currentModelType == ModelType.DTMC) {
 				mc = new ProbModelChecker(this, currentModel, null);
 				probs = ((ProbModelChecker) mc).doTransient((int) time, fileIn);
@@ -3112,7 +3305,10 @@ public class Prism extends PrismComponent implements PrismSettingsListener
 				mc = new StochModelChecker(this, currentModel, null);
 				probs = ((StochModelChecker) mc).doTransient(time, fileIn);
 			}
-		} else {
+		}
+		// Explicit
+		else {
+			buildModelIfRequired();
 			if (currentModelType == ModelType.DTMC) {
 				throw new PrismException("Not implemented yet");
 			} else if (currentModelType == ModelType.CTMC) {
@@ -3134,7 +3330,7 @@ public class Prism extends PrismComponent implements PrismSettingsListener
 		tmpLog = getPrismLogForFile(fileOut);
 
 		// print out or export probabilities
-		if (!getExplicit())
+		if (probs != null)
 			probs.print(tmpLog, fileOut == null, exportType == EXPORT_MATLAB, fileOut == null, fileOut == null);
 		else
 			probsExpl.print(tmpLog, fileOut == null, exportType == EXPORT_MATLAB, fileOut == null, fileOut == null);
@@ -3143,9 +3339,9 @@ public class Prism extends PrismComponent implements PrismSettingsListener
 		mainLog.println("\nTime for transient probability computation: " + l / 1000.0 + " seconds.");
 
 		// tidy up
-		if (!getExplicit())
+		if (probs != null)
 			probs.clear();
-		else
+		if (probsExpl != null)
 			probsExpl.clear();
 		if (fileOut != null)
 			tmpLog.close();
@@ -3171,18 +3367,15 @@ public class Prism extends PrismComponent implements PrismSettingsListener
 		PrismLog tmpLog = null;
 		File fileOutActual = null;
 
+		// Do some checks
 		if (!(currentModelType == ModelType.CTMC || currentModelType == ModelType.DTMC))
 			throw new PrismException("Steady-state probabilities only computed for DTMCs/CTMCs");
-
 		if (fileOut != null && getEngine() == MTBDD)
 			throw new PrismException("Transient probability export only supported for sparse/hybrid engines");
-
-		// no specific states format for MRMC
 		if (exportType == EXPORT_MRMC)
-			exportType = EXPORT_PLAIN;
-		// rows format does not apply to states output
+			exportType = EXPORT_PLAIN; // no specific states format for MRMC
 		if (exportType == EXPORT_ROWS)
-			exportType = EXPORT_PLAIN;
+			exportType = EXPORT_PLAIN; // rows format does not apply to states output
 
 		// Step through required time points
 		for (i = 0; i < times.getNumPropertyIterations(); i++) {
@@ -3196,15 +3389,27 @@ public class Prism extends PrismComponent implements PrismSettingsListener
 			if (currentModelType.continuousTime() ? (((Double) time).doubleValue() < 0) : (((Integer) time).intValue() < 0))
 				throw new PrismException("Cannot compute transient probabilities for negative time value");
 
+			// Print message
 			mainLog.printSeparator();
 			mainLog.println("\nComputing transient probabilities (time = " + time + ")...");
 
-			// Build model, if necessary
-			buildModelIfRequired();
-
 			l = System.currentTimeMillis();
 
-			if (!getExplicit()) {
+			// FAU
+			if (currentModelType == ModelType.CTMC && settings.getString(PrismSettings.PRISM_TRANSIENT_METHOD).equals("Fast adaptive uniformisation")) {
+				PrismModelExplorer modelExplorer = new PrismModelExplorer(getSimulator(), currentModulesFile);
+				FastAdaptiveUniformisation fau = new FastAdaptiveUniformisation(this, modelExplorer);
+				fau.setConstantValues(currentModulesFile.getConstantValues());
+				if (i == 0) {
+					probsExpl = fau.doTransient(timeDouble, fileIn, currentModel);
+					initTimeDouble = 0.0;
+				} else {
+					probsExpl = fau.doTransient(timeDouble - initTimeDouble, probsExpl);
+				}
+			}
+			// Symbolic
+			else if (!getExplicit()) {
+				buildModelIfRequired();
 				if (currentModelType.continuousTime()) {
 					StochModelChecker mc = new StochModelChecker(this, currentModel, null);
 					if (i == 0) {
@@ -3220,7 +3425,10 @@ public class Prism extends PrismComponent implements PrismSettingsListener
 					}
 					probs = ((ProbModelChecker) mc).doTransient(timeInt - initTimeInt, initDist);
 				}
-			} else {
+			}
+			// Explicit
+			else {
+				buildModelIfRequired();
 				if (currentModelType.continuousTime()) {
 					CTMCModelChecker mc = new CTMCModelChecker(this);
 					if (i == 0) {
@@ -3251,10 +3459,14 @@ public class Prism extends PrismComponent implements PrismSettingsListener
 			tmpLog = getPrismLogForFile(fileOutActual);
 
 			// print out or export probabilities
-			if (!getExplicit())
+			if (probs != null)
 				probs.print(tmpLog, fileOut == null, exportType == EXPORT_MATLAB, fileOut == null);
-			else
+			else if (!settings.getString(PrismSettings.PRISM_TRANSIENT_METHOD).equals("Fast adaptive uniformisation")) {
 				probsExpl.print(tmpLog, fileOut == null, exportType == EXPORT_MATLAB, fileOut == null, true);
+			} else {
+				// If full state space not computed, don't print vectors and always show states
+				probsExpl.print(tmpLog, fileOut == null, exportType == EXPORT_MATLAB, true, false);
+			}
 
 			// print out computation time
 			mainLog.println("\nTime for transient probability computation: " + l / 1000.0 + " seconds.");
@@ -3268,9 +3480,9 @@ public class Prism extends PrismComponent implements PrismSettingsListener
 		}
 
 		// tidy up
-		if (!getExplicit())
+		if (probs != null)
 			probs.clear();
-		else
+		if (probsExpl != null)
 			probsExpl.clear();
 		if (fileOut != null)
 			tmpLog.close();
@@ -3374,8 +3586,8 @@ public class Prism extends PrismComponent implements PrismSettingsListener
 		mc.setModulesFileAndPropertiesFile(currentModulesFile, propertiesFile);
 		// Pass any additional local settings
 		mc.setGenStrat(genStrat);
-
-		return mc;
+       		mc.setDoBisim(doBisim);
+	       	return mc;
 	}
 
 	/**
@@ -3399,10 +3611,7 @@ public class Prism extends PrismComponent implements PrismSettingsListener
 		// create new file log or use main log
 		PrismLog tmpLog;
 		if (file != null) {
-			tmpLog = new PrismFileLog(file.getPath(), append);
-			if (!tmpLog.ready()) {
-				throw new PrismException("Could not open file \"" + file + "\" for output");
-			}
+			tmpLog = PrismFileLog.create(file.getPath(), append);
 		} else {
 			tmpLog = mainLog;
 		}
@@ -3641,7 +3850,7 @@ public class Prism extends PrismComponent implements PrismSettingsListener
 	/**
 	 * Old API:
 	 */
-	public Result modelCheckSimulator(ModulesFile modulesFile, PropertiesFile propertiesFile, Expression expr, State initialState, int maxPathLength,
+	public Result modelCheckSimulator(ModulesFile modulesFile, PropertiesFile propertiesFile, Expression expr, State initialState, long maxPathLength,
 			SimulationMethod simMethod) throws PrismException
 	{
 		loadPRISMModel(modulesFile);
@@ -3653,7 +3862,7 @@ public class Prism extends PrismComponent implements PrismSettingsListener
 	 * Old API:
 	 */
 	public Result[] modelCheckSimulatorSimultaneously(ModulesFile modulesFile, PropertiesFile propertiesFile, List<Expression> exprs, State initialState,
-			int maxPathLength, SimulationMethod simMethod) throws PrismException
+			long maxPathLength, SimulationMethod simMethod) throws PrismException
 	{
 		loadPRISMModel(modulesFile);
 		SimulationSettings settings = new SimulationSettings(simMethod);
@@ -3664,13 +3873,13 @@ public class Prism extends PrismComponent implements PrismSettingsListener
 	 * Old API:
 	 */
 	public void modelCheckSimulatorExperiment(ModulesFile modulesFile, PropertiesFile propertiesFile, UndefinedConstants undefinedConstants,
-			ResultsCollection results, Expression propertyToCheck, State initialState, int pathLength, SimulationMethod simMethod) throws PrismException,
+			ResultsCollection results, Expression propertyToCheck, State initialState, long maxPathLength, SimulationMethod simMethod) throws PrismException,
 			InterruptedException
 	{
 		loadPRISMModel(modulesFile);
-		SimulationSettings settings = new SimulationSettings(simMethod);
+	       	SimulationSettings settings = new SimulationSettings(simMethod);
 		modelCheckSimulatorExperiment(propertiesFile, undefinedConstants, results, propertyToCheck, initialState, pathLength, settings);
-	}
+       }
 
 	/**
 	 * Old API:
@@ -3715,44 +3924,6 @@ public class Prism extends PrismComponent implements PrismSettingsListener
 	{
 		loadBuiltModel(model);
 		doTransient(time, exportType, file, fileIn);
-	}
-
-	/**
-	 * Performs parametric model checking.
-	 * 
-	 * @param propertiesFile parent properties file
-	 * @param prop property to model check
-	 * @param paramNames parameter names
-	 * @param paramLowerBounds lower bounds of parameters
-	 * @param paramUpperBounds upper bounds of parameters
-	 * @return
-	 * @throws PrismException e.g. if no parameters specified or other things go wrong
-	 */
-	public Result modelCheckParametric(PropertiesFile propertiesFile, Property prop, String[] paramNames, String[] paramLowerBounds, String[] paramUpperBounds)
-			throws PrismException
-	{
-
-		if (paramNames == null) {
-			throw new PrismException("Must specify some parameters when using " + "the parametric analysis");
-		}
-		Values constlist = currentModulesFile.getConstantValues();
-		for (int pnr = 0; pnr < paramNames.length; pnr++) {
-			constlist.removeValue(paramNames[pnr]);
-		}
-		param.ModelBuilder builder = new ModelBuilder();
-		builder.setModulesFile(currentModulesFile);
-		builder.setMainLong(mainLog);
-		builder.setParameters(paramNames, paramLowerBounds, paramUpperBounds);
-		builder.setSettings(settings);
-		builder.build();
-		explicit.Model modelExpl = builder.getModel();
-		ParamModelChecker mc = new ParamModelChecker();
-		mc.setModelBuilder(builder);
-		mc.setLog(mainLog);
-		mc.setSettings(settings);
-		mc.setParameters(paramNames, paramLowerBounds, paramUpperBounds);
-		mc.setModulesFileAndPropertiesFile(currentModulesFile, propertiesFile);
-		return mc.check(modelExpl, prop.getExpression());
 	}
 }
 

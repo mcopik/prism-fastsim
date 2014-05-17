@@ -28,7 +28,6 @@ package explicit;
 
 import java.io.File;
 import java.util.BitSet;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Vector;
@@ -37,12 +36,10 @@ import parser.ast.Expression;
 import parser.ast.ExpressionTemporal;
 import parser.ast.ExpressionUnaryOp;
 import parser.type.TypeDouble;
-import parser.visitor.ASTTraverse;
 import prism.DRA;
 import prism.Pair;
 import prism.PrismComponent;
 import prism.PrismException;
-import prism.PrismLangException;
 import prism.PrismUtils;
 import explicit.rewards.MCRewards;
 
@@ -216,21 +213,8 @@ public class DTMCModelChecker extends ProbModelChecker
 		long time;
 
 		// Can't do LTL with time-bounded variants of the temporal operators
-		try {
-			expr.accept(new ASTTraverse()
-			{
-				public void visitPre(ExpressionTemporal e) throws PrismLangException
-				{
-					if (e.getLowerBound() != null)
-						throw new PrismLangException(e.getOperatorSymbol());
-					if (e.getUpperBound() != null)
-						throw new PrismLangException(e.getOperatorSymbol());
-				}
-			});
-		} catch (PrismLangException e) {
-			String s = "Temporal operators (like " + e.getMessage() + ")";
-			s += " cannot have time bounds for LTL properties";
-			throw new PrismException(s);
+		if (Expression.containsTemporalTimeBounds(expr)) {
+			throw new PrismException("Time-bounded operators not supported in LTL: " + expr);
 		}
 
 		// For LTL model checking routines
@@ -263,21 +247,18 @@ public class DTMCModelChecker extends ProbModelChecker
 		BitSet acceptingBSCCs = mcLtl.findAcceptingBSCCsForRabin(dra, modelProduct, invMap);
 		mainLog.println("\nComputing reachability probabilities...");
 		mcProduct = new DTMCModelChecker(this);
+		mcProduct.inheritSettings(this);
 		probsProduct = StateValues.createFromDoubleArray(mcProduct.computeReachProbs((DTMC) modelProduct, acceptingBSCCs).soln, modelProduct);
 
 		// Mapping probabilities in the original model
 		double[] probsProductDbl = probsProduct.getDoubleArray();
 		double[] probsDbl = new double[model.getNumStates()];
 
-		LinkedList<Integer> queue = new LinkedList<Integer>();
-		for (int s : model.getInitialStates())
-			queue.add(s);
-
-		for (int i = 0; i < invMap.length; i++) {
-			int j = invMap[i];
-			int s = j / draSize;
-			// TODO: check whether this is the right way to compute probabilities in the original model
-			probsDbl[s] = Math.max(probsDbl[s], probsProductDbl[i]);
+		// Get the probabilities for the original model by taking the initial states
+		// of the product and projecting back to the states of the original model
+		for (int i : modelProduct.getInitialStates()) {
+			int s = invMap[i] / draSize;
+			probsDbl[s] = probsProductDbl[i];
 		}
 
 		probs = StateValues.createFromDoubleArray(probsDbl, model);
@@ -572,7 +553,6 @@ public class DTMCModelChecker extends ProbModelChecker
 	 * Build a probability distribution, stored as a StateValues object,
 	 * from the initial states info of the current model: either probability 1 for
 	 * the (single) initial state or equiprobable over multiple initial states.
-	 * The type of storage (MTBDD or double vector) matches the current engine.
 	 */
 	public StateValues buildInitialDistribution(Model model) throws PrismException
 	{
@@ -954,8 +934,8 @@ public class DTMCModelChecker extends ProbModelChecker
 		mainLog.print("Value iteration");
 		mainLog.println(" took " + iters + " iterations and " + timer / 1000.0 + " seconds.");
 
-		// Non-convergence is an error
-		if (!done) {
+		// Non-convergence is an error (usually)
+		if (!done && errorOnNonConverge) {
 			String msg = "Iterative method did not converge within " + iters + " iterations.";
 			msg += "\nConsider using a different numerical method or increasing the maximum number of iterations";
 			throw new PrismException(msg);
@@ -1038,8 +1018,8 @@ public class DTMCModelChecker extends ProbModelChecker
 		mainLog.print("Gauss-Seidel");
 		mainLog.println(" took " + iters + " iterations and " + timer / 1000.0 + " seconds.");
 
-		// Non-convergence is an error
-		if (!done) {
+		// Non-convergence is an error (usually)
+		if (!done && errorOnNonConverge) {
 			String msg = "Iterative method did not converge within " + iters + " iterations.";
 			msg += "\nConsider using a different numerical method or increasing the maximum number of iterations";
 			throw new PrismException(msg);
@@ -1325,8 +1305,8 @@ public class DTMCModelChecker extends ProbModelChecker
 		mainLog.print("Value iteration");
 		mainLog.println(" took " + iters + " iterations and " + timer / 1000.0 + " seconds.");
 
-		// Non-convergence is an error
-		if (!done) {
+		// Non-convergence is an error (usually)
+		if (!done && errorOnNonConverge) {
 			String msg = "Iterative method did not converge within " + iters + " iterations.";
 			msg += "\nConsider using a different numerical method or increasing the maximum number of iterations";
 			throw new PrismException(msg);
@@ -1582,8 +1562,8 @@ public class DTMCModelChecker extends ProbModelChecker
 		mainLog.print("Value iteration");
 		mainLog.println(" took " + iters + " iterations and " + timer / 1000.0 + " seconds.");
 
-		// Non-convergence is an error
-		if (!done) {
+		// Non-convergence is an error (usually)
+		if (!done && errorOnNonConverge) {
 			String msg = "Iterative method did not converge within " + iters + " iterations.";
 			msg += "\nConsider using a different numerical method or increasing the maximum number of iterations";
 			throw new PrismException(msg);

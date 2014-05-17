@@ -115,7 +115,7 @@ public class State implements Comparable<State>
 	}
 
 	/**
-	 * 
+	 * Set the {@code i}th value to {@code val}.
 	 */
 	public void setValue(int i, Object val)
 	{
@@ -137,8 +137,7 @@ public class State implements Comparable<State>
 	@Override
 	public int hashCode()
 	{
-		// Simple hash code
-		return varValues.length > 0 ? varValues[0].hashCode() : 0;
+		return Arrays.hashCode(varValues);
 	}
 
 	@Override
@@ -161,38 +160,77 @@ public class State implements Comparable<State>
 		return true;
 	}
 
+	@Override
 	public int compareTo(State s)
 	{
-		int i, j, n;
+		return compareTo(s, 0);
+	}
+	
+	/**
+	 * Compare this state to another state {@code s} (in the style of {@link #compareTo(State)},
+	 * first comparing variables with index greater than or equal to {@code j},
+	 * and then comparing variables with index less than {@code j}.
+	 */
+	public int compareTo(State s, int j)
+	{
+		int i, c, n;
 		Object svv[], o1, o2;
+		
 		// Can't compare to null
 		if (s == null)
 			throw new NullPointerException();
+		
 		// States of different size are incomparable 
 		svv = s.varValues;
 		n = varValues.length;
 		if (n != svv.length)
 			throw new ClassCastException("States are different sizes");
-		// Go through array
-		for (i = 0; i < n; i++) {
+		
+		if (j > n-1)
+			throw new ClassCastException("Variable index is incorrect");
+		
+		// Go through variables j...n-1
+		for (i = j; i < n; i++) {
 			o1 = varValues[i];
 			o2 = svv[i];
 			if (o1 instanceof Integer && o2 instanceof Integer) {
-				j = ((Integer) o1).compareTo((Integer) o2);
-				if (j != 0)
-					return j;
+				c = ((Integer) o1).compareTo((Integer) o2);
+				if (c != 0)
+					return c;
 				else
 					continue;
 			} else if (o1 instanceof Boolean && o2 instanceof Boolean) {
-				j = ((Boolean) o1).compareTo((Boolean) o2);
-				if (j != 0)
-					return j;
+				c = ((Boolean) o1).compareTo((Boolean) o2);
+				if (c != 0)
+					return c;
 				else
 					continue;
 			} else {
 				throw new ClassCastException("Can't compare " + o1.getClass() + " and " + o2.getClass());
 			}
 		}
+		
+		// Go through variables 0...j
+		for (i = 0; i < j; i++) {
+			o1 = varValues[i];
+			o2 = svv[i];
+			if (o1 instanceof Integer && o2 instanceof Integer) {
+				c = ((Integer) o1).compareTo((Integer) o2);
+				if (c != 0)
+					return c;
+				else
+					continue;
+			} else if (o1 instanceof Boolean && o2 instanceof Boolean) {
+				c = ((Boolean) o1).compareTo((Boolean) o2);
+				if (c != 0)
+					return c;
+				else
+					continue;
+			} else {
+				throw new ClassCastException("Can't compare " + o1.getClass() + " and " + o2.getClass());
+			}
+		}
+		
 		return 0;
 	}
 

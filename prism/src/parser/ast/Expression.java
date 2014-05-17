@@ -42,6 +42,12 @@ public abstract class Expression extends ASTElement
 	public abstract boolean isConstant();
 
 	/**
+	 * Is this expression a proposition?
+	 * (i.e. something that can be evaluated on a single state in isolation)
+	 */
+	public abstract boolean isProposition();
+
+	/**
 	 * Evaluate this expression, return result.
 	 * Note: assumes that type checking has been done already.
 	 */
@@ -660,6 +666,28 @@ public abstract class Expression extends ASTElement
 		return false;
 	}
 
+	/**
+	 * Test if an expression contains time bounds on temporal operators 
+	 */
+	public static boolean containsTemporalTimeBounds(Expression expr)
+	{
+		try {
+			expr.accept(new ASTTraverse()
+			{
+				public void visitPre(ExpressionTemporal e) throws PrismLangException
+				{
+					if (e.getLowerBound() != null)
+						throw new PrismLangException(e.getOperatorSymbol());
+					if (e.getUpperBound() != null)
+						throw new PrismLangException(e.getOperatorSymbol());
+				}
+			});
+		} catch (PrismLangException e) {
+			return true;
+		}
+		return false;
+	}
+	
 	/**
 	 * Test if an expression contains a multi(...) property within 
 	 */

@@ -32,6 +32,7 @@ import parser.ast.Expression;
 import parser.ast.ExpressionProb;
 import parser.ast.ExpressionReward;
 import parser.ast.ExpressionSS;
+import parser.ast.RelOp;
 import parser.ast.RewardStruct;
 import prism.ModelType;
 import prism.PrismComponent;
@@ -42,9 +43,9 @@ import explicit.rewards.MCRewards;
 import explicit.rewards.MDPRewards;
 
 /**
- * Super class for explicit-state probabilistic model checkers
+ * Super class for explicit-state probabilistic model checkers.
  */
-public class ProbModelChecker extends StateModelChecker
+public class ProbModelChecker extends NonProbModelChecker
 {
 	// Flags/settings
 	// (NB: defaults do not necessarily coincide with PRISM)
@@ -67,6 +68,8 @@ public class ProbModelChecker extends StateModelChecker
 	protected ValIterDir valIterDir = ValIterDir.BELOW;
 	// Method used for numerical solution
 	protected SolnMethod solnMethod = SolnMethod.VALUE_ITERATION;
+	// Is non-convergence of an iterative method an error?
+	protected boolean errorOnNonConverge = true; 
 	// Adversary export
 	protected boolean exportAdv = false;
 	protected String exportAdvFilename;
@@ -142,89 +145,83 @@ public class ProbModelChecker extends StateModelChecker
 	public ProbModelChecker(PrismComponent parent) throws PrismException
 	{
 		super(parent);
+
+		// If present, initialise settings from PrismSettings
+		if (settings != null) {
+			String s;
+			// PRISM_LIN_EQ_METHOD
+			s = settings.getString(PrismSettings.PRISM_LIN_EQ_METHOD);
+			if (s.equals("Power")) {
+				setLinEqMethod(LinEqMethod.POWER);
+			} else if (s.equals("Jacobi")) {
+				setLinEqMethod(LinEqMethod.JACOBI);
+			} else if (s.equals("Gauss-Seidel")) {
+				setLinEqMethod(LinEqMethod.GAUSS_SEIDEL);
+			} else if (s.equals("Backwards Gauss-Seidel")) {
+				setLinEqMethod(LinEqMethod.BACKWARDS_GAUSS_SEIDEL);
+			} else if (s.equals("JOR")) {
+				setLinEqMethod(LinEqMethod.JOR);
+			} else if (s.equals("SOR")) {
+				setLinEqMethod(LinEqMethod.SOR);
+			} else if (s.equals("Backwards SOR")) {
+				setLinEqMethod(LinEqMethod.BACKWARDS_SOR);
+			} else {
+				throw new PrismException("Explicit engine does not support linear equation solution method \"" + s + "\"");
+			}
+			// PRISM_MDP_SOLN_METHOD
+			s = settings.getString(PrismSettings.PRISM_MDP_SOLN_METHOD);
+			if (s.equals("Value iteration")) {
+				setMDPSolnMethod(MDPSolnMethod.VALUE_ITERATION);
+			} else if (s.equals("Gauss-Seidel")) {
+				setMDPSolnMethod(MDPSolnMethod.GAUSS_SEIDEL);
+			} else if (s.equals("Policy iteration")) {
+				setMDPSolnMethod(MDPSolnMethod.POLICY_ITERATION);
+			} else if (s.equals("Modified policy iteration")) {
+				setMDPSolnMethod(MDPSolnMethod.MODIFIED_POLICY_ITERATION);
+			} else if (s.equals("Linear programming")) {
+				setMDPSolnMethod(MDPSolnMethod.LINEAR_PROGRAMMING);
+			} else {
+				throw new PrismException("Explicit engine does not support MDP solution method \"" + s + "\"");
+			}
+			// PRISM_TERM_CRIT
+			s = settings.getString(PrismSettings.PRISM_TERM_CRIT);
+			if (s.equals("Absolute")) {
+				setTermCrit(TermCrit.ABSOLUTE);
+			} else if (s.equals("Relative")) {
+				setTermCrit(TermCrit.RELATIVE);
+			} else {
+				throw new PrismException("Unknown termination criterion \"" + s + "\"");
+			}
+			// PRISM_TERM_CRIT_PARAM
+			setTermCritParam(settings.getDouble(PrismSettings.PRISM_TERM_CRIT_PARAM));
+			// PRISM_MAX_ITERS
+			setMaxIters(settings.getInteger(PrismSettings.PRISM_MAX_ITERS));
+			// PRISM_PRECOMPUTATION
+			setPrecomp(settings.getBoolean(PrismSettings.PRISM_PRECOMPUTATION));
+			// PRISM_PROB0
+			setProb0(settings.getBoolean(PrismSettings.PRISM_PROB0));
+			// PRISM_PROB1
+			setProb1(settings.getBoolean(PrismSettings.PRISM_PROB1));
+			// PRISM_FAIRNESS
+			if (settings.getBoolean(PrismSettings.PRISM_FAIRNESS)) {
+				throw new PrismException("The explicit engine does not support model checking MDPs under fairness");
+			}
+			
+			// PRISM_EXPORT_ADV
+			s = settings.getString(PrismSettings.PRISM_EXPORT_ADV);
+			if (!(s.equals("None")))
+				setExportAdv(true);
+			// PRISM_EXPORT_ADV_FILENAME
+			setExportAdvFilename(settings.getString(PrismSettings.PRISM_EXPORT_ADV_FILENAME));
+		}
 	}
 	
 	// Settings methods
 
 	/**
-	 * Set settings from a PRISMSettings object.
-	 */
-	public void setSettings(PrismSettings settings) throws PrismException
-	{
-		super.setSettings(settings);
-		
-		if (settings == null)
-			return;
-		
-		String s;
-		// PRISM_LIN_EQ_METHOD
-		s = settings.getString(PrismSettings.PRISM_LIN_EQ_METHOD);
-		if (s.equals("Power")) {
-			setLinEqMethod(LinEqMethod.POWER);
-		} else if (s.equals("Jacobi")) {
-			setLinEqMethod(LinEqMethod.JACOBI);
-		} else if (s.equals("Gauss-Seidel")) {
-			setLinEqMethod(LinEqMethod.GAUSS_SEIDEL);
-		} else if (s.equals("Backwards Gauss-Seidel")) {
-			setLinEqMethod(LinEqMethod.BACKWARDS_GAUSS_SEIDEL);
-		} else if (s.equals("JOR")) {
-			setLinEqMethod(LinEqMethod.JOR);
-		} else if (s.equals("SOR")) {
-			setLinEqMethod(LinEqMethod.SOR);
-		} else if (s.equals("Backwards SOR")) {
-			setLinEqMethod(LinEqMethod.BACKWARDS_SOR);
-		} else {
-			throw new PrismException("Explicit engine does not support linear equation solution method \"" + s + "\"");
-		}
-		// PRISM_MDP_SOLN_METHOD
-		s = settings.getString(PrismSettings.PRISM_MDP_SOLN_METHOD);
-		if (s.equals("Value iteration")) {
-			setMDPSolnMethod(MDPSolnMethod.VALUE_ITERATION);
-		} else if (s.equals("Gauss-Seidel")) {
-			setMDPSolnMethod(MDPSolnMethod.GAUSS_SEIDEL);
-		} else if (s.equals("Policy iteration")) {
-			setMDPSolnMethod(MDPSolnMethod.POLICY_ITERATION);
-		} else if (s.equals("Modified policy iteration")) {
-			setMDPSolnMethod(MDPSolnMethod.MODIFIED_POLICY_ITERATION);
-		} else if (s.equals("Linear programming")) {
-			setMDPSolnMethod(MDPSolnMethod.LINEAR_PROGRAMMING);
-		} else {
-			throw new PrismException("Explicit engine does not support MDP solution method \"" + s + "\"");
-		}
-		// PRISM_TERM_CRIT
-		s = settings.getString(PrismSettings.PRISM_TERM_CRIT);
-		if (s.equals("Absolute")) {
-			setTermCrit(TermCrit.ABSOLUTE);
-		} else if (s.equals("Relative")) {
-			setTermCrit(TermCrit.RELATIVE);
-		} else {
-			throw new PrismException("Unknown termination criterion \"" + s + "\"");
-		}
-		// PRISM_TERM_CRIT_PARAM
-		setTermCritParam(settings.getDouble(PrismSettings.PRISM_TERM_CRIT_PARAM));
-		// PRISM_MAX_ITERS
-		setMaxIters(settings.getInteger(PrismSettings.PRISM_MAX_ITERS));
-		// PRISM_PRECOMPUTATION
-		setPrecomp(settings.getBoolean(PrismSettings.PRISM_PRECOMPUTATION));
-		// PRISM_PROB0
-		setProb0(settings.getBoolean(PrismSettings.PRISM_PROB0));
-		// PRISM_PROB1
-		setProb1(settings.getBoolean(PrismSettings.PRISM_PROB1));
-		// PRISM_FAIRNESS
-		if (settings.getBoolean(PrismSettings.PRISM_FAIRNESS)) {
-			throw new PrismException("The explicit engine does not support model checking MDPs under fairness");
-		}
-		
-		// PRISM_EXPORT_ADV
-		s = settings.getString(PrismSettings.PRISM_EXPORT_ADV);
-		if (!(s.equals("None")))
-			setExportAdv(true);
-		// PRISM_EXPORT_ADV_FILENAME
-		setExportAdvFilename(settings.getString(PrismSettings.PRISM_EXPORT_ADV_FILENAME));
-	}
-
-	/**
-	 * Inherit settings (and other info) from another model checker object.
+	 * Inherit settings (and the log) from another ProbModelChecker object.
+	 * For model checker objects that inherit a PrismSettings object, this is superfluous
+	 * since this has been done already.
 	 */
 	public void inheritSettings(ProbModelChecker other)
 	{
@@ -239,6 +236,7 @@ public class ProbModelChecker extends StateModelChecker
 		setProb1(other.getProb1());
 		setValIterDir(other.getValIterDir());
 		setSolnMethod(other.getSolnMethod());
+		setErrorOnNonConverge(other.geterrorOnNonConverge());
 	}
 
 	/**
@@ -257,6 +255,7 @@ public class ProbModelChecker extends StateModelChecker
 		mainLog.print("prob1 = " + prob1 + " ");
 		mainLog.print("valIterDir = " + valIterDir + " ");
 		mainLog.print("solnMethod = " + solnMethod + " ");
+		mainLog.print("errorOnNonConverge = " + errorOnNonConverge + " ");
 	}
 
 	// Set methods for flags/settings
@@ -349,6 +348,14 @@ public class ProbModelChecker extends StateModelChecker
 		this.solnMethod = solnMethod;
 	}
 
+	/**
+	 * Set whether non-convergence of an iterative method an error
+	 */
+	public void setErrorOnNonConverge(boolean errorOnNonConverge)
+	{
+		this.errorOnNonConverge = errorOnNonConverge;
+	}
+
 	public void setExportAdv(boolean exportAdv)
 	{
 		this.exportAdv = exportAdv;
@@ -416,6 +423,14 @@ public class ProbModelChecker extends StateModelChecker
 		return solnMethod;
 	}
 
+	/**
+	 * Is non-convergence of an iterative method an error?
+	 */
+	public boolean geterrorOnNonConverge()
+	{
+		return errorOnNonConverge;
+	}
+
 	// Model checking functions
 
 	@Override
@@ -450,7 +465,7 @@ public class ProbModelChecker extends StateModelChecker
 	{
 		Expression pb; // Probability bound (expression)
 		double p = 0; // Probability bound (actual value)
-		String relOp; // Relational operator
+		RelOp relOp; // Relational operator
 		boolean min = false; // For nondeterministic models, are we finding min (true) or max (false) probs
 		ModelType modelType = model.getModelType();
 
@@ -464,19 +479,7 @@ public class ProbModelChecker extends StateModelChecker
 			if (p < 0 || p > 1)
 				throw new PrismException("Invalid probability bound " + p + " in P operator");
 		}
-
-		// For nondeterministic models, determine whether min or max probabilities needed
-		if (modelType.nondeterministic()) {
-			if (relOp.equals(">") || relOp.equals(">=") || relOp.equals("min=")) {
-				// min
-				min = true;
-			} else if (relOp.equals("<") || relOp.equals("<=") || relOp.equals("max=")) {
-				// max
-				min = false;
-			} else {
-				throw new PrismException("Can't use \"P=?\" for nondeterministic models; use \"Pmin=?\" or \"Pmax=?\"");
-			}
-		}
+		min = relOp.isLowerBound();
 
 		// Compute probabilities
 		switch (modelType) {
@@ -526,7 +529,7 @@ public class ProbModelChecker extends StateModelChecker
 		RewardStruct rewStruct = null; // Reward struct object
 		Expression rb; // Reward bound (expression)
 		double r = 0; // Reward bound (actual value)
-		String relOp; // Relational operator
+		RelOp relOp; // Relational operator
 		boolean min = false; // For nondeterministic models, are we finding min (true) or max (false) rewards
 		ModelType modelType = model.getModelType();
 		StateValues rews = null;
@@ -543,19 +546,7 @@ public class ProbModelChecker extends StateModelChecker
 			if (r < 0)
 				throw new PrismException("Invalid reward bound " + r + " in R[] formula");
 		}
-
-		// For nondeterministic models, determine whether min or max rewards needed
-		if (modelType.nondeterministic()) {
-			if (relOp.equals(">") || relOp.equals(">=") || relOp.equals("min=")) {
-				// min
-				min = true;
-			} else if (relOp.equals("<") || relOp.equals("<=") || relOp.equals("max=")) {
-				// max
-				min = false;
-			} else {
-				throw new PrismException("Can't use \"R=?\" for nondeterministic models; use \"Rmin=?\" or \"Rmax=?\"");
-			}
-		}
+		min = relOp.isLowerBound();
 
 		// Get reward info
 		if (modulesFile == null)
@@ -606,7 +597,7 @@ public class ProbModelChecker extends StateModelChecker
 
 		// Print out probabilities
 		if (getVerbosity() > 5) {
-			mainLog.print("\nProbabilities (non-zero only) for all states:\n");
+			mainLog.print("\nRewards (non-zero only) for all states:\n");
 			rews.print(mainLog);
 		}
 
@@ -629,7 +620,7 @@ public class ProbModelChecker extends StateModelChecker
 	{
 		Expression pb; // Probability bound (expression)
 		double p = 0; // Probability bound (actual value)
-		String relOp; // Relational operator
+		RelOp relOp; // Relational operator
 		ModelType modelType = model.getModelType();
 
 		StateValues probs = null;

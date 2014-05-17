@@ -36,8 +36,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import explicit.SCCComputer.SCCMethod;
-
 import parser.State;
 import parser.Values;
 import parser.ast.Expression;
@@ -61,6 +59,7 @@ import parser.ast.Property;
 import parser.type.TypeBool;
 import parser.type.TypeDouble;
 import parser.type.TypeInt;
+import parser.visitor.ASTTraverseModify;
 import prism.Filter;
 import prism.ModelType;
 import prism.PrismComponent;
@@ -70,7 +69,11 @@ import prism.PrismSettings;
 import prism.Result;
 
 /**
- * Super class for explicit-state model checkers
+ * Super class for explicit-state model checkers.
+ * <br>
+ * This model checker class and its subclasses store their settings locally so
+ * that they can be configured and used without a PrismSettings object.
+ * Pass in null as a parent on creation to bypass the use of PrismSettings.
  */
 public class StateModelChecker extends PrismComponent
 {
@@ -79,13 +82,15 @@ public class StateModelChecker extends PrismComponent
 
 	// Verbosity level
 	protected int verbosity = 0;
-	
+
 	// Additional flags/settings not included in PrismSettings
-	
+
 	// Generate/store a strategy during model checking?
 	protected boolean genStrat = false;
-	
-	
+
+	// Do bisimulation minimisation before model checking?
+	protected boolean doBisim = false;
+
 	// Model file (for reward structures, etc.)
 	protected ModulesFile modulesFile = null;
 
@@ -107,16 +112,27 @@ public class StateModelChecker extends PrismComponent
 	public StateModelChecker(PrismComponent parent) throws PrismException
 	{
 		super(parent);
+		
+		// For explicit.StateModelChecker and its subclasses, we explicitly set 'settings'
+		// to null if there is no parent or if the parent has a null 'settings'.
+		// This allows us to choose to ignore the default one created by PrismComponent.
+		if (parent == null || parent.getSettings() == null)
+			setSettings(null);
+		
+		// If present, initialise settings from PrismSettings
+		if (settings != null) {
+			verbosity = settings.getBoolean(PrismSettings.PRISM_VERBOSE) ? 10 : 1;
+		}
 	}
-	
+
 	/**
-	 * Create a model checker (a subclass of this one) for a given model type
+	 * Create a model checker (a subclass of this one) for a given model type.
 	 */
 	public static StateModelChecker createModelChecker(ModelType modelType) throws PrismException
 	{
 		return createModelChecker(modelType, null);
 	}
-	
+
 	/**
 	 * Create a model checker (a subclass of this one) for a given model type
 	 */
@@ -148,20 +164,9 @@ public class StateModelChecker extends PrismComponent
 	// Settings methods
 
 	/**
-	 * Set settings from a PRISMSettings object.
-	 */
-	public void setSettings(PrismSettings settings) throws PrismException
-	{
-		super.setSettings(settings);
-		
-		if (settings == null)
-			return;
-
-		verbosity = settings.getBoolean(PrismSettings.PRISM_VERBOSE) ? 10 : 1;
-	}
-
-	/**
-	 * Inherit settings (and other info) from another model checker object.
+	 * Inherit settings (and the log) from another StateModelChecker object.
+	 * For model checker objects that inherit a PrismSettings object, this is superfluous
+	 * since this has been done already.
 	 */
 	public void inheritSettings(StateModelChecker other)
 	{
@@ -195,6 +200,14 @@ public class StateModelChecker extends PrismComponent
 		this.genStrat = genStrat;
 	}
 
+	/**
+	 * Specify whether or not to do bisimulation minimisation before model checking.
+	 */
+	public void setDoBisim(boolean doBisim)
+	{
+		this.doBisim = doBisim;
+	}
+
 	// Get methods for flags/settings
 
 	public int getVerbosity()
@@ -208,6 +221,14 @@ public class StateModelChecker extends PrismComponent
 	public boolean getGenStrat()
 	{
 		return genStrat;
+	}
+
+	/**
+	 * Whether or not to do bisimulation minimisation before model checking.
+	 */
+	public boolean getDoBisim()
+	{
+		return doBisim;
 	}
 
 	// Other setters/getters
@@ -292,6 +313,18 @@ public class StateModelChecker extends PrismComponent
 			expr = exprFilter;
 		}
 
+		// If required, do bisimulation minimisation
+		if (doBisim) {
+			mainLog.println("\nPerforming bisimulation minimisation...");
+			ArrayList<String> propNames = new ArrayList<String>();
+			ArrayList<BitSet> propBSs = new ArrayList<BitSet>();
+			Expression exprNew = checkMaximalPropositionalFormulas(model, expr.deepCopy(), propNames, propBSs);
+			Bisimulation bisim = new Bisimulation(this);
+			model = bisim.minimise(model, propNames, propBSs);
+			mainLog.println("Modified property: " + exprNew);
+			expr = exprNew;
+		}
+		
 		// Do model checking and store result vector
 		timer = System.currentTimeMillis();
 		vals = checkExpression(model, expr);
@@ -633,6 +666,12 @@ public class StateModelChecker extends PrismComponent
 			}
 			return StateValues.createFromBitSet(bs, model);
 		} else {
+			// First look at labels attached directly to model
+			BitSet bs = model.getLabelStates(expr.getName());
+			if (bs != null) {
+				return StateValues.createFromBitSet((BitSet) bs.clone(), model);
+			}
+			// Failing that, look in the properties file
 			ll = propertiesFile.getCombinedLabelList();
 			i = ll.getLabelIndex(expr.getName());
 			if (i == -1)
@@ -923,7 +962,7 @@ public class StateModelChecker extends PrismComponent
 		if (bsMatch != null) {
 			states = StateValues.createFromBitSet(bsMatch, model);
 			mainLog.print("\nThere are " + bsMatch.cardinality() + " states with ");
-			mainLog.print(expr.getType() instanceof TypeDouble ? "(approximately) " : "" + "this value");
+			mainLog.print((expr.getType() instanceof TypeDouble ? "(approximately) " : "") + "this value");
 			boolean verbose = verbosity > 0; // TODO
 			if (!verbose && bsMatch.cardinality() > 10) {
 				mainLog.print(".\nThe first 10 states are displayed below. To view them all, enable verbose mode or use a print filter.\n");
@@ -951,6 +990,143 @@ public class StateModelChecker extends PrismComponent
 	}
 
 	/**
+	 * Extract maximal propositional subformulas of an expression, model check them and
+	 * replace them with ExpressionLabel objects (L0, L1, etc.) Expression passed in is modified directly, but the result
+	 * is also returned. As an optimisation, model checking that results in true/false for all states is converted to an
+	 * actual true/false, and duplicate results are given the same proposition. BitSets giving the states which satisfy each proposition
+	 * are put into the list {@code propBSs}, which should be empty when this function is called.
+	 * The names of the labels (L0, L1, etc. by default) are put into {@code propNames}, which should also be empty. 
+	 */
+	public Expression checkMaximalPropositionalFormulas(Model model, Expression expr, List<String> propNames, List<BitSet> propBSs) throws PrismException
+	{
+		Expression exprNew = (Expression) expr.accept(new CheckMaximalPropositionalFormulas(this, model, propNames, propBSs));
+		return exprNew;
+	}
+
+	/**
+	 * Class to replace maximal propositional subformulas of an expression
+	 * with labels corresponding to BitSets for the states that satisfy them.
+	 */
+	class CheckMaximalPropositionalFormulas extends ASTTraverseModify
+	{
+		private StateModelChecker mc;
+		private Model model;
+		private List<String> propNames;
+		private List<BitSet> propBSs;
+		
+		public CheckMaximalPropositionalFormulas(StateModelChecker mc, Model model, List<String> propNames, List<BitSet> propBSs)
+		{
+			this.mc = mc;
+			this.model = model;
+			this.propNames = propNames;
+			this.propBSs = propBSs;
+		}
+		
+		public Object visit(ExpressionITE e) throws PrismLangException
+		{
+			return (e.getType() instanceof TypeBool && e.isProposition()) ? replaceWithLabel(e) : super.visit(e);
+		}
+		
+		public Object visit(ExpressionBinaryOp e) throws PrismLangException
+		{
+			return (e.getType() instanceof TypeBool && e.isProposition()) ? replaceWithLabel(e) : super.visit(e);
+		}
+		
+		public Object visit(ExpressionUnaryOp e) throws PrismLangException
+		{
+			return (e.getType() instanceof TypeBool && e.isProposition()) ? replaceWithLabel(e) : super.visit(e);
+		}
+		
+		public Object visit(ExpressionFunc e) throws PrismLangException
+		{
+			return (e.getType() instanceof TypeBool && e.isProposition()) ? replaceWithLabel(e) : super.visit(e);
+		}
+		
+		public Object visit(ExpressionIdent e) throws PrismLangException
+		{
+			return (e.getType() instanceof TypeBool && e.isProposition()) ? replaceWithLabel(e) : super.visit(e);
+		}
+		
+		public Object visit(ExpressionLiteral e) throws PrismLangException
+		{
+			return (e.getType() instanceof TypeBool && e.isProposition()) ? replaceWithLabel(e) : super.visit(e);
+		}
+		
+		public Object visit(ExpressionConstant e) throws PrismLangException
+		{
+			return (e.getType() instanceof TypeBool && e.isProposition()) ? replaceWithLabel(e) : super.visit(e);
+		}
+		
+		public Object visit(ExpressionFormula e) throws PrismLangException
+		{
+			return (e.getType() instanceof TypeBool && e.isProposition()) ? replaceWithLabel(e) : super.visit(e);
+		}
+		
+		public Object visit(ExpressionVar e) throws PrismLangException
+		{
+			return (e.getType() instanceof TypeBool && e.isProposition()) ? replaceWithLabel(e) : super.visit(e);
+		}
+		
+		public Object visit(ExpressionLabel e) throws PrismLangException
+		{
+			return (e.getType() instanceof TypeBool && e.isProposition()) ? replaceWithLabel(e) : super.visit(e);
+		}
+		
+		public Object visit(ExpressionProp e) throws PrismLangException
+		{
+			// Look up property and recurse
+			Property prop = propertiesFile.lookUpPropertyObjectByName(e.getName());
+			if (prop != null) {
+				return e.accept(this);
+			} else {
+				throw new PrismLangException("Unknown property reference " + e, e);
+			}
+		}
+		
+		public Object visit(ExpressionFilter e) throws PrismLangException
+		{
+			return (e.getType() instanceof TypeBool && e.isProposition()) ? replaceWithLabel(e) : super.visit(e);
+		}
+		
+		/**
+		 * Evaluate this expression in all states (i.e. model check it),
+		 * store the resulting BitSet in the list {@code propBSs},
+		 * and return an ExpressionLabel with name Li to replace it
+		 * (where i denotes the 0-indexed index into the list propBSs).
+		 */
+		private Object replaceWithLabel(Expression e) throws PrismLangException
+		{
+			// Model check
+			StateValues sv;
+			try {
+				sv = mc.checkExpression(model, e);
+			} catch (PrismException ex) {
+				throw new PrismLangException(ex.getMessage());
+			}
+			BitSet bs = sv.getBitSet();
+			// Detect special cases (true, false) for optimisation
+			if (bs.isEmpty()) {
+				return Expression.False();
+			}
+			if (bs.cardinality() == model.getNumStates()) {
+				return Expression.True();
+			}
+			// See if we already have an identical result
+			// (in which case, reuse it)
+			int i = propBSs.indexOf(bs);
+			if (i != -1) {
+				sv.clear();
+				return new ExpressionLabel("L" + i);
+			}
+			// Otherwise, add result to list, return new label
+			String newLabelName = "L" + propBSs.size();
+			propNames.add(newLabelName);
+			propBSs.add(bs);
+			return new ExpressionLabel(newLabelName);
+		}
+	}
+	
+	/**
 	 * Loads labels from a PRISM labels file and stores them in BitSet objects.
 	 * (Actually, it returns a map from label name Strings to BitSets.)
 	 * (Note: the size of the BitSet may be smaller than the number of states.) 
@@ -969,15 +1145,19 @@ public class StateModelChecker extends PrismComponent
 			in = new BufferedReader(new FileReader(new File(filename)));
 			// Parse first line to get label list
 			s = in.readLine();
-			if (s == null)
+			if (s == null) {
+				in.close();
 				throw new PrismException("Empty labels file");
+			}
 			ss = s.split(" ");
 			labels = new ArrayList<String>(ss.length);
 			for (i = 0; i < ss.length; i++) {
 				s = ss[i];
 				j = s.indexOf('=');
-				if (j < 0)
+				if (j < 0) {
+					in.close();
 					throw new PrismException("Corrupt labels file (line 1)");
+				}
 				k = Integer.parseInt(s.substring(0, j));
 				while (labels.size() <= k)
 					labels.add("?");

@@ -26,19 +26,28 @@
 
 package prism;
 
+import hybrid.PrismHybrid;
+
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.util.BitSet;
 import java.util.List;
 import java.util.Vector;
 
-import jdd.*;
-import dv.*;
-import mtbdd.*;
-import sparse.*;
-import hybrid.*;
-import parser.ast.*;
-import parser.visitor.ASTTraverse;
+import jdd.JDD;
+import jdd.JDDNode;
+import jdd.JDDVars;
+import mtbdd.PrismMTBDD;
+import parser.ast.Expression;
+import parser.ast.ExpressionProb;
+import parser.ast.ExpressionReward;
+import parser.ast.ExpressionSS;
+import parser.ast.ExpressionTemporal;
+import parser.ast.ExpressionUnaryOp;
+import parser.ast.PropertiesFile;
+import parser.ast.RelOp;
+import sparse.PrismSparse;
+import dv.DoubleVector;
 
 /*
  * Model checker for DTMCs.
@@ -144,7 +153,7 @@ public class ProbModelChecker extends NonProbModelChecker
 	{
 		Expression pb; // probability bound (expression)
 		double p = 0; // probability bound (actual value)
-		String relOp; // relational operator
+		RelOp relOp; // relational operator
 
 		JDDNode sol;
 		StateValues probs = null;
@@ -160,18 +169,18 @@ public class ProbModelChecker extends NonProbModelChecker
 
 		// Check for trivial (i.e. stupid) cases
 		if (pb != null) {
-			if ((p == 0 && relOp.equals(">=")) || (p == 1 && relOp.equals("<="))) {
+			if ((p == 0 && relOp == RelOp.GEQ) || (p == 1 && relOp == RelOp.LEQ)) {
 				mainLog.printWarning("Checking for probability " + relOp + " " + p + " - formula trivially satisfies all states");
 				JDD.Ref(reach);
 				return new StateValuesMTBDD(reach, model);
-			} else if ((p == 0 && relOp.equals("<")) || (p == 1 && relOp.equals(">"))) {
+			} else if ((p == 0 && relOp == RelOp.LT) || (p == 1 && relOp == RelOp.GT)) {
 				mainLog.printWarning("Checking for probability " + relOp + " " + p + " - formula trivially satisfies no states");
 				return new StateValuesMTBDD(JDD.Constant(0), model);
 			}
 		}
 
 		// Print a warning if Pmin/Pmax used
-		if (relOp.equals("min=") || relOp.equals("max=")) {
+		if (relOp == RelOp.MIN || relOp == RelOp.MAX) {
 			mainLog.printWarning("\"Pmin=?\" and \"Pmax=?\" operators are identical to \"P=?\" for DTMCs/CTMCs");
 		}
 
@@ -208,7 +217,7 @@ public class ProbModelChecker extends NonProbModelChecker
 		Object rs; // reward struct index
 		Expression rb; // reward bound (expression)
 		double r = 0; // reward bound (actual value)
-		String relOp; // relational operator
+		RelOp relOp; // relational operator
 		Expression expr2; // expression
 
 		JDDNode stateRewards = null, transRewards = null, sol;
@@ -245,18 +254,18 @@ public class ProbModelChecker extends NonProbModelChecker
 
 		// check for trivial (i.e. stupid) cases
 		if (rb != null) {
-			if (r == 0 && relOp.equals(">=")) {
+			if (r == 0 && relOp == RelOp.GEQ) {
 				mainLog.printWarning("Checking for reward " + relOp + " " + r + " - formula trivially satisfies all states");
 				JDD.Ref(reach);
 				return new StateValuesMTBDD(reach, model);
-			} else if (r == 0 && relOp.equals("<")) {
+			} else if (r == 0 && relOp == RelOp.LT) {
 				mainLog.printWarning("Checking for reward " + relOp + " " + r + " - formula trivially satisfies no states");
 				return new StateValuesMTBDD(JDD.Constant(0), model);
 			}
 		}
 
 		// print a warning if Rmin/Rmax used
-		if (relOp.equals("min=") || relOp.equals("max=")) {
+		if (relOp == RelOp.MIN || relOp == RelOp.MAX) {
 			mainLog.printWarning("\"Rmin=?\" and \"Rmax=?\" operators are identical to \"R=?\" for DTMCs/CTMCs");
 		}
 
@@ -309,7 +318,7 @@ public class ProbModelChecker extends NonProbModelChecker
 	{
 		Expression pb; // probability bound (expression)
 		double p = 0; // probability bound (actual value)
-		String relOp; // relational operator
+		RelOp relOp; // relational operator
 
 		// BSCC stuff
 		List<JDDNode> bsccs = null;
@@ -332,11 +341,11 @@ public class ProbModelChecker extends NonProbModelChecker
 
 		// Check for trivial (i.e. stupid) cases
 		if (pb != null) {
-			if ((p == 0 && relOp.equals(">=")) || (p == 1 && relOp.equals("<="))) {
+			if ((p == 0 && relOp == RelOp.GEQ) || (p == 1 && relOp == RelOp.LEQ)) {
 				mainLog.printWarning("Checking for probability " + relOp + " " + p + " - formula trivially satisfies all states");
 				JDD.Ref(reach);
 				return new StateValuesMTBDD(reach, model);
-			} else if ((p == 0 && relOp.equals("<")) || (p == 1 && relOp.equals(">"))) {
+			} else if ((p == 0 && relOp == RelOp.LT) || (p == 1 && relOp == RelOp.GT)) {
 				mainLog.printWarning("Checking for probability " + relOp + " " + p + " - formula trivially satisfies no states");
 				return new StateValuesMTBDD(JDD.Constant(0), model);
 			}
@@ -555,21 +564,8 @@ public class ProbModelChecker extends NonProbModelChecker
 		long l;
 
 		// Can't do LTL with time-bounded variants of the temporal operators
-		try {
-			expr.accept(new ASTTraverse()
-			{
-				public void visitPre(ExpressionTemporal e) throws PrismLangException
-				{
-					if (e.getLowerBound() != null)
-						throw new PrismLangException(e.getOperatorSymbol());
-					if (e.getUpperBound() != null)
-						throw new PrismLangException(e.getOperatorSymbol());
-				}
-			});
-		} catch (PrismLangException e) {
-			String s = "Temporal operators (like " + e.getMessage() + ")";
-			s += " cannot have time bounds for LTL properties";
-			throw new PrismException(s);
+		if (Expression.containsTemporalTimeBounds(expr)) {
+			throw new PrismException("Time-bounded operators not supported in LTL: " + expr);
 		}
 
 		// For LTL model checking routines
@@ -607,7 +603,9 @@ public class ProbModelChecker extends NonProbModelChecker
 		}
 		if (prism.getExportProductStates()) {
 			mainLog.println("\nExporting product state space to file \"" + prism.getExportProductStatesFilename() + "\"...");
-			modelProduct.exportStates(Prism.EXPORT_PLAIN, new PrismFileLog(prism.getExportProductStatesFilename()));
+			PrismFileLog out = new PrismFileLog(prism.getExportProductStatesFilename());
+			modelProduct.exportStates(Prism.EXPORT_PLAIN, out);
+			out.close();
 		}
 
 		// Find accepting BSCCs + compute reachability probabilities
