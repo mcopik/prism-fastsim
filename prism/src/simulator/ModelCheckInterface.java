@@ -25,15 +25,18 @@ public interface ModelCheckInterface
 	 * If not, an explanatory error message is thrown as an exception.
 	 */
 	public void checkModelForSimulation(ModulesFile modulesFile) throws PrismException;
+
 	/**
 	 * Check whether a property is suitable for approximate model checking using the simulator.
 	 */
 	public boolean isPropertyOKForSimulation(Expression expr);
+
 	/**
 	 * Check whether a property is suitable for approximate model checking using the simulator.
 	 * If not, an explanatory error message is thrown as an exception.
 	 */
 	public void checkPropertyForSimulation(Expression expr) throws PrismException;
+
 	/**
 	 * Perform approximate model checking of a property on a model, using the simulator.
 	 * Sampling starts from the initial state provided or, if null, the default
@@ -47,8 +50,9 @@ public interface ModelCheckInterface
 	 * @param maxPathLength The maximum path length for sampling
 	 * @param simMethod Object specifying details of method to use for simulation
 	 */
-	public Object modelCheckSingleProperty(ModulesFile modulesFile, PropertiesFile propertiesFile, Expression expr, State initialState, int maxPathLength,
+	public Object modelCheckSingleProperty(ModulesFile modulesFile, PropertiesFile propertiesFile, Expression expr, State initialState, long maxPathLength,
 			SimulationMethod simMethod) throws PrismException;
+
 	/**
 	 * Perform approximate model checking of properties on a model, using the simulator.
 	 * Sampling starts from the initial state provided or, if null, the default
@@ -64,7 +68,8 @@ public interface ModelCheckInterface
 	 * @param simMethod Object specifying details of method to use for simulation
 	 */
 	public Object[] modelCheckMultipleProperties(ModulesFile modulesFile, PropertiesFile propertiesFile, List<Expression> exprs, State initialState,
-			int maxPathLength, SimulationMethod simMethod) throws PrismException;
+			long maxPathLength, SimulationMethod simMethod) throws PrismException;
+
 	/**
 	 * Perform an approximate model checking experiment on a model, using the simulator
 	 * (specified by values for undefined constants from the property only).
@@ -86,6 +91,6 @@ public interface ModelCheckInterface
 	 * @throws InterruptedException if the thread is interrupted
 	 */
 	public void modelCheckExperiment(ModulesFile modulesFile, PropertiesFile propertiesFile, UndefinedConstants undefinedConstants,
-			ResultsCollection resultsCollection, Expression expr, State initialState, int maxPathLength, SimulationMethod simMethod) throws PrismException,
+			ResultsCollection resultsCollection, Expression expr, State initialState, long maxPathLength, SimulationMethod simMethod) throws PrismException,
 			InterruptedException;
 }

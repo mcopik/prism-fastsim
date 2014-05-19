@@ -473,11 +473,8 @@ public class RuntimeContext
 			this.config.configDevice(currentDevice);
 			this.properties = properties;
 			kernel = new Kernel(this.config, automaton, properties);
-			mainLog.println(kernel.getSource());
-//			lengths.finalize();
-			lengths = null;
-			}
-			
+			//mainLog.println(kernel.getSource());
+
 			mainLog.flush();
 			CLProgram program = context.createProgram(kernel.getSource());
 			//add include directories for PRNG

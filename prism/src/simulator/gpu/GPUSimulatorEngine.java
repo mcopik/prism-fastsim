@@ -229,7 +229,7 @@ public class GPUSimulatorEngine implements ModelCheckInterface
 	}
 
 	@Override
-	public Object modelCheckSingleProperty(ModulesFile modulesFile, PropertiesFile propertiesFile, Expression expr, State initialState, int maxPathLength,
+	public Object modelCheckSingleProperty(ModulesFile modulesFile, PropertiesFile propertiesFile, Expression expr, State initialState, long maxPathLength,
 			SimulationMethod simMethod) throws PrismException
 	{
 		List<Expression> exprs = new ArrayList<>();
@@ -240,7 +240,7 @@ public class GPUSimulatorEngine implements ModelCheckInterface
 
 	@Override
 	public Object[] modelCheckMultipleProperties(ModulesFile modulesFile, PropertiesFile propertiesFile, List<Expression> exprs, State initialState,
-			int maxPathLength, SimulationMethod simMethod) throws PrismException
+			long maxPathLength, SimulationMethod simMethod) throws PrismException
 	{
 		loadModel(modulesFile);
 		createSamplers(exprs, propertiesFile, simMethod);
@@ -304,7 +304,7 @@ public class GPUSimulatorEngine implements ModelCheckInterface
 
 	@Override
 	public void modelCheckExperiment(ModulesFile modulesFile, PropertiesFile propertiesFile, UndefinedConstants undefinedConstants,
-			ResultsCollection resultsCollection, Expression expr, State initialState, int maxPathLength, SimulationMethod simMethod) throws PrismException,
+			ResultsCollection resultsCollection, Expression expr, State initialState, long maxPathLength, SimulationMethod simMethod) throws PrismException,
 			InterruptedException
 	{
 		//TODO

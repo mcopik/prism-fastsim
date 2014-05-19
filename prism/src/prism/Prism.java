@@ -176,7 +176,7 @@ public class Prism extends PrismComponent implements PrismSettingsListener
 			}
 		}
 	}
-	
+
 	//------------------------------------------------------------------------------
 	// Settings / flags / options
 	//------------------------------------------------------------------------------
@@ -1871,7 +1871,7 @@ public class Prism extends PrismComponent implements PrismSettingsListener
 	private void doBuildModel() throws PrismException
 	{
 		long l; // timer
-		
+
 		// Clear any existing built model(s)
 		clearBuiltModel();
 
@@ -2499,7 +2499,7 @@ public class Prism extends PrismComponent implements PrismSettingsListener
 		if (file != null)
 			tmpLog.close();
 	}
-	
+
 	/**
 	 * Export the (states of the) currently loaded model's strongly connected components (SCCs) to a file
 	 * @param exportType Type of export; one of: <ul>
@@ -2578,7 +2578,8 @@ public class Prism extends PrismComponent implements PrismSettingsListener
 					new StateListMTBDD(sccComputer.getSCCs().get(i), currentModel).printMatlab(tmpLog);
 				JDD.Deref(sccComputer.getSCCs().get(i));
 			} else {
-				explicit.StateValues.createFromBitSet(sccComputerExpl.getSCCs().get(i), currentModelExpl).print(tmpLog, true, exportType == EXPORT_MATLAB, true, true);
+				explicit.StateValues.createFromBitSet(sccComputerExpl.getSCCs().get(i), currentModelExpl).print(tmpLog, true, exportType == EXPORT_MATLAB,
+						true, true);
 			}
 			if (exportType == EXPORT_MATLAB)
 				tmpLog.println("];");
@@ -2892,14 +2893,14 @@ public class Prism extends PrismComponent implements PrismSettingsListener
 	 * @param maxPathLength The maximum path length for sampling
 	 * @param simMethod Object specifying details of method to use for simulation
 	 */
-	public Result modelCheckSimulator(PropertiesFile propertiesFile, Expression expr, Values definedPFConstants, State initialState, int maxPathLength,
+	public Result modelCheckSimulator(PropertiesFile propertiesFile, Expression expr, Values definedPFConstants, State initialState, long maxPathLength,
 			SimulationInformation simInfo) throws PrismException
 	{
 		return modelCheckSimulator(propertiesFile, expr, definedPFConstants, initialState, maxPathLength, simInfo.createSimulationMethod(),
 				getSimulator(simInfo));
 	}
 
-	private Result modelCheckSimulator(PropertiesFile propertiesFile, Expression expr, Values definedPFConstants, State initialState, int maxPathLength,
+	private Result modelCheckSimulator(PropertiesFile propertiesFile, Expression expr, Values definedPFConstants, State initialState, long maxPathLength,
 			SimulationMethod simMethod, ModelCheckInterface simulator) throws PrismException
 	{
 		Object res = null;
@@ -2937,7 +2938,7 @@ public class Prism extends PrismComponent implements PrismSettingsListener
 	 * @param simMethod Object specifying details of simulation method
 	 */
 	public Result[] modelCheckSimulatorSimultaneously(PropertiesFile propertiesFile, List<Expression> exprs, Values definedPFConstants, State initialState,
-			int maxPathLength, SimulationSettings simSettings) throws PrismException
+			long maxPathLength, SimulationSettings simSettings) throws PrismException
 	{
 		return modelCheckSimulatorSimultaneously(propertiesFile, exprs, definedPFConstants, initialState, maxPathLength, simSettings.getMethod(),
 				getSimulator(simSettings));
@@ -2965,7 +2966,7 @@ public class Prism extends PrismComponent implements PrismSettingsListener
 	}
 
 	private Result[] modelCheckSimulatorSimultaneously(PropertiesFile propertiesFile, List<Expression> exprs, Values definedPFConstants, State initialState,
-			int maxPathLength, SimulationMethod simMethod, ModelCheckInterface simulator) throws PrismException
+			long maxPathLength, SimulationMethod simMethod, ModelCheckInterface simulator) throws PrismException
 	{
 		Object[] res = null;
 
@@ -3044,7 +3045,7 @@ public class Prism extends PrismComponent implements PrismSettingsListener
 	 * @throws InterruptedException if the thread is interrupted
 	 */
 	public void modelCheckSimulatorExperiment(PropertiesFile propertiesFile, UndefinedConstants undefinedConstants, ResultsCollection results, Expression expr,
-			State initialState, int pathLength, SimulationSettings simSettings) throws PrismException, InterruptedException
+			State initialState, long pathLength, SimulationSettings simSettings) throws PrismException, InterruptedException
 	{
 		// Print info
 		mainLog.printSeparator();
@@ -3101,7 +3102,7 @@ public class Prism extends PrismComponent implements PrismSettingsListener
 		mc.setModulesFileAndPropertiesFile(currentModulesFile, propertiesFile);
 		return mc.check(modelExpl, prop.getExpression());
 	}
-	
+
 	/**
 	 * Export a strategy. The associated model should be attached to the strategy.
 	 * Strictly, speaking that does not need to be the currently loaded model,
@@ -3284,7 +3285,7 @@ public class Prism extends PrismComponent implements PrismSettingsListener
 		// Print message
 		mainLog.printSeparator();
 		String strTime = currentModelType.continuousTime() ? Double.toString(time) : Integer.toString((int) time);
-			mainLog.println("\nComputing transient probabilities (time = " + strTime + ")...");
+		mainLog.println("\nComputing transient probabilities (time = " + strTime + ")...");
 
 		l = System.currentTimeMillis();
 
@@ -3586,8 +3587,8 @@ public class Prism extends PrismComponent implements PrismSettingsListener
 		mc.setModulesFileAndPropertiesFile(currentModulesFile, propertiesFile);
 		// Pass any additional local settings
 		mc.setGenStrat(genStrat);
-       		mc.setDoBisim(doBisim);
-	       	return mc;
+		mc.setDoBisim(doBisim);
+		return mc;
 	}
 
 	/**
@@ -3877,9 +3878,9 @@ public class Prism extends PrismComponent implements PrismSettingsListener
 			InterruptedException
 	{
 		loadPRISMModel(modulesFile);
-	       	SimulationSettings settings = new SimulationSettings(simMethod);
-		modelCheckSimulatorExperiment(propertiesFile, undefinedConstants, results, propertyToCheck, initialState, pathLength, settings);
-       }
+		SimulationSettings settings = new SimulationSettings(simMethod);
+		modelCheckSimulatorExperiment(propertiesFile, undefinedConstants, results, propertyToCheck, initialState, maxPathLength, settings);
+	}
 
 	/**
 	 * Old API:
