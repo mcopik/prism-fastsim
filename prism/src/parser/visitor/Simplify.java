@@ -26,7 +26,12 @@
 
 package parser.visitor;
 
-import parser.ast.*;
+import parser.ast.Expression;
+import parser.ast.ExpressionBinaryOp;
+import parser.ast.ExpressionFormula;
+import parser.ast.ExpressionFunc;
+import parser.ast.ExpressionLiteral;
+import parser.ast.ExpressionUnaryOp;
 import parser.type.TypeDouble;
 import prism.PrismLangException;
 
@@ -116,6 +121,12 @@ public class Simplify extends ASTTraverseModify
 				return new ExpressionUnaryOp(ExpressionUnaryOp.MINUS, e.getOperand2());
 			break;
 		case ExpressionBinaryOp.TIMES:
+			// if the the multiplication involves some other expression, then it
+			// would be good to save information about necessary parentheses which we're removed
+			// in recursive application of accept() at the beginning of this method
+			if (e.getOperand2() instanceof ExpressionBinaryOp) {
+				e.setOperand2(Expression.Parenth(e.getOperand2()));
+			}
 			if (Expression.isInt(e.getOperand2()) && e.getOperand2().evaluateInt() == 1)
 				return e.getOperand1();
 			if (Expression.isInt(e.getOperand1()) && e.getOperand1().evaluateInt() == 1)
@@ -147,6 +158,14 @@ public class Simplify extends ASTTraverseModify
 				return (e.getType() instanceof TypeDouble) ? Expression.Double(0.0) : Expression.Int(0);
 			}
 			break;
+		case ExpressionBinaryOp.DIVIDE:
+			// if the the division involves some other expression, then it
+			// would be good to save information about necessary parentheses which we're removed
+			// in recursive application of accept() at the beginning of this method
+			if (e.getOperand2() instanceof ExpressionBinaryOp) {
+				e.setOperand2(Expression.Parenth(e.getOperand2()));
+			}
+			break;
 		}
 		return e;
 	}
@@ -173,7 +192,8 @@ public class Simplify extends ASTTraverseModify
 		// Apply recursively
 		n = e.getNumOperands();
 		for (i = 0; i < n; i++) {
-			if (e.getOperand(i) != null) e.setOperand(i, (Expression)(e.getOperand(i).accept(this)));
+			if (e.getOperand(i) != null)
+				e.setOperand(i, (Expression) (e.getOperand(i).accept(this)));
 		}
 		// If all operands are literals, replace with literal
 		literal = true;
@@ -189,7 +209,7 @@ public class Simplify extends ASTTraverseModify
 		}
 		return e;
 	}
-	
+
 	public Object visit(ExpressionFormula e) throws PrismLangException
 	{
 		// If formula has an attached definition, just replace it with that

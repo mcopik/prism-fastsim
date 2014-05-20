@@ -92,7 +92,7 @@ public abstract class AbstractAutomaton
 		varList = modulesFile.createVarList();
 		modulesFile = (ModulesFile) modulesFile.deepCopy().replaceConstants(modulesFile.getConstantValues());
 		//TODO: error in nand.pm
-		//modulesFile.simplify();
+		modulesFile.simplify();
 		this.modulesFile = modulesFile;
 		this.modulesFile.tidyUp();
 		extractVariables();
