@@ -33,54 +33,95 @@ import prism.Preconditions;
 import simulator.gpu.opencl.kernel.KernelException;
 import simulator.gpu.opencl.kernel.memory.CLValue;
 import simulator.gpu.opencl.kernel.memory.CLVariable;
-import simulator.gpu.opencl.kernel.memory.VariableInterface;
+import simulator.gpu.opencl.kernel.memory.VariableTypeInterface;
 
 public class Method extends ComplexKernelComponent
 {
+	/**
+	 * Method name.
+	 */
 	public final String methodName;
-	public final VariableInterface methodType;
+	/**
+	 * Return type.
+	 */
+	public final VariableTypeInterface methodType;
+	/**
+	 * Arguments.
+	 */
 	protected Map<String, CLVariable> args = new LinkedHashMap<>();
+	/**
+	 * Current instance of state vector (if exists).
+	 */
+	@Deprecated
 	protected CLVariable stateVectorAccess = null;
-
-	//protected CLVariable. returnType = new CLVariable(CLVariable.Type.VOID);
-
-	public Method(String name, VariableInterface returnType)
+	
+	/**
+	 * Default constructor from name and return type.
+	 * @param name
+	 * @param returnType
+	 */
+	public Method(String name, VariableTypeInterface returnType)
 	{
 		methodName = name;
 		methodType = returnType;
 	}
-
+	
+	/**
+	 * Add method argument.
+	 * @param var
+	 * @throws KernelException when a variable with this name already exists
+	 */
 	public void addArg(CLVariable var) throws KernelException
 	{
-		if (args.containsKey(var.varName)) {
+		Preconditions.checkNotNull(var);
+		if (args.containsKey(var.varName) || localVars.containsKey(var.varName)) {
 			throw new KernelException("Variable " + var.varName + " already exists in arg list of method " + methodName);
 		}
 		args.put(var.varName, var);
 		updateIncludes(var);
 	}
-
+	
+	/**
+	 * Add collection of arguments.
+	 * @param vars
+	 * @throws KernelException when a variable with this name already exists
+	 */
 	public void addArg(Collection<CLVariable> vars) throws KernelException
 	{
 		for (CLVariable var : vars) {
 			addArg(var);
 		}
 	}
-
+	
+	/**
+	 * @return number of arguments
+	 */
 	public int getArgsSize()
 	{
 		return args.size();
 	}
-
+	
+	/**
+	 * @param name
+	 * @return argument with this name; null if it doesn't exist
+	 */
 	public CLVariable getArg(String name)
 	{
 		return args.get(name);
 	}
 
-	public int getVarsNum()
+	@Override
+	public void addLocalVar(CLVariable var) throws KernelException
 	{
-		return localVars.size();
+		Preconditions.checkNotNull(var);
+		// additional checking for duplicate names in local variables and method arguments
+		if (args.containsKey(var.varName)) {
+			throw new KernelException("Variable " + var.varName + " already exists!");
+		}
+		super.addLocalVar(var);
 	}
 
+	@Deprecated
 	public void registerStateVector(CLVariable var)
 	{
 		Preconditions.checkCondition(args.containsValue(var) || localVars.containsValue(var),
@@ -115,6 +156,13 @@ public class Method extends ComplexKernelComponent
 		return new Expression(createHeader() + ";");
 	}
 
+	/**
+	 * Generate an expression of calling this method,
+	 * using given values for method arguments.
+	 * Important: the method doesn't check the correctness of arguments!
+	 * @param args
+	 * @return
+	 */
 	public Expression callMethod(CLValue... args)
 	{
 		StringBuilder builder = new StringBuilder(methodName);
@@ -143,22 +191,34 @@ public class Method extends ComplexKernelComponent
 			component.accept(v);
 		}
 	}
-
+	
+	/**
+	 * Add return statement with given variable.
+	 * Important: the method doesn't check the compatibility between variable and method type!
+	 * @param var
+	 */
 	public void addReturn(CLVariable var)
 	{
 		body.add(new Expression(String.format("return %s;", var.varName)));
 	}
-
+	
+	/**
+	 * Add return statement with given expression.
+	 * Important: the method doesn't check the compatibility between variable and method type!
+	 * @param expr
+	 */
 	public void addReturn(Expression expr)
 	{
 		body.add(new Expression(String.format("return %s;", expr)));
 	}
-
+	
+	@Deprecated
 	public boolean hasDefinedSVAccess()
 	{
 		return stateVectorAccess != null;
 	}
-
+	
+	@Deprecated
 	public CLVariable accessStateVector()
 	{
 		return stateVectorAccess;

@@ -63,7 +63,7 @@ public class RuntimeConfig
 				long parsedSeed = Long.parseLong(seed);
 				prngSeed = parsedSeed;
 			} catch (NumberFormatException e) {
-				throw new PrismException("PRNG seed provided in settings is malformed! Description of problem: " + e.getMessage());
+				throw new PrismException("PRNG seed provided in settings is malformed! Description of the problem: " + e.getMessage());
 			}
 		}
 		// configure PRNG

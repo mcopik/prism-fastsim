@@ -28,6 +28,9 @@ package simulator.gpu.opencl.kernel;
 @SuppressWarnings("serial")
 public class KernelException extends Exception
 {
+	/**
+	 * @param msg error message
+	 */
 	public KernelException(String msg)
 	{
 		super(msg);

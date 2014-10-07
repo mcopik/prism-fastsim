@@ -1,6 +1,28 @@
-/**
- * 
- */
+//==============================================================================
+//	
+//	Copyright (c) 2002-
+//	Authors:
+//	* Marcin Copik <mcopik@gmail.com> (Silesian University of Technology)
+//	
+//------------------------------------------------------------------------------
+//	
+//	This file is part of PRISM.
+//	
+//	PRISM is free software; you can redistribute it and/or modify
+//	it under the terms of the GNU General Public License as published by
+//	the Free Software Foundation; either version 2 of the License, or
+//	(at your option) any later version.
+//	
+//	PRISM is distributed in the hope that it will be useful,
+//	but WITHOUT ANY WARRANTY; without even the implied warranty of
+//	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//	GNU General Public License for more details.
+//	
+//	You should have received a copy of the GNU General Public License
+//	along with PRISM; if not, write to the Free Software Foundation,
+//	Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+//	
+//==============================================================================
 package simulator.gpu.opencl.kernel;
 
 import java.util.ArrayList;
@@ -26,21 +48,24 @@ import com.nativelibs4java.opencl.CLContext;
 import com.nativelibs4java.opencl.CLKernel;
 import com.nativelibs4java.opencl.CLMem;
 
-/**
- * @author mcopik
- *
- */
 public class PRNGRandom123 extends PRNGType
 {
+	/**
+	 * Includes for this PRNG.
+	 */
 	private static final List<Include> INCLUDES = new ArrayList<>();
-	static {
-		INCLUDES.add(new Include("Random123/threefry.h", true));
-	}
+	/**
+	 * Additional args.
+	 */
 	private static final List<CLVariable> ADDITIONAL_ARGS = new ArrayList<>();
+	/**
+	 * Additional definitions - requires some macros for generating floats.
+	 */
 	private static final List<KernelComponent> ADDITIONAL_DEFINITIONS = new ArrayList<>();
 	public static final String RNG_MAX = "0xFFFFFFFF";
 	static {
 		try {
+			INCLUDES.add(new Include("Random123/threefry.h", true));
 			ADDITIONAL_DEFINITIONS.add(new Expression("#define R123_0x1p_31f (1.f/(1024.f*1024.f*1024.f*2.f))"));
 			ADDITIONAL_DEFINITIONS.add(new Expression("#define R123_0x1p_24f (128.f*R123_0x1p_31f)"));
 			Method convert = new Method("u01fixedpt_closed_open_32_24", new StdVariableType(StdType.FLOAT));
@@ -51,6 +76,9 @@ public class PRNGRandom123 extends PRNGType
 			throw new RuntimeException("Fatal error during static class initialization!");
 		}
 	}
+	/**
+	 * Seed can be send to kernel as a global array or a int3.
+	 */
 	private final static boolean seedUseGlobalMemory = true;
 	static {
 		try {
@@ -67,14 +95,27 @@ public class PRNGRandom123 extends PRNGType
 			throw new RuntimeException("Fatal error during static class initialization!");
 		}
 	}
+	/**
+	 * Seed - three integers.
+	 */
 	private int[] seed = null;
+	/**
+	 * Contains seed when the array in global memory is used.
+	 */
 	private CLBuffer<Integer> initBuffer = null;
-
+	/**
+	 * Default constructor, just with name of PRNG instance.
+	 * @param varName
+	 */
 	public PRNGRandom123(String varName)
 	{
 		super(varName, INCLUDES, ADDITIONAL_ARGS, 0);
 	}
-
+	/**
+	 * Create PRNG instance with name and seed.
+	 * @param varName
+	 * @param seed
+	 */
 	public PRNGRandom123(String varName, long seed)
 	{
 		super(varName, INCLUDES, ADDITIONAL_ARGS, seed);
@@ -179,18 +220,20 @@ public class PRNGRandom123 extends PRNGType
 			seed[1] = (int) Math.floor(random.randomUnifDouble() * Integer.MAX_VALUE);
 			seed[2] = (int) Math.floor(random.randomUnifDouble() * Integer.MAX_VALUE);
 			if (seedUseGlobalMemory) {
+				//create an array
 				Pointer<Integer> ptr = Pointer.allocateInts(3);
 				ptr.setInts(seed);
 				CLContext context = kernel.getProgram().getContext();
 				initBuffer = context.createIntBuffer(CLMem.Usage.InputOutput, ptr, true);
 				kernel.setArg(0, initBuffer);
-
 			} else {
+				//currently doesn't work, no idea why
 				kernel.setArg(0, seed);
 			}
 		}
 	}
-
+	
+	@Override
 	public List<KernelComponent> getAdditionalDefinitions()
 	{
 		return ADDITIONAL_DEFINITIONS;

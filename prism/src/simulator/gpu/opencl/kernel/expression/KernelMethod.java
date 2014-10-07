@@ -30,6 +30,9 @@ import simulator.gpu.opencl.kernel.memory.StdVariableType.StdType;
 
 public class KernelMethod extends Method
 {
+	/**
+	 * Default constructor for main method in kernel.
+	 */
 	public KernelMethod()
 	{
 		super("main", new StdVariableType(StdType.VOID));

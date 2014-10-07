@@ -29,9 +29,20 @@ import java.util.List;
 
 public class Include implements KernelComponent
 {
+	/**
+	 * Path to file
+	 */
 	public final String includePath;
+	/**
+	 * True when the include file is in compilation directory.
+	 */
 	public final boolean isLocal;
 
+	/**
+	 * Default constructor.
+	 * @param path
+	 * @param isLocal
+	 */
 	public Include(String path, boolean isLocal)
 	{
 		includePath = path;

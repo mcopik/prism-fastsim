@@ -28,21 +28,28 @@ package simulator.gpu.opencl.kernel.memory;
 import prism.Preconditions;
 import simulator.gpu.opencl.kernel.expression.Expression;
 
-public class ArrayType implements VariableInterface
+public class ArrayType implements VariableTypeInterface
 {
+	/**
+	 * Used only for initialization of the array.
+	 */ 
 	private static class ArrayValue implements CLValue
 	{
-		private VariableInterface type;
+		/**
+		 * Values, used also for verification of assignment correctness.
+		 */
 		private CLValue[] values = null;
-
-		public ArrayValue(VariableInterface type, CLValue[] values)
+		
+		/**
+		 * @param values
+		 */
+		public ArrayValue(CLValue[] values)
 		{
-			this.type = type;
 			this.values = values;
 		}
 
 		@Override
-		public boolean validateAssignmentTo(VariableInterface type)
+		public boolean validateAssignmentTo(VariableTypeInterface type)
 		{
 			if (type instanceof ArrayType) {
 				ArrayType array = (ArrayType) type;
@@ -69,16 +76,31 @@ public class ArrayType implements VariableInterface
 			return new Expression(builder.toString());
 		}
 	}
-
-	private final VariableInterface varType;
+	
+	/**
+	 * Type of values stored in this array.
+	 */
+	private final VariableTypeInterface varType;
+	/**
+	 * Length of this array.
+	 */
 	public final int length;
 
-	public ArrayType(VariableInterface type, int length)
+	/**
+	 * Default constructor.
+	 * @param type
+	 * @param length
+	 */
+	public ArrayType(VariableTypeInterface type, int length)
 	{
 		this.varType = type;
 		this.length = length;
 	}
-
+	
+	/**
+	 * Copy constructor.
+	 * @param copy
+	 */
 	public ArrayType(ArrayType copy)
 	{
 		this.varType = copy.varType;
@@ -112,6 +134,8 @@ public class ArrayType implements VariableInterface
 	@Override
 	public CLVariable accessElement(CLVariable var, Expression index)
 	{
+		Preconditions.checkNotNull(var);
+		Preconditions.checkNotNull(index);
 		return new CLVariable(varType, String.format("%s[%s]", var.varName, index.getSource()));
 	}
 
@@ -120,15 +144,24 @@ public class ArrayType implements VariableInterface
 	{
 		return String.format("%s %s[%d]", varType.getType(), varName, length);
 	}
-
-	public VariableInterface getInternalType()
+	
+	/**
+	 * @return type of values stored in the array
+	 */
+	public VariableTypeInterface getInternalType()
 	{
 		return varType;
 	}
-
+	
+	/**
+	 * @param values
+	 * @return value used for initialization of this array
+	 */
 	public CLValue initializeArray(CLValue[] values)
 	{
+		Preconditions.checkNotNull(values);
+		Preconditions.checkCondition(values.length > 0);
 		Preconditions.checkCondition(values[0].validateAssignmentTo(varType), "Initialization value can't be assigned to array type!");
-		return new ArrayValue(varType, values);
+		return new ArrayValue(values);
 	}
 }

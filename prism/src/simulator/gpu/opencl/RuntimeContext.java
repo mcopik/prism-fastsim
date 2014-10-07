@@ -485,7 +485,7 @@ public class RuntimeContext
 			//			program.addInclude("gpu/Random123");
 			//			program.addInclude("gpu/");
 
-			String location = this.getClass().getPackage().getName().replace(".", "/") + "/includes";
+ 			String location = this.getClass().getPackage().getName().replace(".", "/") + "/includes";
 			//when running a Java class
 			program.addInclude("src/" + location);
 			//when running a *.jar

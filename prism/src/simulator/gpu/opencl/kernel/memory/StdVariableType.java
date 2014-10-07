@@ -32,19 +32,29 @@ import simulator.gpu.automaton.PrismVariable;
 import simulator.gpu.opencl.kernel.KernelException;
 import simulator.gpu.opencl.kernel.expression.Expression;
 
-public class StdVariableType implements VariableInterface
+public class StdVariableType implements VariableTypeInterface
 {
+	/**
+	 * Used mainly for initialization.
+	 * @param <T> type of variable, bool/int/float etc.
+	 */
 	private static class StdVariableValue<T extends Number> implements CLValue
 	{
+		/**
+		 * Variable value.
+		 */
 		private T value;
-
+		
+		/**
+		 * @param value
+		 */
 		public StdVariableValue(T value)
 		{
 			this.value = value;
 		}
 
 		@Override
-		public boolean validateAssignmentTo(VariableInterface type)
+		public boolean validateAssignmentTo(VariableTypeInterface type)
 		{
 			if (!(type instanceof StdVariableType)) {
 				return false;
@@ -77,13 +87,22 @@ public class StdVariableType implements VariableInterface
 		}
 	}
 
+	/**
+	 * Standard variable types in C.
+	 */
 	public enum StdType {
 		VOID, BOOL, INT8, UINT8, INT16, UINT16, INT32, UINT32, FLOAT, DOUBLE, INT64, UINT64;
+		/**
+		 * @return true for ints, excluding bool
+		 */
 		public boolean isInteger()
 		{
 			return this != VOID && this != BOOL && this != FLOAT && this != DOUBLE;
 		}
-
+		
+		/**
+		 * @return true for unsigned integers
+		 */
 		public boolean isUnsigned()
 		{
 			return this == UINT8 || this == UINT16 || this == UINT32 || this == UINT64;
@@ -91,15 +110,30 @@ public class StdVariableType implements VariableInterface
 	}
 
 	private static final EnumSet<StdType> typesWithDirectName = EnumSet.of(StdType.BOOL, StdType.VOID, StdType.FLOAT, StdType.DOUBLE);
+	/**
+	 * Vector size, typical OpenCL variable type.
+	 */
 	private final int vectorSize;
+	/**
+	 * Type of the variable.
+	 */
 	public final StdType varType;
 
+	/**
+	 * @param type variable type
+	 */
 	public StdVariableType(StdType type)
 	{
 		this.varType = type;
 		this.vectorSize = 1;
 	}
 
+	/**
+	 * Create vector variable type.
+	 * @param type
+	 * @param vectorSize
+	 * @throws KernelException thrown when the vector size is incorrect
+	 */
 	public StdVariableType(StdType type, int vectorSize) throws KernelException
 	{
 		if (!(vectorSize >= 1 && vectorSize <= 4) && vectorSize != 8 && vectorSize != 16) {
@@ -109,12 +143,22 @@ public class StdVariableType implements VariableInterface
 		this.vectorSize = vectorSize;
 	}
 
+	/**
+	 * Create standard variable type from a PRISM variable.
+	 * @param var
+	 */
 	public StdVariableType(PrismVariable var)
 	{
 		varType = getIntType(var.bitsNumber, var.signFlag, var.initValue);
 		this.vectorSize = 1;
 	}
 
+	/**
+	 * Create standard variable type which can contain
+	 * values from interval [minimal,maximal]
+	 * @param minimal
+	 * @param maximal
+	 */
 	public StdVariableType(long minimal, long maximal)
 	{
 		Preconditions.checkCondition(minimal <= maximal, "Minimal > maximal!");
@@ -122,7 +166,7 @@ public class StdVariableType implements VariableInterface
 		varType = getIntType(Long.SIZE - Long.numberOfLeadingZeros(length), minimal < 0, minimal);
 		this.vectorSize = 1;
 	}
-
+	
 	private StdType getIntType(long bitsNumber, boolean signFlag, long init)
 	{
 		//for situations like [1,2], where bitsNumber gives bool -> 1 bit
@@ -156,7 +200,11 @@ public class StdVariableType implements VariableInterface
 			}
 		}
 	}
-
+	
+	/**
+	 * @param value
+	 * @return initialize value for variable of type T
+	 */
 	static public <T extends Number> CLValue initialize(T value)
 	{
 		return new StdVariableValue<T>(value);

@@ -32,17 +32,25 @@ import prism.Preconditions;
 import simulator.gpu.opencl.kernel.memory.CLVariable;
 
 public class Switch extends ComplexKernelComponent
-{
+{	
+	/**
+	 * Internal component.
+	 */
 	private static class Case implements KernelComponent
 	{
+		/**
+		 * Case value.
+		 */
 		public final Expression value;
+		/**
+		 * Case body.
+		 */
 		public List<KernelComponent> commands = new ArrayList<>();
 
-		public Case()
-		{
-			value = null;
-		}
-
+		/**
+		 * Default constructor.
+		 * @param value
+		 */
 		public Case(Expression value)
 		{
 			this.value = value;
@@ -97,21 +105,41 @@ public class Switch extends ComplexKernelComponent
 			return builder.toString();
 		}
 	}
-
+	/**
+	 * True when the switch contains a 'default' case at the end.
+	 */
 	private boolean hasDefault = false;
+	/**
+	 * Switch condition to evaluate.
+	 */
 	private Expression switchCondition = null;
+	/**
+	 * Currently selected condition.
+	 */
 	private int conditionNumber = 0;
 
+	/**
+	 * Create switch from an expression.
+	 * @param switchCondition
+	 */
 	public Switch(Expression switchCondition)
 	{
 		this.switchCondition = switchCondition;
 	}
-
+	
+	/**
+	 * Create switch from a variable, used as switch expression.
+	 * @param var
+	 */
 	public Switch(CLVariable var)
 	{
 		this.switchCondition = new Expression(var.varName);
 	}
 
+	/**
+	 * Add another case to switch.
+	 * @param condition
+	 */
 	public void addCase(Expression condition)
 	{
 		if (hasDefault) {
@@ -120,19 +148,28 @@ public class Switch extends ComplexKernelComponent
 			body.add(new Case(condition));
 		}
 	}
-
+	
+	/**
+	 * Add the 'default' case.
+	 */
 	public void addDefault()
 	{
 		hasDefault = true;
 	}
-
+	
+	/**
+	 * Add another expression to case specified by first argument.
+	 * @param conditionNumber
+	 * @param command
+	 */
 	public void addExpression(int conditionNumber, KernelComponent command)
 	{
 		Preconditions.checkIndex(conditionNumber, body.size(), "Non-valid index of condition in Switch!");
 		correctExpression(command);
 		((Case) body.get(conditionNumber)).commands.add(command);
 	}
-
+	
+	@Override
 	public void addExpression(KernelComponent expr)
 	{
 		Preconditions.checkNotNull(expr, "Trying to add null reference to expression!");
@@ -142,7 +179,12 @@ public class Switch extends ComplexKernelComponent
 			necessaryIncludes.addAll(expr.getIncludes());
 		}
 	}
-
+	
+	/**
+	 * Specify current condition, used by addExpression method
+	 * which doesn't use the condition number argument. 
+	 * @param conditionNumber
+	 */
 	public void setConditionNumber(int conditionNumber)
 	{
 		Preconditions.checkIndex(conditionNumber, body.size(), "Non-valid index of condition in IfElse!");

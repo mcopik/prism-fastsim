@@ -29,23 +29,31 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 
 import prism.Preconditions;
 import simulator.gpu.opencl.kernel.expression.Expression;
 import simulator.gpu.opencl.kernel.expression.Include;
 
-/**
- * 
- *
- */
-public class StructureType implements VariableInterface, UDType
+public class StructureType implements VariableTypeInterface, UDType
 {
+	/**
+	 * Used mainly for the initialization.
+	 */
 	private static class StructureValue implements CLValue
 	{
+		/**
+		 * Structure type.
+		 */
 		private StructureType type;
+		/**
+		 * Values for fields, in the order defined in the type.
+		 */
 		private CLValue[] fieldsValue = null;
 
+		/**
+		 * @param type
+		 * @param values
+		 */
 		public StructureValue(StructureType type, CLValue[] values)
 		{
 			this.type = type;
@@ -53,7 +61,7 @@ public class StructureType implements VariableInterface, UDType
 		}
 
 		@Override
-		public boolean validateAssignmentTo(VariableInterface type)
+		public boolean validateAssignmentTo(VariableTypeInterface type)
 		{
 			if (type instanceof StructureType) {
 				StructureType structure = (StructureType) type;
@@ -77,25 +85,40 @@ public class StructureType implements VariableInterface, UDType
 			return new Expression(builder.toString());
 		}
 	}
-
-	private Map<String, CLVariable> fields = new LinkedHashMap<>();
+	/**
+	 * Structure fields. The order can't change!
+	 */
+	private LinkedHashMap<String, CLVariable> fields = new LinkedHashMap<>();
+	/**
+	 * Structure type name.
+	 */
 	public final String typeName;
-
+	
+	/**
+	 * @param typeName
+	 */
 	public StructureType(String typeName)
 	{
 		this.typeName = typeName;
 	}
-
+	
+	/**
+	 * @param var
+	 */
 	public void addVariable(CLVariable var)
 	{
 		fields.put(var.varName, var);
 	}
-
+	
+	/**
+	 * @return structure fields
+	 */
 	public Collection<CLVariable> getFields()
 	{
 		return fields.values();
 	}
-
+	
+	@Override
 	public Expression getDeclaration()
 	{
 		StringBuilder builder = new StringBuilder();
@@ -103,7 +126,12 @@ public class StructureType implements VariableInterface, UDType
 		builder.append(typeName).append(";");
 		return new Expression(builder.toString());
 	}
-
+	
+	/**
+	 * @param type
+	 * @return true if the structures are compatible, i.e. the representation in memory
+	 * is equal
+	 */
 	public boolean compatibleWithStructure(StructureType type)
 	{
 		if (fields.size() != type.fields.size()) {
@@ -118,12 +146,21 @@ public class StructureType implements VariableInterface, UDType
 		}
 		return true;
 	}
-
+	
+	/**
+	 * @param fieldName
+	 * @return true when the structure has a field with given name
+	 */
 	public boolean containsField(String fieldName)
 	{
 		return fields.containsKey(fieldName);
 	}
-
+	
+	/**
+	 * Initialize structure consisting only of standard type variables.
+	 * @param values
+	 * @return init value
+	 */
 	public CLValue initializeStdStructure(Number[] values)
 	{
 		CLValue[] init = new CLValue[values.length];
@@ -138,7 +175,8 @@ public class StructureType implements VariableInterface, UDType
 	{
 		return typeName;
 	}
-
+	
+	@Override
 	public Expression getDefinition()
 	{
 		StringBuilder builder = new StringBuilder();

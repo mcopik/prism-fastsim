@@ -41,10 +41,6 @@ import simulator.gpu.opencl.kernel.memory.ExpressionValue;
 import simulator.gpu.opencl.kernel.memory.PointerType;
 import simulator.gpu.opencl.kernel.memory.StructureType;
 
-/**
- * @author mcopik
- *
- */
 public class ExpressionGenerator
 {
 	static public CLVariable accessStructureField(CLVariable structure, String fieldName)
@@ -205,7 +201,6 @@ public class ExpressionGenerator
 	static public KernelComponent convertPrismAction(Action action, CLVariable changeFlag, CLVariable oldValue)
 	{
 		ExpressionList list = new ExpressionList();
-		StringBuilder builder = new StringBuilder();
 		for (Pair<PrismVariable, parser.ast.Expression> expr : action.expressions) {
 			list.addExpression(createAssignment(oldValue, new Expression(expr.first.name)));
 			Expression mainAssignment = new Expression(String.format("%s = %s", expr.first.name, convertUpdate(expr.second, null)));
@@ -240,7 +235,6 @@ public class ExpressionGenerator
 	static public KernelComponent convertPrismAction(Action action, Map<String, String> translations, CLVariable changeFlag, CLVariable oldValue)
 	{
 		ExpressionList list = new ExpressionList();
-		StringBuilder builder = new StringBuilder();
 		for (Pair<PrismVariable, parser.ast.Expression> expr : action.expressions) {
 
 			list.addExpression(createAssignment(oldValue, new Expression(expr.first.name)));

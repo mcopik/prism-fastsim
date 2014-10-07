@@ -44,7 +44,6 @@ import simulator.SimulationSettings;
 import simulator.gpu.RuntimeDeviceInterface;
 import simulator.gpu.RuntimeFrameworkInterface;
 import simulator.gpu.opencl.RuntimeOpenCL;
-import simulator.gpu.RuntimeDeviceInterface;
 import simulator.method.ACIconfidence;
 import simulator.method.ACIiterations;
 import simulator.method.ACIwidth;
@@ -202,7 +201,7 @@ public class PrismCL implements PrismModelListener
 
 	// strategy export info
 	private Prism.StrategyExportType exportStratType = StrategyExportType.ACTIONS;
-	
+
 	// parametric analysis info
 	private String[] paramLowerBounds = null;
 	private String[] paramUpperBounds = null;
@@ -394,7 +393,8 @@ public class PrismCL implements PrismModelListener
 						// if a strategy was generated, and we need to export it, do so
 						if (exportstrat && res.getStrategy() != null) {
 							try {
-								prism.exportStrategy(res.getStrategy(), exportStratType, exportStratFilename.equals("stdout") ? null : new File(exportStratFilename));
+								prism.exportStrategy(res.getStrategy(), exportStratType, exportStratFilename.equals("stdout") ? null : new File(
+										exportStratFilename));
 							}
 							// in case of error, report it and proceed
 							catch (FileNotFoundException e) {
@@ -410,6 +410,8 @@ public class PrismCL implements PrismModelListener
 								mainLog.println();
 								Values allConsts = new Values(definedMFConstants);
 								allConsts.addValues(definedPFConstants);
+								allConsts.addValues(modulesFile.getConstantValues());
+								allConsts.addValues(propertiesFile.getConstantValues());
 								if (propertiesToCheck.get(j).checkAgainstExpectedResult(res.getResult(), allConsts)) {
 									mainLog.println("Testing result: PASS");
 								} else {
@@ -1861,8 +1863,7 @@ public class PrismCL implements PrismModelListener
 		for (String opt : options) {
 			// Ignore ""
 			if (opt.equals("")) {
-			}
-			else if (opt.startsWith("type")) {
+			} else if (opt.startsWith("type")) {
 				if (!opt.startsWith("type="))
 					throw new PrismException("No value provided for \"type\" option of -exportstrat");
 				String optVal = opt.substring(5);

@@ -30,43 +30,78 @@ import simulator.gpu.opencl.kernel.expression.Expression;
 
 public class CLVariable implements CLValue
 {
+	/**
+	 * OpenCL allows for declarating variables in:
+	 * - private (registers)
+	 * - local
+	 * - global
+	 * memory.
+	 */
 	public enum Location {
 		REGISTER, LOCAL, GLOBAL
 	}
-
+	/**
+	 * Variable name.
+	 */
 	public final String varName;
-	public final VariableInterface varType;
+	/**
+	 * Variable type.
+	 */
+	public final VariableTypeInterface varType;
+	/**
+	 * Init value, can be null (the default initialization is specified by OpenCL).
+	 */
 	private Expression initValue = null;
+	/**
+	 * DON'T declare this variable.
+	 */
 	private boolean dontDeclare = false;
+	/**
+	 * Variable location in memory.
+	 */
 	public Location memLocation = Location.REGISTER;
-
-	public CLVariable(VariableInterface varType, String varName)
+	/**
+	 * Construct OpenCL variable with given name and type.
+	 * @param varType
+	 * @param varName
+	 */
+	public CLVariable(VariableTypeInterface varType, String varName)
 	{
 		this.varName = varName;
 		this.varType = varType;
 	}
-
+	/**
+	 * @param loc new location
+	 */
 	public void setMemoryLocation(Location loc)
 	{
 		memLocation = loc;
 	}
-
+	/**
+	 * DON'T add declaration of this variable.
+	 */
 	public void dontDeclareVar()
 	{
 		dontDeclare = true;
 	}
-
+	/**
+	 * @param value initialize with a value
+	 */
 	public void setInitValue(CLValue value)
 	{
 		initValue = value.getSource();
 	}
-
+	/**
+	 * @param value initialize with an expression
+	 */
 	public void setInitValue(Expression value)
 	{
 		initValue = value;
 	}
-
-	public VariableInterface getPointer()
+	/**
+	 * @return get a pointer type to this variable
+	 */
+	public VariableTypeInterface getPointer()
 	{
 		if (varType.isArray()) {
 			return new ArrayType((ArrayType) varType);
@@ -74,32 +109,51 @@ public class CLVariable implements CLValue
 			return new PointerType(varType);
 		}
 	}
-
+	/**
+	 * @return address of this variable
+	 */
 	public CLVariable convertToPointer()
 	{
 		return new CLVariable(getPointer(), "&" + varName);
 	}
-
+	/**
+	 * @param index
+	 * @return array element specified by an index; null when it's not an array
+	 */
 	public CLVariable accessElement(Expression index)
 	{
+		Preconditions.checkNotNull(index);
 		return varType.accessElement(this, index);
 	}
-
+	/**
+	 * @param fieldName
+	 * @return structure field specified by its name; null when it's not structure
+	 */
 	public CLVariable accessField(String fieldName)
 	{
+		Preconditions.checkNotNull(fieldName);
 		return varType.accessField(this.varName, fieldName);
 	}
-
+	/**
+	 * Useful for assignments.
+	 * @return variable name
+	 */
 	public Expression getName()
 	{
 		return new Expression(varName);
 	}
-
+	/**
+	 * @param type
+	 * @return C casting of the variable to given type
+	 */
 	public Expression cast(String type)
 	{
 		return new Expression(String.format("((%s)%s)", type, varName));
 	}
-
+	/**
+	 * Works for pointers and arrays.
+	 * @return dereferenced variable
+	 */
 	public CLVariable dereference()
 	{
 		Preconditions.checkCondition(varType instanceof PointerType || varType instanceof ArrayType, "Dereference on non-pointer!");
@@ -109,7 +163,10 @@ public class CLVariable implements CLValue
 			return new CLVariable(((ArrayType) varType).getInternalType(), (String.format("(*%s)", varName)));
 		}
 	}
-
+	
+	/**
+	 * @return variable declaration, i.e. without initialization
+	 */
 	public Expression getDeclaration()
 	{
 		if (dontDeclare) {
@@ -125,7 +182,10 @@ public class CLVariable implements CLValue
 		builder.append(";");
 		return new Expression(builder.toString());
 	}
-
+	
+	/** 
+	 * @return variable definition, i.e. with initial value
+	 */
 	public Expression getDefinition()
 	{
 		if (dontDeclare) {
@@ -146,9 +206,9 @@ public class CLVariable implements CLValue
 	}
 
 	@Override
-	public boolean validateAssignmentTo(VariableInterface type)
+	public boolean validateAssignmentTo(VariableTypeInterface type)
 	{
-		//todo: implement
+		//TODO: implement
 		return false;
 	}
 

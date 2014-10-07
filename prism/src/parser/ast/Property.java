@@ -31,8 +31,11 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import parser.Values;
-import parser.type.*;
-import parser.visitor.*;
+import parser.type.Type;
+import parser.type.TypeBool;
+import parser.type.TypeDouble;
+import parser.type.TypeInt;
+import parser.visitor.ASTVisitor;
 import prism.PrismException;
 import prism.PrismLangException;
 import prism.PrismUtils;
@@ -181,7 +184,7 @@ public class Property extends ASTElement
 				// Found it...
 				if (match) {
 					strExpected = matcher.group(3);
-					continue;
+					break;
 				}
 			}
 		}

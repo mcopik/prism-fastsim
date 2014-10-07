@@ -27,35 +27,56 @@ package simulator.gpu.opencl.kernel.expression;
 
 import java.util.List;
 
-/**
- * @author mcopik
- *
- */
+import prism.Preconditions;
+
 public class Expression implements KernelComponent
 {
-	String exprString;
+	/**
+	 * Expression source code.
+	 */
+	protected String exprString;
 
+	/**
+	 * Create expression from a string
+	 * @param expr
+	 */
 	public Expression(String expr)
 	{
+		Preconditions.checkNotNull(expr);
 		this.exprString = expr;
 	}
-
+	
+	/**
+	 * Copy constructor.
+	 * @param expr
+	 */
 	public Expression(Expression expr)
 	{
+		Preconditions.checkNotNull(expr);
 		this.exprString = new String(expr.exprString);
 	}
-
+	
+	/**
+	 * Extend this expression.
+	 * @param expr
+	 * @return current object; enables chain calling
+	 */
 	public Expression add(String expr)
 	{
+		Preconditions.checkNotNull(expr);
 		this.exprString += expr;
 		return this;
 	}
-
+	
+	/**
+	 * Access source code.
+	 */
 	public String getSource()
 	{
 		return exprString;
 	}
-
+	
+	@Override
 	public String toString()
 	{
 		return exprString;

@@ -27,11 +27,17 @@ package simulator.gpu.opencl.kernel.memory;
 
 import simulator.gpu.opencl.kernel.expression.Expression;
 
-public class PointerType implements VariableInterface
+public class PointerType implements VariableTypeInterface
 {
-	private final VariableInterface internalType;
-
-	public PointerType(VariableInterface type)
+	/**
+	 * In OpenCL: internalType*
+	 */
+	private final VariableTypeInterface internalType;
+	
+	/**
+	 * @param type internal type
+	 */
+	public PointerType(VariableTypeInterface type)
 	{
 		this.internalType = type;
 	}
@@ -58,7 +64,10 @@ public class PointerType implements VariableInterface
 		}
 	}
 
-	public VariableInterface getInternalType()
+	/**
+	 * @return internal type of the pointer
+	 */
+	public VariableTypeInterface getInternalType()
 	{
 		return internalType;
 	}

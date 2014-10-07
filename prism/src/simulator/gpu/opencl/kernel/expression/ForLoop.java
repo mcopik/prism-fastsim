@@ -25,43 +25,80 @@
 //==============================================================================
 package simulator.gpu.opencl.kernel.expression;
 
+import prism.Preconditions;
 import simulator.gpu.opencl.kernel.expression.ExpressionGenerator.Operator;
 import simulator.gpu.opencl.kernel.memory.CLVariable;
 import simulator.gpu.opencl.kernel.memory.StdVariableType;
 
 public class ForLoop extends ComplexKernelComponent
 {
+	/**
+	 * Counter definition.
+	 */
 	private Expression definition;
+	/**
+	 * Counter variable.
+	 */
 	private CLVariable counter;
+	/**
+	 * Minimal/maximal value for the counter.
+	 * Null when no checking is performed.
+	 */
 	private Expression endValue = null;
+	/**
+	 * True when the counter should decrease.
+	 */
 	boolean decreasing = false;
-
+	/**
+	 * Create simple for loop without end value for counter.
+	 * @param counter
+	 * @param decreasing
+	 */
 	public ForLoop(CLVariable counter, boolean decreasing)
 	{
+		Preconditions.checkNotNull(counter);
 		this.counter = counter;
 		definition = new Expression(";");
 		this.decreasing = decreasing;
 	}
-
+	
+	/**
+	 * Create increasing for loop from counter variable, start and end value for the counter.
+	 * @param counter
+	 * @param decreasing
+	 */
 	public ForLoop(CLVariable counter, long startValue, long endValue)
 	{
+		Preconditions.checkNotNull(counter);
 		this.counter = counter;
 		definition = ExpressionGenerator.createAssignment(counter, new Expression("0"));
 		ExpressionGenerator.addComma(definition);
 		counter.setInitValue(StdVariableType.initialize(startValue));
 		this.endValue = new Expression(Long.toString(endValue));
 	}
-
+	
+	/**
+	 * Create increasing for loop with start and end value for the counter.
+	 * @param counter
+	 * @param decreasing
+	 */
 	public ForLoop(String counterName, long startValue, long endValue)
 	{
+		Preconditions.checkNotNull(counterName);
 		counter = new CLVariable(new StdVariableType(startValue, endValue), counterName);
 		counter.setInitValue(StdVariableType.initialize(startValue));
 		definition = counter.getDefinition();
 		this.endValue = new Expression(Long.toString(endValue));
 	}
-
+	
+	/**
+	 * Create for loop with start and end value for the counter.
+	 * @param counter
+	 * @param decreasing
+	 */
 	public ForLoop(String counterName, long startValue, long endValue, boolean decreasing)
 	{
+		Preconditions.checkNotNull(counterName);
 		if (decreasing) {
 			counter = new CLVariable(new StdVariableType(endValue, startValue), counterName);
 			counter.setInitValue(StdVariableType.initialize(endValue));
@@ -73,7 +110,10 @@ public class ForLoop extends ComplexKernelComponent
 			this.endValue = new Expression(Long.toString(endValue));
 		}
 	}
-
+	
+	/**
+	 * @return counter variable
+	 */
 	public CLVariable getLoopCounter()
 	{
 		return counter;

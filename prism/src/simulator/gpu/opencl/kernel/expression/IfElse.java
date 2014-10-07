@@ -32,22 +32,46 @@ import prism.Preconditions;
 
 public class IfElse extends ComplexKernelComponent
 {
+	/**
+	 * Internal component.
+	 */
 	private static class Condition implements KernelComponent
 	{
+		/**
+		 * C/OpenCL components of if.
+		 */
 		public enum Type {
 			IF, ELIF, ELSE
 		}
-
+		/**
+		 * Component type.
+		 */
 		public final Type type;
+		/**
+		 * Condition expression for the component.
+		 */
 		public final Expression condition;
+		/**
+		 * Component body.
+		 */
 		public List<KernelComponent> commands = new ArrayList<>();
-
+		
+		/**
+		 * Create condition with given type and condition.
+		 * @param type
+		 * @param expr
+		 */
 		public Condition(Type type, Expression expr)
 		{
+			// else with condition is invalid
+			Preconditions.checkCondition(type != Type.ELSE || expr == null);
 			this.type = type;
 			this.condition = expr;
 		}
-
+		
+		/**
+		 * Create else.
+		 */
 		public Condition()
 		{
 			this.type = Type.ELSE;
@@ -111,16 +135,30 @@ public class IfElse extends ComplexKernelComponent
 			return builder.toString();
 		}
 	}
-
+	
+	/**
+	 * True when the IfElse contains an "else" at the end.
+	 */
 	private boolean hasElse = false;
+	/**
+	 * Currently selected condition.
+	 */
 	private int conditionNumber = 0;
-
+	
+	/**
+	 * Default constructor. Requires condition for the "if".
+	 * @param ifCondition
+	 */
 	public IfElse(Expression ifCondition)
 	{
 		Preconditions.checkNotNull(ifCondition, "Trying to add null condition in IfElses!");
 		body.add(new Condition(Condition.Type.IF, ifCondition));
 	}
-
+	
+	/**
+	 * Add another "else-if" condition.
+	 * @param condition
+	 */
 	public void addElif(Expression condition)
 	{
 		Preconditions.checkNotNull(condition, "Trying to add null condition in IfElses!");
@@ -131,6 +169,11 @@ public class IfElse extends ComplexKernelComponent
 		}
 	}
 
+	/**
+	 * Add another expression to condition specified by first argument.
+	 * @param conditionNumber
+	 * @param expr
+	 */
 	public void addExpression(int conditionNumber, KernelComponent expr)
 	{
 		Preconditions.checkNotNull(expr, "Trying to add null reference to expression!");
@@ -141,18 +184,29 @@ public class IfElse extends ComplexKernelComponent
 			necessaryIncludes.addAll(expr.getIncludes());
 		}
 	}
-
+	
+	/**
+	 * Add "else".
+	 */
 	public void addElse()
 	{
 		hasElse = true;
 		body.add(new Condition());
 	}
-
+	
+	/**
+	 * @return number of components - conditions
+	 */
 	public int size()
 	{
 		return body.size();
 	}
-
+	
+	/**
+	 * Specify current condition, used by addExpression method
+	 * which doesn't use the condition number argument. 
+	 * @param conditionNumber
+	 */
 	public void setConditionNumber(int conditionNumber)
 	{
 		Preconditions.checkIndex(conditionNumber, body.size(), "Non-valid index of condition in IfElse!");
@@ -169,7 +223,8 @@ public class IfElse extends ComplexKernelComponent
 			necessaryIncludes.addAll(expr.getIncludes());
 		}
 	}
-
+	
+	@Override
 	public void addExpression(String expr)
 	{
 		Preconditions.checkNotNull(expr, "Trying to add null reference to expression!");

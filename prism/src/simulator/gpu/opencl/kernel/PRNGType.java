@@ -38,11 +38,30 @@ import com.nativelibs4java.opencl.CLKernel;
 
 public abstract class PRNGType
 {
+	/**
+	 * Name of instance of PRNG object in code.
+	 */
 	protected final String varName;
+	/**
+	 * Includes for this PRNG.
+	 */
 	protected final List<Include> includes;
+	/**
+	 * Additional kernel arguments.
+	 */
 	protected final List<CLVariable> additionalArgs;
+	/**
+	 * PRISM PRNG, used for initialization of OpenCL PRNG.
+	 */
 	protected RandomNumberGenerator random;
-
+	/**
+	 * Construct PRNG with defined name for generator instance, files to include, additional arguments
+	 * and seed for PRNG.
+	 * @param varName
+	 * @param includes
+	 * @param additionalArgs
+	 * @param seed
+	 */
 	protected PRNGType(String varName, List<Include> includes, List<CLVariable> additionalArgs, long seed)
 	{
 		this.varName = varName;
@@ -50,7 +69,14 @@ public abstract class PRNGType
 		this.additionalArgs = additionalArgs;
 		random = new RandomNumberGenerator((int) seed);
 	}
-
+	/**
+	 * 
+	 * Construct PRNG with defined name for generator instance, files to include, additional arguments
+	 * and seed for PRNG.
+	 * @param varName
+	 * @param includes
+	 * @param additionalArgs
+	 */
 	protected PRNGType(String varName, List<Include> includes, List<CLVariable> additionalArgs)
 	{
 		this.varName = varName;
@@ -58,58 +84,94 @@ public abstract class PRNGType
 		this.additionalArgs = additionalArgs;
 		random = new RandomNumberGenerator();
 	}
-
-	public abstract KernelComponent initializeGenerator();
-
-	public KernelComponent deinitializeGenerator()
-	{
-		return new Expression("");
-	}
-
+	/**
+	 * @return necessary includes
+	 */
 	public List<Include> getIncludes()
 	{
 		return includes;
 	}
-
-	public abstract int numbersPerRandomize();
-
-	public abstract KernelComponent randomize() throws KernelException;
-
-	public CLValue getRandomInt(Expression max)
+	/**
+	 * @return additional arguments for kernel
+	 */
+	public List<CLVariable> getAdditionalInput()
 	{
-		return getRandomInt(null, max);
+		return additionalArgs;
 	}
-
-	public abstract CLValue getRandomInt(Expression randNumber, Expression max);
-
-	public CLValue getRandomFloat(Expression max)
-	{
-		return getRandomFloat(null, max);
-	}
-
-	public abstract CLValue getRandomFloat(Expression randNumber, Expression max);
-
-	public CLValue getRandomUnifFloat()
-	{
-		return getRandomUnifFloat(null);
-	}
-
-	public abstract CLValue getRandomUnifFloat(Expression randNumber);
-
+	
+	/**
+	 * Methods which may be overridden in derived class.
+	 */
+	
+	/**
+	 * @return null when there are no additional definitions
+	 */
 	public List<KernelComponent> getAdditionalDefinitions()
 	{
 		return null;
 	}
 
-	public List<CLVariable> getAdditionalInput()
-	{
-		return additionalArgs;
-	}
-
-	public abstract void setKernelArg(CLKernel kernel, int argNumber, int sampleOffset, int globalWorkSize, int localWorkSize);
-
+	/**
+	 * @return number of kernel arguments used by the PRNG
+	 */
 	public int kernelArgsNumber()
 	{
 		return 1;
 	}
+	
+	/**
+	 * Not required for every PRNG.
+	 * @return deinitialization code, executed after finishing computations
+	 */
+	public KernelComponent deinitializeGenerator()
+	{
+		return new Expression("");
+	}
+	
+	/**
+	 * Methods which must be defined in derived class.
+	 */
+	
+	/**
+	 * @return initialization code for the generator
+	 */
+	public abstract KernelComponent initializeGenerator();
+	/**
+	 * @return count of numbers generated for each "randomize()" call
+	 */
+	public abstract int numbersPerRandomize();
+	/**
+	 * @return
+	 * @throws KernelException
+	 */
+	public abstract KernelComponent randomize() throws KernelException;
+	/**
+	 * Get randNumber-th integer from interval [0,max)
+	 * @param randNumber
+	 * @param max
+	 * @return a rvalue
+	 */
+	public abstract CLValue getRandomInt(Expression randNumber, Expression max);
+	/**
+	 * Get randNumber-th float from interval [0,1)
+	 * @param randNumber
+	 * @return a rvalue
+	 */
+	public abstract CLValue getRandomUnifFloat(Expression randNumber);
+	/**
+	 * Get randNumber-th float from interval [0,max)
+	 * @param randNumber
+	 * @param max
+	 * @return a rvalue
+	 */
+	public abstract CLValue getRandomFloat(Expression randNumber, Expression max);
+	/**
+	 * Configure OpenCL kernel call arguments.
+	 * @param kernel
+	 * @param argNumber argument position in kernel definition
+	 * @param sampleOffset number of already processed samples (avoid repeating of numbers)
+	 * @param globalWorkSize
+	 * @param localWorkSize
+	 */
+	public abstract void setKernelArg(CLKernel kernel, int argNumber, int sampleOffset, int globalWorkSize, int localWorkSize);
 }
