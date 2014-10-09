@@ -30,7 +30,7 @@ package userinterface;
 
 import parser.Values;
 import prism.PrismSettings;
-import simulator.gpu.RuntimeFrameworkInterface;
+import simulator.SMCRuntimeInterface;
 import simulator.method.ACIconfidence;
 import simulator.method.ACIiterations;
 import simulator.method.ACIwidth;
@@ -62,7 +62,7 @@ public class SimulationInformation
 
 	private Unknown unknown;
 
-	private RuntimeFrameworkInterface simFramework = null;
+	private SMCRuntimeInterface simFramework = null;
 
 	// Settings
 	private Values initialState;
@@ -108,12 +108,12 @@ public class SimulationInformation
 		simFramework = null;
 	}
 
-	public void setSimulatorFramework(RuntimeFrameworkInterface simFramework)
+	public void setSimulatorFramework(SMCRuntimeInterface simFramework)
 	{
 		this.simFramework = simFramework;
 	}
 
-	public RuntimeFrameworkInterface getSimulatorFramework()
+	public SMCRuntimeInterface getSimulatorFramework()
 	{
 		return simFramework;
 	}

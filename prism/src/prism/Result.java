@@ -28,6 +28,7 @@
 
 package prism;
 
+import simulator.method.SimulationMethod;
 import strat.Strategy;
 
 /**
@@ -45,6 +46,8 @@ public class Result
 	private Object cex;
 	// Strategy (optional)
 	private Strategy strat;
+	// Simulation method (optional)
+	private SimulationMethod method;
 	
 	/**
 	 * Construct an empty Result object.
@@ -99,6 +102,14 @@ public class Result
 	}
 	
 	/**
+	 * Set the simulation method (null denotes n/a).
+	 */
+	public void setSimulationMethod(SimulationMethod method)
+	{
+		this.method = method;
+	}
+	
+	/**
 	 * Get the result.
 	 */
 	public Object getResult()
@@ -128,6 +139,14 @@ public class Result
 	public Strategy getStrategy()
 	{
 		return strat;
+	}
+	
+	/**
+	 * Get the simulation method (null denotes n/a).
+	 */
+	public SimulationMethod getSimulationMethod()
+	{
+		return method;
 	}
 	
 	/**

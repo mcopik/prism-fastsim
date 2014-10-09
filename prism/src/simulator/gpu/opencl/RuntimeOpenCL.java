@@ -29,13 +29,18 @@ import java.util.ArrayList;
 import java.util.List;
 
 import parser.State;
+import parser.ast.ModulesFile;
+import prism.ModelType;
 import prism.Preconditions;
+import prism.PrismComponent;
 import prism.PrismException;
 import prism.PrismLog;
 import prism.PrismSettings;
+import simulator.SMCRuntimeInterface;
 import simulator.gpu.RuntimeDeviceInterface;
-import simulator.gpu.RuntimeFrameworkInterface;
 import simulator.gpu.automaton.AbstractAutomaton;
+import simulator.gpu.automaton.CTMC;
+import simulator.gpu.automaton.DTMC;
 import simulator.sampler.Sampler;
 
 import com.nativelibs4java.opencl.CLDevice;
@@ -44,9 +49,13 @@ import com.nativelibs4java.opencl.CLPlatform;
 import com.nativelibs4java.opencl.CLPlatform.DeviceFeature;
 import com.nativelibs4java.opencl.JavaCL;
 
-public class RuntimeOpenCL implements RuntimeFrameworkInterface
+public class RuntimeOpenCL extends PrismComponent implements SMCRuntimeInterface
 {
 
+	/**
+	 * Represents Prism's object of current automaton.
+	 */
+	private ModulesFile modulesFile;
 	private final CLPlatform[] platforms;
 	private final CLDeviceWrapper[] devices;
 	private CLPlatform currentPlatform = null;
@@ -64,8 +73,9 @@ public class RuntimeOpenCL implements RuntimeFrameworkInterface
 	 * Constructor. Throws an exception when OpenCL initialization failed.
 	 * @throws PrismException
 	 */
-	public RuntimeOpenCL() throws PrismException
+	public RuntimeOpenCL(PrismComponent prism) throws PrismException
 	{
+		super(prism);
 		platforms = init();
 		List<CLDeviceWrapper> devs = new ArrayList<>();
 		for (CLPlatform platform : platforms) {
@@ -75,6 +85,9 @@ public class RuntimeOpenCL implements RuntimeFrameworkInterface
 			}
 		}
 		devices = devs.toArray(new CLDeviceWrapper[devs.size()]);
+		
+		mainLog = prism.getLog();
+		prismSettings = prism.getSettings();
 	}
 
 	private CLPlatform[] init() throws PrismException
@@ -196,15 +209,30 @@ public class RuntimeOpenCL implements RuntimeFrameworkInterface
 		return platforms.length;
 	}
 
+	/**
+	 * Create automaton object using PRISM object
+	 * @param modulesFile
+	 * @throws PrismException
+	 */
+	private AbstractAutomaton loadModel(ModulesFile modulesFile) throws PrismException
+	{
+		checkModelForAMC(modulesFile);
+		this.modulesFile = modulesFile;
+		if (modulesFile.getModelType() == ModelType.DTMC) {
+			return new DTMC(modulesFile);
+		} else {
+			return new CTMC(modulesFile);
+		}
+	}
+	
 	/* (non-Javadoc)
 	 * @see simulator.gpu.RuntimeFrameworkInterface#simulateProperty()
 	 */
 	@Override
-	public int simulateProperty(AbstractAutomaton model, List<Sampler> properties) throws PrismException
+	public int doSampling(ModulesFile modulesFile, List<Sampler> properties, State initialState, long maxPathLength) throws PrismException
 	{
-		Preconditions.checkNotNull(mainLog, "");
 		Preconditions.checkCondition(maxPathLength > 0, "");
-		Preconditions.checkNotNull(prismSettings);
+		AbstractAutomaton model = loadModel(modulesFile); 
 		/**
 		 * Configure simulator.
 		 */
@@ -257,26 +285,10 @@ public class RuntimeOpenCL implements RuntimeFrameworkInterface
 	//	}
 
 	@Override
-	public void setInitialState(State initialState)
+	public void checkModelForAMC(ModulesFile modulesFile) throws PrismException
 	{
-		this.initialState = initialState;
-	}
-
-	@Override
-	public void setMaxPathLength(long maxPathLength)
-	{
-		this.maxPathLength = maxPathLength;
-	}
-
-	@Override
-	public void setMainLog(PrismLog mainLog)
-	{
-		this.mainLog = mainLog;
-	}
-
-	@Override
-	public void setPrismSettings(PrismSettings settings)
-	{
-		this.prismSettings = settings;
+		if (modulesFile.getModelType() != ModelType.DTMC && modulesFile.getModelType() != ModelType.CTMC) {
+			throw new PrismException("Currently only DTMC/CTMC is supported!");
+		}
 	}
 }

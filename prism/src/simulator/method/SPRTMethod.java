@@ -245,4 +245,10 @@ public final class SPRTMethod extends SimulationMethod
 		m.missingParameterComputed = missingParameterComputed;
 		return m;
 	}
+
+	@Override
+	public void checkAgainstExpectedResult(double expectedResult, double result) throws PrismException
+	{
+		throw new RuntimeException("The method checkAgainstExpectedResult doesn't apply to non-quantitative properties");
+	}
 }

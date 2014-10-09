@@ -51,7 +51,4 @@ public interface RuntimeDeviceInterface
 	 * @return supported version of OpenCL
 	 */
 	public String getFrameworkVersion();
-
-	@Override
-	public String toString();
 }

@@ -601,7 +601,7 @@ public abstract class KernelGenerator
 		 * For CTMC&bounded until -> update current time.
 		 */
 		mainMethodUpdateTimeAfter(currentMethod, loop);
-		//mainMethodLoopDetection(loop);
+		mainMethodLoopDetection(loop);
 		//loop.addExpression(new Expression("if(s==4)break;"));
 		currentMethod.addExpression(loop);
 		//		currentMethod.addExpression(new Expression(
@@ -621,6 +621,8 @@ public abstract class KernelGenerator
 			CLVariable property = accessArrayElement(varPropertiesArray, fromString(i)).accessField("propertyState");
 			currentMethod.addExpression(createAssignment(result, property));
 		}
+		//TODO: remove
+		//currentMethod.addExpression("if(get_global_id(0) < 20)printf(\"%d %d\\n\",pathLength,stateVector.__STATE_VECTOR_s);");
 		currentMethod.addExpression(prngType.deinitializeGenerator());
 
 		currentMethod.addInclude(prngType.getIncludes());

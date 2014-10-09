@@ -180,4 +180,14 @@ public abstract class APMCMethod extends SimulationMethod
 	{
 		return "Pr(|ans - " + sampler.getMeanValue() + "| < " + approximation + ") > " + (1.0 - confidence);
 	}
+	
+	@Override
+	public void checkAgainstExpectedResult(double expectedResult, double result) throws PrismException
+	{
+		Preconditions.checkCondition(prOp == 0, "The method checkAgainstExpectedResult doesn't apply to non-quantitative properties");
+		if (Math.abs(result - expectedResult) > approximation) {
+			throw new PrismException(String.format("Expected result %f doesn't lie within the confidence interval [%f,%f]", expectedResult, result
+					- approximation, result + approximation));
+		}
+	}
 }

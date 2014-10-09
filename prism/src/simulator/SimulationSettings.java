@@ -3,7 +3,6 @@
  */
 package simulator;
 
-import simulator.gpu.RuntimeFrameworkInterface;
 import simulator.method.SimulationMethod;
 
 /**
@@ -14,7 +13,7 @@ public class SimulationSettings
 {
 	private SimulationMethod simMethod;
 
-	private RuntimeFrameworkInterface simulator = null;
+	private SMCRuntimeInterface simulator = null;
 	private boolean simulatorTest = false;
 
 	public SimulationSettings(SimulationMethod simMethod)
@@ -22,7 +21,7 @@ public class SimulationSettings
 		this.simMethod = simMethod;
 	}
 
-	public SimulationSettings(SimulationMethod simMethod, RuntimeFrameworkInterface simulator)
+	public SimulationSettings(SimulationMethod simMethod, SMCRuntimeInterface simulator)
 	{
 		this.simMethod = simMethod;
 		this.simulator = simulator;
@@ -53,7 +52,7 @@ public class SimulationSettings
 		return simulator == null;
 	}
 
-	public RuntimeFrameworkInterface getSimulatorFramework()
+	public SMCRuntimeInterface getSimulatorFramework()
 	{
 		return simulator;
 	}

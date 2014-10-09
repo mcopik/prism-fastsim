@@ -51,6 +51,7 @@ import prism.PrismLog;
 import prism.PrismUtils;
 import prism.ResultsCollection;
 import prism.UndefinedConstants;
+import simulator.gpu.RuntimeDeviceInterface;
 import simulator.method.SimulationMethod;
 import simulator.sampler.Sampler;
 import strat.Strategy;
@@ -95,7 +96,7 @@ import userinterface.graph.Graph;
  * </UL>
  */
 
-public class SimulatorEngine extends PrismComponent implements ModelCheckInterface
+public class SimulatorEngine extends PrismComponent implements SMCRuntimeInterface
 {
 	// The current parsed model + info
 	private ModulesFile modulesFile;
@@ -1339,323 +1340,10 @@ public class SimulatorEngine extends PrismComponent implements ModelCheckInterfa
 	// Model checking (approximate)
 	// ------------------------------------------------------------------------------
 
-	/**
-	 * Check whether a property is suitable for approximate model checking using the simulator.
-	 */
-	public boolean isPropertyOKForSimulation(Expression expr)
-	{
-		return isPropertyOKForSimulationString(expr) == null;
-	}
+	
 
-	/**
-	 * Check whether a property is suitable for approximate model checking using the simulator.
-	 * If not, an explanatory error message is thrown as an exception.
-	 */
-	public void checkPropertyForSimulation(Expression expr) throws PrismException
-	{
-		String errMsg = isPropertyOKForSimulationString(expr);
-		if (errMsg != null)
-			throw new PrismException(errMsg);
-	}
-
-	/**
-	 * Check whether a property is suitable for approximate model checking using the simulator.
-	 * If yes, return null; if not, return an explanatory error message.
-	 */
-	private String isPropertyOKForSimulationString(Expression expr)
-	{
-		// Simulator can only be applied to P or R properties (without filters)
-		if (!(expr instanceof ExpressionProb || expr instanceof ExpressionReward)) {
-			if (expr instanceof ExpressionFilter) {
-				if (((ExpressionFilter) expr).getOperand() instanceof ExpressionProb || ((ExpressionFilter) expr).getOperand() instanceof ExpressionReward)
-					return "Simulator cannot handle P or R properties with filters";
-			}
-			return "Simulator can only handle P or R properties";
-		}
-		// Check that there are no nested probabilistic operators
-		try {
-			if (expr.computeProbNesting() > 1) {
-				return "Simulator cannot handle nested P, R or S operators";
-			}
-		} catch (PrismException e) {
-			return "Simulator cannot handle this property: " + e.getMessage();
-		}
-		// Simulator cannot handle cumulative reward properties without a time bound
-		if (expr instanceof ExpressionReward) {
-			Expression exprTemp = ((ExpressionReward) expr).getExpression();
-			if (exprTemp instanceof ExpressionTemporal) {
-				if (((ExpressionTemporal) exprTemp).getOperator() == ExpressionTemporal.R_C) {
-					if (((ExpressionTemporal) exprTemp).getUpperBound() == null) {
-						return "Simulator cannot handle cumulative reward properties without time bounds";
-					}
-				}
-			}
-		}
-		// No errors
-		return null;
-	}
-
-	/**
-	 * Perform approximate model checking of a property on a model, using the simulator.
-	 * Sampling starts from the initial state provided or, if null, the default
-	 * initial state is used, selecting randomly (each time) if there are more than one.
-	 * Returns a Result object, except in case of error, where an Exception is thrown.
-	 * Note: All constants in the model/property files must have already been defined.
-	 * @param modulesFile Model for simulation, constants defined
-	 * @param propertiesFile Properties file containing property to check, constants defined
-	 * @param expr The property to check
-	 * @param initialState Initial state (if null, is selected randomly)
-	 * @param maxPathLength The maximum path length for sampling
-	 * @param simMethod Object specifying details of method to use for simulation
-	 */
-	public Object modelCheckSingleProperty(ModulesFile modulesFile, PropertiesFile propertiesFile, Expression expr, State initialState, long maxPathLength,
-			SimulationMethod simMethod) throws PrismException
-	{
-		ArrayList<Expression> exprs;
-		Object res[];
-
-		// Just do this via the 'multiple properties' method
-		exprs = new ArrayList<Expression>();
-		exprs.add(expr);
-		res = modelCheckMultipleProperties(modulesFile, propertiesFile, exprs, initialState, maxPathLength, simMethod);
-
-		if (res[0] instanceof PrismException)
-			throw (PrismException) res[0];
-		else
-			return res[0];
-	}
-
-	/**
-	 * Perform approximate model checking of properties on a model, using the simulator.
-	 * Sampling starts from the initial state provided or, if null, the default
-	 * initial state is used, selecting randomly (each time) if there are more than one.
-	 * Returns an array of results, some of which may be Exception objects if there were errors.
-	 * In the case of an error which affects all properties, an exception is thrown.
-	 * Note: All constants in the model/property files must have already been defined.
-	 * @param modulesFile Model for simulation, constants defined
-	 * @param propertiesFile Properties file containing property to check, constants defined
-	 * @param exprs The properties to check
-	 * @param initialState Initial state (if null, is selected randomly)
-	 * @param maxPathLength The maximum path length for sampling
-	 * @param simMethod Object specifying details of method to use for simulation
-	 */
-	public Object[] modelCheckMultipleProperties(ModulesFile modulesFile, PropertiesFile propertiesFile, List<Expression> exprs, State initialState,
-			long maxPathLength, SimulationMethod simMethod) throws PrismException
-	{
-		// Load model into simulator
-		createNewOnTheFlyPath(modulesFile);
-
-		// Make sure any missing parameters that can be computed before simulation
-		// are computed now (sometimes this has been done already, e.g. for GUI display).
-		simMethod.computeMissingParameterBeforeSim();
-
-		// Print details to log
-		mainLog.println("\nSimulation method: " + simMethod.getName() + " (" + simMethod.getFullName() + ")");
-		mainLog.println("Simulation method parameters: " + simMethod.getParametersString());
-		mainLog.println("Simulation parameters: max path length=" + maxPathLength);
-
-		// Add the properties to the simulator (after a check that they are valid)
-		Object[] results = new Object[exprs.size()];
-		int[] indices = new int[exprs.size()];
-		int validPropsCount = 0;
-		for (int i = 0; i < exprs.size(); i++) {
-			try {
-				checkPropertyForSimulation(exprs.get(i));
-				indices[i] = addProperty(exprs.get(i), propertiesFile);
-				validPropsCount++;
-				// Attach a SimulationMethod object to each property's sampler
-				SimulationMethod simMethodNew = simMethod.clone();
-				propertySamplers.get(indices[i]).setSimulationMethod(simMethodNew);
-				// Pass property details to SimuationMethod
-				// (note that we use the copy stored in properties, which has been processed)
-				try {
-					simMethodNew.setExpression(properties.get(indices[i]));
-				} catch (PrismException e) {
-					// In case of error, also need to remove property/sampler from list
-					properties.remove(indices[i]);
-					propertySamplers.remove(indices[i]);
-					throw e;
-				}
-			} catch (PrismException e) {
-				results[i] = e;
-				indices[i] = -1;
-			}
-		}
-
-		// As long as there are at least some valid props, do sampling
-		if (validPropsCount > 0) {
-			doSampling(initialState, maxPathLength);
-		}
-
-		// Process the results
-		for (int i = 0; i < results.length; i++) {
-			// If there was an earlier error, nothing to do
-			if (indices[i] != -1) {
-				Sampler sampler = propertySamplers.get(indices[i]);
-				//mainLog.print("Simulation results: mean: " + sampler.getMeanValue());
-				//mainLog.println(", variance: " + sampler.getVariance());
-				SimulationMethod sm = sampler.getSimulationMethod();
-				// Compute/print any missing parameters that need to be done after simulation
-				sm.computeMissingParameterAfterSim();
-				// Extract result from SimulationMethod and store
-				try {
-					results[i] = sm.getResult(sampler);
-				} catch (PrismException e) {
-					results[i] = e;
-				}
-			}
-		}
-
-		// Display results to log
-		if (results.length == 1) {
-			mainLog.print("\nSimulation method parameters: ");
-			mainLog.println((indices[0] == -1) ? "no simulation" : propertySamplers.get(indices[0]).getSimulationMethod().getParametersString());
-			mainLog.print("\nSimulation result details: ");
-			mainLog.println((indices[0] == -1) ? "no simulation" : propertySamplers.get(indices[0]).getSimulationMethodResultExplanation());
-			if (!(results[0] instanceof PrismException))
-				mainLog.println("\nResult: " + results[0]);
-		} else {
-			mainLog.println("\nSimulation method parameters:");
-			for (int i = 0; i < results.length; i++) {
-				mainLog.print(exprs.get(i) + " : ");
-				mainLog.println((indices[i] == -1) ? "no simulation" : propertySamplers.get(indices[i]).getSimulationMethod().getParametersString());
-			}
-			mainLog.println("\nSimulation result details:");
-			for (int i = 0; i < results.length; i++) {
-				mainLog.print(exprs.get(i) + " : ");
-				mainLog.println((indices[i] == -1) ? "no simulation" : propertySamplers.get(indices[i]).getSimulationMethodResultExplanation());
-			}
-			mainLog.println("\nResults:");
-			for (int i = 0; i < results.length; i++)
-				mainLog.println(exprs.get(i) + " : " + results[i]);
-		}
-
-		return results;
-	}
-
-	/**
-	 * Perform an approximate model checking experiment on a model, using the simulator
-	 * (specified by values for undefined constants from the property only).
-	 * Sampling starts from the initial state provided or, if null, the default
-	 * initial state is used, selecting randomly (each time) if there are more than one.
-	 * Results are stored in the ResultsCollection object passed in,
-	 * some of which may be Exception objects if there were errors.
-	 * In the case of an error which affects all properties, an exception is thrown.
-	 * Note: All constants in the model file must have already been defined.
-	 * @param modulesFile Model for simulation, constants defined
-	 * @param propertiesFile Properties file containing property to check, constants defined
-	 * @param undefinedConstants Details of constant ranges defining the experiment
-	 * @param resultsCollection Where to store the results
-	 * @param expr The property to check
-	 * @param initialState Initial state (if null, is selected randomly)
-	 * @param maxPathLength The maximum path length for sampling
-	 * @param simMethod Object specifying details of method to use for simulation
-	 * @throws PrismException if something goes wrong with the sampling algorithm
-	 * @throws InterruptedException if the thread is interrupted
-	 */
-	public void modelCheckExperiment(ModulesFile modulesFile, PropertiesFile propertiesFile, UndefinedConstants undefinedConstants,
-			ResultsCollection resultsCollection, Expression expr, State initialState, long maxPathLength, SimulationMethod simMethod) throws PrismException,
-			InterruptedException
-	{
-		// Load model into simulator
-		createNewOnTheFlyPath(modulesFile);
-
-		// Make sure any missing parameters that can be computed before simulation
-		// are computed now (sometimes this has been done already, e.g. for GUI display).
-		simMethod.computeMissingParameterBeforeSim();
-
-		// Print details to log
-		mainLog.println("\nSimulation method: " + simMethod.getName() + " (" + simMethod.getFullName() + ")");
-		mainLog.println("Simulation method parameters: " + simMethod.getParametersString());
-		mainLog.println("Simulation parameters: max path length=" + maxPathLength);
-
-		// Add the properties to the simulator (after a check that they are valid)
-		int n = undefinedConstants.getNumPropertyIterations();
-		Values definedPFConstants = new Values();
-		Object[] results = new Object[n];
-		Values[] pfcs = new Values[n];
-		int[] indices = new int[n];
-
-		int validPropsCount = 0;
-		for (int i = 0; i < n; i++) {
-			definedPFConstants = undefinedConstants.getPFConstantValues();
-			pfcs[i] = definedPFConstants;
-			propertiesFile.setSomeUndefinedConstants(definedPFConstants);
-			try {
-				checkPropertyForSimulation(expr);
-				indices[i] = addProperty(expr, propertiesFile);
-				validPropsCount++;
-				// Attach a SimulationMethod object to each property's sampler
-				SimulationMethod simMethodNew = simMethod.clone();
-				propertySamplers.get(indices[i]).setSimulationMethod(simMethodNew);
-				// Pass property details to SimuationMethod
-				// (note that we use the copy stored in properties, which has been processed)
-				try {
-					simMethodNew.setExpression(properties.get(indices[i]));
-				} catch (PrismException e) {
-					// In case of error, also need to remove property/sampler from list
-					// (NB: this will be at the end of the list so no re-indexing issues)
-					properties.remove(indices[i]);
-					propertySamplers.remove(indices[i]);
-					throw e;
-				}
-			} catch (PrismException e) {
-				results[i] = e;
-				indices[i] = -1;
-			}
-			undefinedConstants.iterateProperty();
-		}
-
-		// As long as there are at least some valid props, do sampling
-		if (validPropsCount > 0) {
-			doSampling(initialState, maxPathLength);
-		}
-
-		// Process the results
-		for (int i = 0; i < n; i++) {
-			// If there was an earlier error, nothing to do
-			if (indices[i] != -1) {
-				Sampler sampler = propertySamplers.get(indices[i]);
-				//mainLog.print("Simulation results: mean: " + sampler.getMeanValue());
-				//mainLog.println(", variance: " + sampler.getVariance());
-				SimulationMethod sm = sampler.getSimulationMethod();
-				// Compute/print any missing parameters that need to be done after simulation
-				sm.computeMissingParameterAfterSim();
-				// Extract result from SimulationMethod and store
-				try {
-					results[i] = sm.getResult(sampler);
-				} catch (PrismException e) {
-					results[i] = e;
-				}
-			}
-			// Store result in the ResultsCollection
-			resultsCollection.setResult(undefinedConstants.getMFConstantValues(), pfcs[i], results[i]);
-		}
-
-		// Display results to log
-		mainLog.println("\nSimulation method parameters:");
-		for (int i = 0; i < results.length; i++) {
-			mainLog.print(pfcs[i] + " : ");
-			mainLog.println((indices[i] == -1) ? "no simulation" : propertySamplers.get(indices[i]).getSimulationMethod().getParametersString());
-		}
-		mainLog.println("\nSimulation result details:");
-		for (int i = 0; i < results.length; i++) {
-			mainLog.print(pfcs[i] + " : ");
-			mainLog.println((indices[i] == -1) ? "no simulation" : propertySamplers.get(indices[i]).getSimulationMethodResultExplanation());
-		}
-		mainLog.println("\nResults:");
-		mainLog.print(resultsCollection.toStringPartial(undefinedConstants.getMFConstantValues(), true, " ", " : ", false));
-	}
-
-	/**
-	 * Execute sampling for the set of currently loaded properties.
-	 * Sample paths are from the specified initial state and maximum length.
-	 * Termination of the sampling process occurs when the SimulationMethod object
-	 * for all properties indicate that it is finished.
-	 * @param initialState Initial state (if null, is selected randomly)
-	 * @param maxPathLength The maximum path length for sampling
-	 */
-	private void doSampling(State initialState, long maxPathLength) throws PrismException
+	@Override
+	public int doSampling(ModulesFile modulesFile, List<Sampler> properties, State initialState, long maxPathLength) throws PrismException
 	{
 		int iters;
 		long i;
@@ -1682,13 +1370,18 @@ public class SimulatorEngine extends PrismComponent implements ModelCheckInterfa
 		mainLog.print("\nSampling progress: [");
 		mainLog.flush();
 
+		// initialize SimulatorEngine structures
+		createNewOnTheFlyPath(modulesFile);
+		propertySamplers.clear();
+		propertySamplers.addAll(properties);
+		
 		// Main sampling loop
 		iters = 0;
 		while (!shouldStopSampling) {
 
 			// See if all properties are done; if so, stop sampling
 			allDone = true;
-			for (Sampler sampler : propertySamplers) {
+			for (Sampler sampler : properties) {
 				if (!sampler.getSimulationMethod().shouldStopNow(iters, sampler)) {
 					allDone = false;
 				}
@@ -1703,7 +1396,7 @@ public class SimulatorEngine extends PrismComponent implements ModelCheckInterfa
 			}
 			// Display progress (of slowest property)
 			percentageDone = 0;
-			for (Sampler sampler : propertySamplers) {
+			for (Sampler sampler : properties) {
 				percentageDone = Math.min(percentageDone, sampler.getSimulationMethod().getProgress(iters, sampler));
 			}
 			if (percentageDone > lastPercentageDone) {
@@ -1728,7 +1421,7 @@ public class SimulatorEngine extends PrismComponent implements ModelCheckInterfa
 				// Check status of samplers
 				allKnown = true;
 				someUnknownButBounded = false;
-				for (Sampler sampler : propertySamplers) {
+				for (Sampler sampler : properties) {
 					if (!sampler.isCurrentValueKnown()) {
 						allKnown = false;
 						if (sampler.needsBoundedNumSteps())
@@ -1761,7 +1454,7 @@ public class SimulatorEngine extends PrismComponent implements ModelCheckInterfa
 			}
 
 			// Update state of samplers based on last path
-			for (Sampler sampler : propertySamplers) {
+			for (Sampler sampler : properties) {
 				sampler.updateStats();
 			}
 		}
@@ -1796,6 +1489,7 @@ public class SimulatorEngine extends PrismComponent implements ModelCheckInterfa
 			throw new PrismException(
 					"One or more of the properties being sampled could not be checked on a sample. Consider increasing the maximum path length");
 		}
+		return iters;
 	}
 
 	/**
@@ -1804,5 +1498,79 @@ public class SimulatorEngine extends PrismComponent implements ModelCheckInterfa
 	public void stopSampling()
 	{
 		// TODO
+	}
+
+	/***
+	 * APPROXIMATE MODEL CHECKING INTERFACE
+	 */
+	
+	@Override
+	public String getFrameworkName()
+	{
+		// TODO Auto-generated method stub
+		return null;
+	}
+
+	@Override
+	public String[] getPlatformNames()
+	{
+		// TODO Auto-generated method stub
+		return null;
+	}
+
+	@Override
+	public int getPlatformNumber()
+	{
+		// TODO Auto-generated method stub
+		return 0;
+	}
+
+	@Override
+	public String getPlatformInfo(int i)
+	{
+		// TODO Auto-generated method stub
+		return null;
+	}
+
+	@Override
+	public RuntimeDeviceInterface[] getDevices()
+	{
+		// TODO Auto-generated method stub
+		return null;
+	}
+
+	@Override
+	public String[] getDevicesNames()
+	{
+		// TODO Auto-generated method stub
+		return null;
+	}
+
+	@Override
+	public RuntimeDeviceInterface getMaxFlopsDevice()
+	{
+		// TODO Auto-generated method stub
+		return null;
+	}
+
+	@Override
+	public RuntimeDeviceInterface getMaxFlopsDevice(DeviceType type)
+	{
+		// TODO Auto-generated method stub
+		return null;
+	}
+
+	@Override
+	public void selectDevice(RuntimeDeviceInterface device)
+	{
+		// TODO Auto-generated method stub
+		
+	}
+
+	@Override
+	public void checkModelForAMC(ModulesFile modulesFile) throws PrismException
+	{
+		// TODO Auto-generated method stub
+		
 	}
 }

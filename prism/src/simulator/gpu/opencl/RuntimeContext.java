@@ -476,6 +476,7 @@ public class RuntimeContext
 			//mainLog.println(kernel.getSource());
 
 			mainLog.flush();
+			System.out.println(kernel.getSource());
 			CLProgram program = context.createProgram(kernel.getSource());
 			//add include directories for PRNG
 			//has to work when applications is executed as Java class or as a jar

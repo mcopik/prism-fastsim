@@ -39,6 +39,7 @@ import parser.visitor.ASTVisitor;
 import prism.PrismException;
 import prism.PrismLangException;
 import prism.PrismUtils;
+import simulator.method.SimulationMethod;
 
 /**
  * PRISM property, i.e. a PRISM expression plus other (optional info) such as name, comment, etc.
@@ -137,7 +138,22 @@ public class Property extends ASTElement
 	public boolean checkAgainstExpectedResult(Object result, Values constValues) throws PrismException
 	{
 		String strExpected = getExpectedResultString(constValues);
-		return checkAgainstExpectedResultString(strExpected, result);
+		return checkAgainstExpectedResultString(strExpected, result, null);
+	}
+
+	/**
+	 * Tests a result against the expected result for this Property, see above to other version 
+	 * of this method for details.
+	 * This version tests a result obtained by a simulator.
+	 * @param method Simulation method used to get this result.
+	 * @param result The actual result
+	 * @param constValues The values of any undefined constants (null if none)
+	 * @return Whether or not the check was performed
+	 */
+	public boolean checkAgainstExpectedResult(Object result, Values constValues, SimulationMethod method) throws PrismException
+	{
+		String strExpected = getExpectedResultString(constValues);
+		return checkAgainstExpectedResultString(strExpected, result, method);
 	}
 
 	/**
@@ -176,14 +192,17 @@ public class Property extends ASTElement
 						match = false;
 					// Check doubles numerically
 					else if (constValToMatch instanceof Double)
-						match = PrismUtils.doublesAreCloseRel(((Double) constValToMatch).doubleValue(), Double.parseDouble(constVal), 1e-10);
+						match &= PrismUtils.doublesAreCloseRel(((Double) constValToMatch).doubleValue(), Double.parseDouble(constVal), 1e-10);
 					// Otherwise just check for exact string match for now
 					else
-						match = constValToMatch.toString().equals(constVal);
+						match &= constValToMatch.toString().equals(constVal);
+					if (!match)
+						break;
 				}
 				// Found it...
 				if (match) {
 					strExpected = matcher.group(3);
+					//continue;
 					break;
 				}
 			}
@@ -246,7 +265,7 @@ public class Property extends ASTElement
 	 * @param result The actual result
 	 * @return Whether or not the check was performed
 	 */
-	private boolean checkAgainstExpectedResultString(String strExpected, Object result) throws PrismException
+	private boolean checkAgainstExpectedResultString(String strExpected, Object result, SimulationMethod method) throws PrismException
 	{
 		// Check for special "don't case" case
 		if (strExpected.equals("?")) {
@@ -290,6 +309,8 @@ public class Property extends ASTElement
 			boolean boolRes;
 			if (!(result instanceof Boolean))
 				throw new PrismException("Result is wrong type for (boolean-valued) property");
+			// for boolean values we don't need to use simulation method
+			// true is true, of course with some confidence
 			boolRes = ((Boolean) result).booleanValue();
 			if (boolRes != boolExp)
 				throw new PrismException("Wrong result (expected " + boolExp + ")");
@@ -309,8 +330,14 @@ public class Property extends ASTElement
 			if (!(result instanceof Integer))
 				throw new PrismException("Result is wrong type for (integer-valued) property");
 			intRes = ((Integer) result).intValue();
-			if (intRes != intExp)
-				throw new PrismException("Wrong result (expected " + intExp + ")");
+			//result obtained by traditional, analytical methods
+			if (method == null) {
+				if (intRes != intExp)
+					throw new PrismException("Wrong result (expected " + intExp + ")");
+			} //simulation result 
+			else {
+				method.checkAgainstExpectedResult(intExp, intRes);
+			}
 		}
 
 		// Double-valued properties
@@ -345,8 +372,14 @@ public class Property extends ASTElement
 				if (!Double.isNaN(doubleExp))
 					throw new PrismException("Wrong result (expected " + doubleExp + ")");
 			} else {
-				if (!PrismUtils.doublesAreCloseRel(doubleExp, doubleRes, 1e-5))
-					throw new PrismException("Wrong result (expected " + doubleExp + ")");
+				// result obtained by traditional, analytical methods
+				if (method == null) {
+					if (!PrismUtils.doublesAreCloseRel(doubleExp, doubleRes, 1e-5))
+						throw new PrismException("Wrong result (expected " + doubleExp + ")");
+				} // result from simulation
+				else {
+					method.checkAgainstExpectedResult(doubleExp, doubleRes);
+				}
 			}
 		}
 

@@ -31,6 +31,7 @@ import parser.ast.Expression;
 import parser.ast.ExpressionProb;
 import parser.ast.ExpressionReward;
 import parser.ast.RelOp;
+import prism.Preconditions;
 import prism.PrismException;
 import simulator.sampler.Sampler;
 
@@ -168,5 +169,15 @@ public abstract class CIMethod extends SimulationMethod
 	public String getResultExplanation(Sampler sampler) throws PrismException
 	{
 		return "confidence interval is " + sampler.getMeanValue() + " +/- " + width + ", based on " + (100.0 * (1.0 - confidence)) + "% confidence level";
+	}
+	
+	@Override
+	public void checkAgainstExpectedResult(double expectedResult, double result) throws PrismException
+	{
+		Preconditions.checkCondition(prOp == 0, "The method checkAgainstExpectedResult doesn't apply to non-quantitative properties");
+		if (Math.abs(result - expectedResult) > width) {
+			throw new PrismException(String.format("Expected result %f doesn't lie within the confidence interval [%f,%f]", expectedResult, result - width,
+					result + width));
+		}
 	}
 }

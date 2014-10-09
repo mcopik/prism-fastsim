@@ -37,9 +37,11 @@ import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.border.TitledBorder;
 
+import prism.Prism;
+import prism.PrismComponent;
 import prism.PrismException;
+import simulator.SMCRuntimeInterface;
 import simulator.gpu.RuntimeDeviceInterface;
-import simulator.gpu.RuntimeFrameworkInterface;
 import simulator.gpu.opencl.RuntimeOpenCL;
 
 @SuppressWarnings("serial")
@@ -115,15 +117,20 @@ public class GUISimulationPlatform extends JPanel
 	/**
 	 * Current selected platform.
 	 */
-	private RuntimeFrameworkInterface currentFramework = null;
+	private SMCRuntimeInterface currentFramework = null;
 	/**
 	 * Current selected device.
 	 */
 	private RuntimeDeviceInterface currentDevice = null;
-
-	public GUISimulationPlatform()
+	/**
+	 * Prism main object.
+	 */
+	private PrismComponent parent;
+	
+	public GUISimulationPlatform(PrismComponent parent)
 	{
 		super(new GridBagLayout());
+		this.parent = parent;
 		this.setBorder(new TitledBorder(TITLE));
 		initComponentsSelect(this);
 		initComponentsDetails(this);
@@ -241,7 +248,7 @@ public class GUISimulationPlatform extends JPanel
 		case 1:
 			selectDevice.setEnabled(true);
 			try {
-				currentFramework = new RuntimeOpenCL();
+				currentFramework = new RuntimeOpenCL(parent);
 				selectDevice.setModel(new DefaultComboBoxModel<String>(currentFramework.getDevicesNames()));
 				previousPlatformSelection = 1;
 			} catch (PrismException exc) {

@@ -59,11 +59,13 @@ import parser.ast.Property;
 import pta.DigitalClocks;
 import pta.PTAModelChecker;
 import simulator.GenerateSimulationPath;
-import simulator.ModelCheckInterface;
+import simulator.SMCRuntimeInterface;
 import simulator.PrismModelExplorer;
 import simulator.SimulationSettings;
 import simulator.SimulatorEngine;
+import simulator.StochasticModelChecker;
 import simulator.gpu.GPUSimulatorEngine;
+import simulator.gpu.opencl.RuntimeOpenCL;
 import simulator.method.SimulationMethod;
 import sparse.PrismSparse;
 import strat.Strategy;
@@ -237,8 +239,18 @@ public class Prism extends PrismComponent implements PrismSettingsListener
 	private static boolean prismParserInUse = false;
 	private ExplicitFiles2MTBDD expf2mtbdd = null;
 	private ExplicitModel2MTBDD expm2mtbdd = null;
+	/**
+	 * Default PRISM simulator engine.
+	 */
 	private SimulatorEngine theSimulator = null;
-	private GPUSimulatorEngine gpuSimulator = null;
+	/**
+	 * GPU simulator engine, used for approximate model checking.
+	 */
+	private RuntimeOpenCL gpuSimulator = null;
+	/**
+	 * Approximate model checker.
+	 */
+	private StochasticModelChecker stochasticMC = null;
 	//------------------------------------------------------------------------------
 	// Event listeners
 	//------------------------------------------------------------------------------
@@ -1018,17 +1030,18 @@ public class Prism extends PrismComponent implements PrismSettingsListener
 	 * @param simInfo object with detailed informations about simulation
 	 * @return reference to used simulator
 	 */
-	public ModelCheckInterface getSimulator(SimulationInformation simInfo)
+	public void configureStochasticMC(SimulationInformation simInfo)
 	{
+		SMCRuntimeInterface smc = null;
 		if (simInfo.selectedStandardEngine()) {
-			return getSimulator();
+			smc = getSimulator();
 		} else {
-			if (gpuSimulator == null) {
-				gpuSimulator = new GPUSimulatorEngine(simInfo.getSimulatorFramework(), this);
-			} else {
-				gpuSimulator.setSimulatorFramework(simInfo.getSimulatorFramework());
-			}
-			return gpuSimulator;
+			smc = simInfo.getSimulatorFramework();
+		}
+		if(stochasticMC == null) {
+			stochasticMC = new StochasticModelChecker(smc,this);
+		} else {
+			stochasticMC.selectSimulator(smc);
 		}
 	}
 
@@ -1038,17 +1051,18 @@ public class Prism extends PrismComponent implements PrismSettingsListener
 	 * @param simSettings object with detailed informations about simulation
 	 * @return reference to used simulator
 	 */
-	public ModelCheckInterface getSimulator(SimulationSettings simSettings)
+	public void configureStochasticMC(SimulationSettings simSettings)
 	{
+		SMCRuntimeInterface smc = null;
 		if (simSettings.selectedStandardEngine()) {
-			return getSimulator();
+			smc = getSimulator();
 		} else {
-			if (gpuSimulator == null) {
-				gpuSimulator = new GPUSimulatorEngine(simSettings.getSimulatorFramework(), this);
-			} else {
-				gpuSimulator.setSimulatorFramework(simSettings.getSimulatorFramework());
-			}
-			return gpuSimulator;
+			smc = simSettings.getSimulatorFramework();
+		}
+		if(stochasticMC == null) {
+			stochasticMC = new StochasticModelChecker(smc,this);
+		} else {
+			stochasticMC.selectSimulator(smc);
 		}
 	}
 
@@ -2848,7 +2862,7 @@ public class Prism extends PrismComponent implements PrismSettingsListener
 	 */
 	public boolean isPropertyOKForSimulation(Expression expr)
 	{
-		return getSimulator().isPropertyOKForSimulation(expr);
+		return stochasticMC.isPropertyOKForAMC(expr);
 	}
 
 	/**
@@ -2858,7 +2872,8 @@ public class Prism extends PrismComponent implements PrismSettingsListener
 	 */
 	public void checkPropertyForSimulation(Expression expr) throws PrismException
 	{
-		getSimulator().checkPropertyForSimulation(expr);
+		//theSimulator.checkPropertyForSimulation(expr);
+		stochasticMC.checkPropertyForAMC(expr);
 	}
 
 	/**
@@ -2877,7 +2892,8 @@ public class Prism extends PrismComponent implements PrismSettingsListener
 	public Result modelCheckSimulator(PropertiesFile propertiesFile, Expression expr, Values definedPFConstants, State initialState, long maxPathLength,
 			SimulationSettings simSettings) throws PrismException
 	{
-		return modelCheckSimulator(propertiesFile, expr, definedPFConstants, initialState, maxPathLength, simSettings.getMethod(), getSimulator(simSettings));
+		configureStochasticMC(simSettings);
+		return modelCheckSimulator(propertiesFile, expr, definedPFConstants, initialState, maxPathLength, simSettings.getMethod());
 	}
 
 	/**
@@ -2896,12 +2912,12 @@ public class Prism extends PrismComponent implements PrismSettingsListener
 	public Result modelCheckSimulator(PropertiesFile propertiesFile, Expression expr, Values definedPFConstants, State initialState, long maxPathLength,
 			SimulationInformation simInfo) throws PrismException
 	{
-		return modelCheckSimulator(propertiesFile, expr, definedPFConstants, initialState, maxPathLength, simInfo.createSimulationMethod(),
-				getSimulator(simInfo));
+		configureStochasticMC(simInfo);
+		return modelCheckSimulator(propertiesFile, expr, definedPFConstants, initialState, maxPathLength, simInfo.createSimulationMethod());
 	}
 
 	private Result modelCheckSimulator(PropertiesFile propertiesFile, Expression expr, Values definedPFConstants, State initialState, long maxPathLength,
-			SimulationMethod simMethod, ModelCheckInterface simulator) throws PrismException
+			SimulationMethod simMethod) throws PrismException
 	{
 		Object res = null;
 
@@ -2917,9 +2933,9 @@ public class Prism extends PrismComponent implements PrismSettingsListener
 		expr.checkValid(currentModelType);
 
 		// Do simulation
-		res = simulator.modelCheckSingleProperty(currentModulesFile, propertiesFile, expr, initialState, maxPathLength, simMethod);
+		return stochasticMC.modelCheckSingleProperty(currentModulesFile, propertiesFile, expr, initialState, maxPathLength, simMethod);
 
-		return new Result(res);
+		//return new Result(res);
 	}
 
 	/**
@@ -2940,8 +2956,8 @@ public class Prism extends PrismComponent implements PrismSettingsListener
 	public Result[] modelCheckSimulatorSimultaneously(PropertiesFile propertiesFile, List<Expression> exprs, Values definedPFConstants, State initialState,
 			long maxPathLength, SimulationSettings simSettings) throws PrismException
 	{
-		return modelCheckSimulatorSimultaneously(propertiesFile, exprs, definedPFConstants, initialState, maxPathLength, simSettings.getMethod(),
-				getSimulator(simSettings));
+		configureStochasticMC(simSettings);
+		return modelCheckSimulatorSimultaneously(propertiesFile, exprs, definedPFConstants, initialState, maxPathLength, simSettings.getMethod());
 	}
 
 	/**
@@ -2961,12 +2977,12 @@ public class Prism extends PrismComponent implements PrismSettingsListener
 	public Result[] modelCheckSimulatorSimultaneously(PropertiesFile propertiesFile, List<Expression> exprs, Values definedPFConstants, State initialState,
 			long maxPathLength, SimulationInformation simInfo) throws PrismException
 	{
-		return modelCheckSimulatorSimultaneously(propertiesFile, exprs, definedPFConstants, initialState, maxPathLength, simInfo.createSimulationMethod(),
-				getSimulator(simInfo));
+		configureStochasticMC(simInfo);
+		return modelCheckSimulatorSimultaneously(propertiesFile, exprs, definedPFConstants, initialState, maxPathLength, simInfo.createSimulationMethod());
 	}
 
 	private Result[] modelCheckSimulatorSimultaneously(PropertiesFile propertiesFile, List<Expression> exprs, Values definedPFConstants, State initialState,
-			long maxPathLength, SimulationMethod simMethod, ModelCheckInterface simulator) throws PrismException
+			long maxPathLength, SimulationMethod simMethod) throws PrismException
 	{
 		Object[] res = null;
 
@@ -2991,12 +3007,12 @@ public class Prism extends PrismComponent implements PrismSettingsListener
 			expr.checkValid(currentModelType);
 
 		// Do simulation
-		res = simulator.modelCheckMultipleProperties(currentModulesFile, propertiesFile, exprs, initialState, maxPathLength, simMethod);
+		return stochasticMC.modelCheckMultipleProperties(currentModulesFile, propertiesFile, exprs, initialState, maxPathLength, simMethod);
 
-		Result[] resArray = new Result[res.length];
-		for (int i = 0; i < res.length; i++)
-			resArray[i] = new Result(res[i]);
-		return resArray;
+//		Result[] resArray = new Result[res.length];
+//		for (int i = 0; i < res.length; i++)
+//			resArray[i] = new Result(res[i]);
+//		return resArray;
 	}
 
 	/**
@@ -3055,7 +3071,8 @@ public class Prism extends PrismComponent implements PrismSettingsListener
 		mainLog.println("Property constants: " + undefinedConstants.getPFDefinedConstantsString());
 
 		// Do simulation
-		getSimulator(simSettings).modelCheckExperiment(currentModulesFile, propertiesFile, undefinedConstants, results, expr, initialState, pathLength,
+		configureStochasticMC(simSettings);
+		stochasticMC.modelCheckExperiment(currentModulesFile, propertiesFile, undefinedConstants, results, expr, initialState, pathLength,
 				simSettings.getMethod());
 	}
 

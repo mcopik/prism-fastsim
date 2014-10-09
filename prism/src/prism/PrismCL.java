@@ -41,8 +41,8 @@ import parser.ast.Property;
 import prism.Prism.StrategyExportType;
 import simulator.GenerateSimulationPath;
 import simulator.SimulationSettings;
+import simulator.SMCRuntimeInterface;
 import simulator.gpu.RuntimeDeviceInterface;
-import simulator.gpu.RuntimeFrameworkInterface;
 import simulator.gpu.opencl.RuntimeOpenCL;
 import simulator.method.ACIconfidence;
 import simulator.method.ACIiterations;
@@ -412,7 +412,13 @@ public class PrismCL implements PrismModelListener
 								allConsts.addValues(definedPFConstants);
 								allConsts.addValues(modulesFile.getConstantValues());
 								allConsts.addValues(propertiesFile.getConstantValues());
-								if (propertiesToCheck.get(j).checkAgainstExpectedResult(res.getResult(), allConsts)) {
+								boolean testResult = false;
+								if (!simulate) {
+									testResult = propertiesToCheck.get(j).checkAgainstExpectedResult(res.getResult(), allConsts);
+								} else {
+									testResult = propertiesToCheck.get(j).checkAgainstExpectedResult(res.getResult(), allConsts, res.getSimulationMethod());
+								}
+								if (testResult) {
 									mainLog.println("Testing result: PASS");
 								} else {
 									mainLog.println("Testing result: NOT TESTED");
@@ -2143,7 +2149,7 @@ public class PrismCL implements PrismModelListener
 			if (simPlatform.equalsIgnoreCase("CPU")) {
 				simSettings = new SimulationSettings(aSimMethod);
 			} else {
-				RuntimeOpenCL runtime = new RuntimeOpenCL();
+				RuntimeOpenCL runtime = new RuntimeOpenCL(prism);
 				simMaxPath = prism.getSettings().getInteger(PrismSettings.OPENCL_SIMULATOR_DEFAULT_MAX_PATH);
 				if (simDeviceGiven) {
 					String[] names = runtime.getDevicesNames();
@@ -2165,9 +2171,9 @@ public class PrismCL implements PrismModelListener
 					runtime.selectDevice(runtime.getDevices()[device]);
 				} else if (simDeviceTypeGiven) {
 					if (simDeviceType.toLowerCase().equals("cpu")) {
-						runtime.selectDevice(runtime.getMaxFlopsDevice(RuntimeFrameworkInterface.DeviceType.CPU));
+						runtime.selectDevice(runtime.getMaxFlopsDevice(SMCRuntimeInterface.DeviceType.CPU));
 					} else {
-						runtime.selectDevice(runtime.getMaxFlopsDevice(RuntimeFrameworkInterface.DeviceType.GPU));
+						runtime.selectDevice(runtime.getMaxFlopsDevice(SMCRuntimeInterface.DeviceType.GPU));
 					}
 				} else {
 					runtime.selectDevice(runtime.getMaxFlopsDevice());
@@ -2354,7 +2360,7 @@ public class PrismCL implements PrismModelListener
 		mainLog.println("PRISM simulation engines: default, OpenCL");
 		mainLog.println("Devices available in OpenCL engine:");
 		try {
-			RuntimeOpenCL runtime = new RuntimeOpenCL();
+			RuntimeOpenCL runtime = new RuntimeOpenCL(prism);
 			RuntimeDeviceInterface[] devs = runtime.getDevices();
 			for (int i = 0; i < devs.length; ++i) {
 				mainLog.println(String.format("#%d : %s", i, devs[i].getName()));

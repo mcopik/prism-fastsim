@@ -40,12 +40,12 @@ public abstract class SimulationMethod implements Cloneable
 	 * Get the (short) name of this method.
 	 */
 	public abstract String getName();
-	
+
 	/**
 	 * Get the (full) name of this method.
 	 */
 	public abstract String getFullName();
-	
+
 	/**
 	 * Reset the status of this method (but not values of any parameters that have
 	 * been set). Typically called if this instance is going to be re-used for
@@ -69,7 +69,7 @@ public abstract class SimulationMethod implements Cloneable
 	 * @throws PrismException if property is inappropriate somehow for this method.
 	 */
 	public abstract void setExpression(Expression expr) throws PrismException;
-	
+
 	/**
 	 * Compute the missing parameter (typically there are multiple parameters,
 	 * one of which can be left free) *after* simulation. (Sometimes the parameter
@@ -125,15 +125,25 @@ public abstract class SimulationMethod implements Cloneable
 	 * @throws PrismException if we can't get a result for some reason.
 	 */
 	public abstract Object getResult(Sampler sampler) throws PrismException;
-	
+
 	/**
 	 * Get an explanation for the result of the simulation as a string.
 	 * @param sampler The Sampler object for this simulation (e.g. to get mean)
 	 * @throws PrismException if we can't get a result for some reason.
 	 */
 	public abstract String getResultExplanation(Sampler sampler) throws PrismException;
-	
+
+	/**
+	 * Check if computed result conforms to the one provided (e.g. in regression testing).
+	 * However, it should be mentioned that wrong result may be caused by the confidence of obtained result.
+	 * Method works for double values, the case of boolean results is trivial.
+	 * @param expectedResult The expected result, a double.
+	 * @param result The result obtained from simulation.
+	 * @throws PrismException thrown when the result is too far from expected result
+	 */
+	public abstract void checkAgainstExpectedResult(double expectedResult, double result) throws PrismException;
+
 	@Override
 	public abstract SimulationMethod clone();
-	
+
 }

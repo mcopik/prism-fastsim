@@ -153,7 +153,7 @@ public class PrismSettings implements Observer
 	public static final String OPENCL_SIMULATOR_PRNG_SEED							= "opencl.prngSeed";
 	// available prngs
 	public enum OPENCL_SIMULATOR_PRNG_CHOICES { 
-		RANDOM123(0), MWC64X(1); 
+		RANDOM123(1), MWC64X(2); 
 		public final int id; 
 		OPENCL_SIMULATOR_PRNG_CHOICES(int id)
 		{
