@@ -246,7 +246,7 @@ public class Prism extends PrismComponent implements PrismSettingsListener
 	/**
 	 * GPU simulator engine, used for approximate model checking.
 	 */
-	private RuntimeOpenCL gpuSimulator = null;
+	//private RuntimeOpenCL gpuSimulator = null;
 	/**
 	 * Approximate model checker.
 	 */
@@ -1023,7 +1023,15 @@ public class Prism extends PrismComponent implements PrismSettingsListener
 		}
 		return theSimulator;
 	}
-
+	
+	public StochasticModelChecker getSMC()
+	{
+		if (stochasticMC == null) {
+			stochasticMC = new StochasticModelChecker(theSimulator,this);
+		}
+		return stochasticMC;
+	}
+	
 	/**
 	 * Get the SimulatorEngine object for PRISM, creating if necessary.
 	 * Enables choosing between different implementations of simulator.
@@ -1038,11 +1046,7 @@ public class Prism extends PrismComponent implements PrismSettingsListener
 		} else {
 			smc = simInfo.getSimulatorFramework();
 		}
-		if(stochasticMC == null) {
-			stochasticMC = new StochasticModelChecker(smc,this);
-		} else {
-			stochasticMC.selectSimulator(smc);
-		}
+		getSMC().selectSimulator(smc);
 	}
 
 	/**
@@ -1059,11 +1063,7 @@ public class Prism extends PrismComponent implements PrismSettingsListener
 		} else {
 			smc = simSettings.getSimulatorFramework();
 		}
-		if(stochasticMC == null) {
-			stochasticMC = new StochasticModelChecker(smc,this);
-		} else {
-			stochasticMC.selectSimulator(smc);
-		}
+		getSMC().selectSimulator(smc);
 	}
 
 	/**
@@ -2862,7 +2862,7 @@ public class Prism extends PrismComponent implements PrismSettingsListener
 	 */
 	public boolean isPropertyOKForSimulation(Expression expr)
 	{
-		return stochasticMC.isPropertyOKForAMC(expr);
+		return getSMC().isPropertyOKForAMC(expr);
 	}
 
 	/**
@@ -2873,7 +2873,7 @@ public class Prism extends PrismComponent implements PrismSettingsListener
 	public void checkPropertyForSimulation(Expression expr) throws PrismException
 	{
 		//theSimulator.checkPropertyForSimulation(expr);
-		stochasticMC.checkPropertyForAMC(expr);
+		getSMC().checkPropertyForAMC(expr);
 	}
 
 	/**
@@ -2933,7 +2933,7 @@ public class Prism extends PrismComponent implements PrismSettingsListener
 		expr.checkValid(currentModelType);
 
 		// Do simulation
-		return stochasticMC.modelCheckSingleProperty(currentModulesFile, propertiesFile, expr, initialState, maxPathLength, simMethod);
+		return getSMC().modelCheckSingleProperty(currentModulesFile, propertiesFile, expr, initialState, maxPathLength, simMethod);
 
 		//return new Result(res);
 	}
@@ -3007,7 +3007,7 @@ public class Prism extends PrismComponent implements PrismSettingsListener
 			expr.checkValid(currentModelType);
 
 		// Do simulation
-		return stochasticMC.modelCheckMultipleProperties(currentModulesFile, propertiesFile, exprs, initialState, maxPathLength, simMethod);
+		return getSMC().modelCheckMultipleProperties(currentModulesFile, propertiesFile, exprs, initialState, maxPathLength, simMethod);
 
 //		Result[] resArray = new Result[res.length];
 //		for (int i = 0; i < res.length; i++)
@@ -3072,7 +3072,7 @@ public class Prism extends PrismComponent implements PrismSettingsListener
 
 		// Do simulation
 		configureStochasticMC(simSettings);
-		stochasticMC.modelCheckExperiment(currentModulesFile, propertiesFile, undefinedConstants, results, expr, initialState, pathLength,
+		getSMC().modelCheckExperiment(currentModulesFile, propertiesFile, undefinedConstants, results, expr, initialState, pathLength,
 				simSettings.getMethod());
 	}
 

@@ -491,6 +491,8 @@ public class RuntimeContext
 			program.addInclude("src/" + location);
 			//when running a *.jar
 			program.addInclude("src/" + location + "/Random123");
+			// TODO: check why this is necessary
+			program.addInclude("src/" + location + "/Random123/features");
 			program.build();
 			programKernel = program.createKernel("main");
 			int localWorkSize = programKernel.getWorkGroupSize().get(currentDevice.getDevice()).intValue();
