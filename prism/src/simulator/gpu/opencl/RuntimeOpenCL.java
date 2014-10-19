@@ -29,6 +29,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 import parser.State;
+import parser.ast.Expression;
+import parser.ast.ExpressionReward;
 import parser.ast.ModulesFile;
 import prism.ModelType;
 import prism.Preconditions;
@@ -268,27 +270,19 @@ public class RuntimeOpenCL extends PrismComponent implements SMCRuntimeInterface
 		return samplesProcessed;
 	}
 
-	//	@Override
-	//	public void simulateTest(PrismLog mainLog)
-	//	{
-	//		currentContexts = createContexts();
-	//		mainLog.println("Using " + currentContexts.size() + " OpenCL devices.");
-	//		for (RuntimeContext context : currentContexts) {
-	//			mainLog.println(context);
-	//		}
-	//		for (RuntimeContext context : currentContexts) {
-	//			context.createTestKernel();
-	//		}
-	//		for (RuntimeContext context : currentContexts) {
-	//			context.runTestSimulation(mainLog);
-	//		}
-	//	}
-
 	@Override
 	public void checkModelForAMC(ModulesFile modulesFile) throws PrismException
 	{
 		if (modulesFile.getModelType() != ModelType.DTMC && modulesFile.getModelType() != ModelType.CTMC) {
 			throw new PrismException("Currently only DTMC/CTMC is supported!");
+		}
+	}
+
+	@Override
+	public void checkPropertyForAMC(Expression expr) throws PrismException
+	{
+		if (expr instanceof ExpressionReward) {
+			throw new PrismException("Currently reward properties are not supported in OpenCL simulator.");
 		}
 	}
 }

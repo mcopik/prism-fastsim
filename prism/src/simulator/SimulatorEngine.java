@@ -1573,4 +1573,9 @@ public class SimulatorEngine extends PrismComponent implements SMCRuntimeInterfa
 		// TODO Auto-generated method stub
 		
 	}
+
+	@Override
+	public void checkPropertyForAMC(Expression expr) throws PrismException
+	{
+	}
 }

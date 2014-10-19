@@ -1027,7 +1027,7 @@ public class Prism extends PrismComponent implements PrismSettingsListener
 	public StochasticModelChecker getSMC()
 	{
 		if (stochasticMC == null) {
-			stochasticMC = new StochasticModelChecker(theSimulator,this);
+			stochasticMC = new StochasticModelChecker(getSimulator(),this);
 		}
 		return stochasticMC;
 	}
