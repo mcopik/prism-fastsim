@@ -30,6 +30,7 @@ import java.io.File;
 import java.util.BitSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Set;
 
 import parser.State;
 import parser.Values;
@@ -125,6 +126,12 @@ public interface Model
 	public BitSet getLabelStates(String name);
 	
 	/**
+	 * Get the labels that are (optionally) stored.
+	 * Returns an empty set if there are no labels.
+	 */
+	public Set<String> getLabels();
+	
+	/**
 	 * Get the total number of transitions in the model.
 	 */
 	public int getNumTransitions();
@@ -195,23 +202,37 @@ public interface Model
 	
 	/**
 	 * Export to a dot file.
+	 * @param filename Name of file to export to
 	 */
 	public void exportToDotFile(String filename) throws PrismException;
 
 	/**
 	 * Export to a dot file, highlighting states in 'mark'.
+	 * @param filename Name of file to export to
+	 * @param mark States to highlight (ignored if null)
 	 */
 	public void exportToDotFile(String filename, BitSet mark) throws PrismException;
 
 	/**
 	 * Export to a dot file.
+	 * @param out PrismLog to export to
 	 */
 	public void exportToDotFile(PrismLog out);
 
 	/**
 	 * Export to a dot file, highlighting states in 'mark'.
+	 * @param out PrismLog to export to
+	 * @param mark States to highlight (ignored if null)
 	 */
 	public void exportToDotFile(PrismLog out, BitSet mark);
+
+	/**
+	 * Export to a dot file, highlighting states in 'mark'.
+	 * @param out PrismLog to export to
+	 * @param mark States to highlight (ignored if null)
+	 * @param showStates Show state info on nodes?
+	 */
+	public void exportToDotFile(PrismLog out, BitSet mark, boolean showStates);
 
 	/**
 	 * Export to a equivalent PRISM language model description.

@@ -2,7 +2,7 @@
 //	
 //	Copyright (c) 2002-
 //	Authors:
-//	* Dave Parker <david.parker@comlab.ox.ac.uk> (University of Oxford, formerly University of Birmingham)
+//	* Dave Parker <d.a.parker@cs.bham.ac.uk> (University of Birmingham/Oxford)
 //	
 //------------------------------------------------------------------------------
 //	
@@ -370,6 +370,15 @@ public class ASTTraverse implements ASTVisitor
 	}
 	public void visitPost(SystemBrackets e) throws PrismLangException { defaultVisitPost(e); }
 	// -----------------------------------------------------------------------------------
+	public void visitPre(SystemReference e) throws PrismLangException { defaultVisitPre(e); }
+	public Object visit(SystemReference e) throws PrismLangException
+	{
+		visitPre(e);
+		visitPost(e);
+		return null;
+	}
+	public void visitPost(SystemReference e) throws PrismLangException { defaultVisitPost(e); }
+	// -----------------------------------------------------------------------------------
 	public void visitPre(ExpressionTemporal e) throws PrismLangException { defaultVisitPre(e); }
 	public Object visit(ExpressionTemporal e) throws PrismLangException
 	{
@@ -492,6 +501,7 @@ public class ASTTraverse implements ASTVisitor
 	{
 		visitPre(e);
 		if (e.getRewardStructIndex() != null && e.getRewardStructIndex() instanceof Expression) ((Expression)e.getRewardStructIndex()).accept(this);
+		if (e.getRewardStructIndexDiv() != null && e.getRewardStructIndexDiv() instanceof Expression) ((Expression)e.getRewardStructIndexDiv()).accept(this);
 		if (e.getReward() != null) e.getReward().accept(this);
 		if (e.getExpression() != null) e.getExpression().accept(this);
 		if (e.getFilter() != null) e.getFilter().accept(this);
@@ -531,6 +541,16 @@ public class ASTTraverse implements ASTVisitor
 		return null;
 	}
 	public void visitPost(ExpressionForAll e) throws PrismLangException { defaultVisitPost(e); }
+	// -----------------------------------------------------------------------------------
+	public void visitPre(ExpressionStrategy e) throws PrismLangException { defaultVisitPre(e); }
+	public Object visit(ExpressionStrategy e) throws PrismLangException
+	{
+		visitPre(e);
+		if (e.getExpression() != null) e.getExpression().accept(this);
+		visitPost(e);
+		return null;
+	}
+	public void visitPost(ExpressionStrategy e) throws PrismLangException { defaultVisitPost(e); }
 	// -----------------------------------------------------------------------------------
 	public void visitPre(ExpressionLabel e) throws PrismLangException { defaultVisitPre(e); }
 	public Object visit(ExpressionLabel e) throws PrismLangException

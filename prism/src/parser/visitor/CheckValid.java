@@ -100,6 +100,8 @@ public class CheckValid extends ASTTraverse
 	{
 		if (modelType.nondeterministic() && e.getRelOp() == RelOp.EQ)
 			throw new PrismLangException("Can't use \"R=?\" for nondeterministic models; use \"Rmin=?\" or \"Rmax=?\"");
+		if (e.getRewardStructIndexDiv() != null)
+			throw new PrismLangException("No support for ratio reward objectives yet");
 	}
 	
 	public void visitPost(ExpressionSS e) throws PrismLangException
@@ -113,5 +115,11 @@ public class CheckValid extends ASTTraverse
 		}
 		/*if (modelType.nondeterministic() && e.getRelOp() == RelOp.EQ)
 			throw new PrismLangException("Can't use \"S=?\" for nondeterministic models; use \"Smin=?\" or \"Smax=?\"");*/
+	}
+
+	public void visitPost(ExpressionStrategy e) throws PrismLangException
+	{
+		if (!modelType.nondeterministic())
+			throw new PrismLangException("The " + e.getOperatorString() + " operator is only meaningful for models with nondeterminism");
 	}
 }

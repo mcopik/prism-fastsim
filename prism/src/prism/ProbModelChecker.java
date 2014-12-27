@@ -579,10 +579,17 @@ public class ProbModelChecker extends NonProbModelChecker
 		mainLog.println("\nBuilding deterministic Rabin automaton (for " + ltl + ")...");
 		l = System.currentTimeMillis();
 		dra = LTLModelChecker.convertLTLFormulaToDRA(ltl);
-		mainLog.println("\nDRA has " + dra.size() + " states, " + dra.getNumAcceptancePairs() + " pairs.");
-		// dra.print(System.out);
+		mainLog.println("DRA has " + dra.size() + " states, " + dra.getNumAcceptancePairs() + " pairs.");
 		l = System.currentTimeMillis() - l;
-		mainLog.println("\nTime for Rabin translation: " + l / 1000.0 + " seconds.");
+		mainLog.println("Time for Rabin translation: " + l / 1000.0 + " seconds.");
+		// If required, export DRA 
+		if (prism.getSettings().getExportPropAut()) {
+			mainLog.println("Exporting DRA to file \"" + prism.getSettings().getExportPropAutFilename() + "\"...");
+			PrismLog out = new PrismFileLog(prism.getSettings().getExportPropAutFilename());
+			out.println(dra);
+			out.close();
+			//dra.printDot(new java.io.PrintStream("dra.dot"));
+		}
 
 		// Build product of Markov chain and automaton
 		// (note: might be a CTMC - StochModelChecker extends this class)
@@ -608,9 +615,17 @@ public class ProbModelChecker extends NonProbModelChecker
 			out.close();
 		}
 
-		// Find accepting BSCCs + compute reachability probabilities
-		mainLog.println("\nFinding accepting BSCCs...");
-		JDDNode acc = mcLtl.findAcceptingBSCCsForRabin(dra, modelProduct, draDDRowVars, draDDColVars);
+		// Find accepting states + compute reachability probabilities
+		JDDNode acc = null;
+		if (dra.isDFA()) {
+			// For a DFA, just collect the accept states
+			mainLog.println("\nSkipping BSCC detection since DRA is a DFA...");
+			acc = mcLtl.findTargetStatesForRabin(dra, modelProduct, draDDRowVars, draDDColVars);
+		} else {
+			// Usually, we have to detect BSCCs in the product
+			mainLog.println("\nFinding accepting BSCCs...");
+			acc = mcLtl.findAcceptingBSCCsForRabin(dra, modelProduct, draDDRowVars, draDDColVars);
+		}
 		mainLog.println("\nComputing reachability probabilities...");
 		mcProduct = createNewModelChecker(prism, modelProduct, null);
 		probsProduct = mcProduct.checkProbUntil(modelProduct.getReach(), acc, qual);

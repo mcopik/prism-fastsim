@@ -174,10 +174,11 @@ public class Property extends ASTElement
 			// Look at each RESULT specification found
 			while (matcher.find()) {
 				String constValsSubstring = matcher.group(2) == null ? "" : matcher.group(2);
-				boolean match = true;
+				boolean allMatch = true;
 				// Look at each constant in the list
 				String ss[] = constValsSubstring.split(",");
 				for (String s : ss) {
+					boolean match = true;
 					s = s.trim();
 					if (s.length() == 0)
 						continue;
@@ -198,9 +199,11 @@ public class Property extends ASTElement
 						match &= constValToMatch.toString().equals(constVal);
 					if (!match)
 						break;
+					// We need all constants to match
+					allMatch &= match;
 				}
 				// Found it...
-				if (match) {
+				if (allMatch) {
 					strExpected = matcher.group(3);
 					//continue;
 					break;
@@ -313,7 +316,7 @@ public class Property extends ASTElement
 			// true is true, of course with some confidence
 			boolRes = ((Boolean) result).booleanValue();
 			if (boolRes != boolExp)
-				throw new PrismException("Wrong result (expected " + boolExp + ")");
+				throw new PrismException("Wrong result (expected " + boolExp + ", got " + boolRes + ")");
 		}
 
 		// Integer-valued properties
@@ -370,7 +373,7 @@ public class Property extends ASTElement
 			// Compare results
 			if (Double.isNaN(doubleRes)) {
 				if (!Double.isNaN(doubleExp))
-					throw new PrismException("Wrong result (expected " + doubleExp + ")");
+					throw new PrismException("Wrong result (expected " + doubleExp + ", got NaN)");
 			} else {
 				// result obtained by traditional, analytical methods
 				if (method == null) {

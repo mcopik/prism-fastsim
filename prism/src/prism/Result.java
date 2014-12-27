@@ -46,8 +46,8 @@ public class Result
 	private Object cex;
 	// Strategy (optional)
 	private Strategy strat;
-	// Simulation method (optional)
-	private SimulationMethod method;
+	// Solution vector (optional)
+	private StateVector vect;
 	
 	/**
 	 * Construct an empty Result object.
@@ -58,6 +58,7 @@ public class Result
 		this.explanation = null;
 		this.cex = null;
 		this.strat = null;
+		this.vect = null;
 	}
 	
 	/**
@@ -102,11 +103,11 @@ public class Result
 	}
 	
 	/**
-	 * Set the simulation method (null denotes n/a).
+	 * Set the result vector (null denotes n/a).
 	 */
-	public void setSimulationMethod(SimulationMethod method)
+	public void setVector(StateVector vect)
 	{
-		this.method = method;
+		this.vect = vect;
 	}
 	
 	/**
@@ -142,11 +143,11 @@ public class Result
 	}
 	
 	/**
-	 * Get the simulation method (null denotes n/a).
+	 * Get the result vector (null denotes n/a).
 	 */
-	public SimulationMethod getSimulationMethod()
+	public StateVector getVector()
 	{
-		return method;
+		return vect;
 	}
 	
 	/**

@@ -18,10 +18,7 @@ LPSOLVE_LIB_DIR=../../../lib
 JDK_DIR=/usr/lib/jvm/java-6-sun-1.6.0.10
 JDK_DIR=$JAVA_DIR
 
-echo DIR $JDK_DIR
-
 c=g++
-echo $CFLAGS
 if [ "$ARCH" = "" ]; then
 	CFLAGS=-m32
 fi
@@ -47,6 +44,5 @@ mkdir $PLATFORM >/dev/null 2>&1
 
 SRC_DIR=../src/c
 INCL="-I $JDK_DIR/include -I $JDK_DIR/include/linux -I $LPSOLVE_DIR -I $SRC_DIR"
-echo $c $CFLAGS $INCL -c $SRC_DIR/lpsolve5j.cpp
 $c $CFLAGS $INCL -c $SRC_DIR/lpsolve5j.cpp
 $c $CFLAGS -shared -Wl,-soname,liblpsolve55j.so -o $PLATFORM/liblpsolve55j.so lpsolve5j.o -L$LPSOLVE_LIB_DIR -lc -llpsolve55

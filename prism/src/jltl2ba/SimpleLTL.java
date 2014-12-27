@@ -442,7 +442,7 @@ public class SimpleLTL {
 			/* X p && X q == X (p && q) */
 			if (right.kind == LTLType.NEXT && left.kind == LTLType.NEXT) {
 				rv = new SimpleLTL(LTLType.NEXT,
-						new SimpleLTL(LTLType.AND, right.left, left.left));
+						new SimpleLTL(LTLType.AND, left.left, right.left));
 				break;
 			}
 
@@ -947,6 +947,13 @@ public class SimpleLTL {
 		// b.print_spin(System.out, apset);
 		NBA nba = b.toNBA(apset);
 		// nba.print(System.out);
+
+		// jltl2ba should never produce disjoint NBA,
+		// i.e., where some states are not reachable
+		// from the intial state, so we want to fail
+		// later if the NBA is discovered to be disjoint:
+		nba.setFailIfDisjoint(true);
+
 		return nba;
 	}
 	

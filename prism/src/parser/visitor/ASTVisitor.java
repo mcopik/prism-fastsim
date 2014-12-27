@@ -2,7 +2,7 @@
 //	
 //	Copyright (c) 2002-
 //	Authors:
-//	* Dave Parker <david.parker@comlab.ox.ac.uk> (University of Oxford, formerly University of Birmingham)
+//	* Dave Parker <d.a.parker@cs.bham.ac.uk> (University of Birmingham/Oxford)
 //	
 //------------------------------------------------------------------------------
 //	
@@ -59,6 +59,7 @@ public interface ASTVisitor
 	public Object visit(SystemRename e) throws PrismLangException;
 	public Object visit(SystemModule e) throws PrismLangException;
 	public Object visit(SystemBrackets e) throws PrismLangException;
+	public Object visit(SystemReference e) throws PrismLangException;
 	// ASTElement/Expression classes
 	public Object visit(ExpressionTemporal e) throws PrismLangException;
 	public Object visit(ExpressionITE e) throws PrismLangException;
@@ -75,6 +76,7 @@ public interface ASTVisitor
 	public Object visit(ExpressionSS e) throws PrismLangException;
 	public Object visit(ExpressionExists e) throws PrismLangException;
 	public Object visit(ExpressionForAll e) throws PrismLangException;
+	public Object visit(ExpressionStrategy e) throws PrismLangException;
 	public Object visit(ExpressionLabel e) throws PrismLangException;
 	public Object visit(ExpressionProp e) throws PrismLangException;
 	public Object visit(ExpressionFilter e) throws PrismLangException;

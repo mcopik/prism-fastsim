@@ -555,6 +555,12 @@ public class MDPSimple extends MDPExplicit implements NondetModelSimple
 		return trans.get(s).get(i).containsOneOf(set);
 	}
 
+	@Override
+	public Iterator<Integer> getSuccessorsIterator(final int s, final int i)
+	{
+		return trans.get(s).get(i).getSupport().iterator();
+	}
+
 	// Accessors (for MDP)
 
 	@Override
@@ -838,7 +844,7 @@ public class MDPSimple extends MDPExplicit implements NondetModelSimple
 		for (Map.Entry<Integer, Double> e : distr) {
 			k = (Integer) e.getKey();
 			prob = (Double) e.getValue();
-			if (i != s) {
+			if (k != s) {
 				d += prob * vect[k];
 			} else {
 				diag -= prob;

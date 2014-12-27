@@ -31,7 +31,6 @@ import java.io.FileNotFoundException;
 import java.util.ArrayList;
 import java.util.List;
 
-import param.ParamModelChecker;
 import parser.Values;
 import parser.ast.Expression;
 import parser.ast.ExpressionReward;
@@ -914,7 +913,9 @@ public class PrismCL implements PrismModelListener
 			mainLog.println(" during computation.");
 		}
 		mainLog.println();
-		ParamModelChecker.closeDown();
+		// Close logs (in case they are files)
+		mainLog.close();
+		techLog.close();
 	}
 
 	// PrismModelListener methods

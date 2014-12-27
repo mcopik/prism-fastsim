@@ -437,12 +437,16 @@ TOKEN :
 |	< RPARENTH:		")" >
 |	< LBRACKET: 	"[" >
 |	< RBRACKET:		"]" >
+|	< DLBRACKET: 	"[[" >
+|	< DRBRACKET:	"]]" >
 |	< LBRACE:		"{" >
 |	< RBRACE:		"}" >
 |	< EQ:			"=" >
 |	< NE:			"!=" >
 |	< LT:			"<" >
 |	< GT:			">" >
+|	< DLT:			"<<" >
+|	< DGT:			">>" >
 |	< LE:			"<=" >
 |	< GE:			">=" >
 |	< PLUS:			"+" >
@@ -482,9 +486,6 @@ ModulesFile ModulesFile() throws PrismLangException :
 	Expression init = null;
 	int initCount = 0;
 	Expression initDupe = null;
-	SystemDefn sys = null;
-	int sysCount = 0;
-	SystemDefn sysDupe = null;
 	ModulesFile mf = new ModulesFile();
 	Token begin = null;
 }
@@ -505,7 +506,7 @@ ModulesFile ModulesFile() throws PrismLangException :
 	// Initial states ("init...endinit" construct)
 	init = Init() { mf.setInitialStates(init); initCount++; if (initCount == 2) initDupe = init; } |
 	// System definition ("system...endsystem" construct)
-	sys = SystemEndsystem() { mf.setSystemDefn(sys); sysCount++; if (sysCount == 2) sysDupe = sys; }
+	SystemEndsystem(mf)
 	)* <EOF>
 	{
 		// Check for multiple instances of some items
@@ -516,9 +517,6 @@ ModulesFile ModulesFile() throws PrismLangException :
 		}
 		if (initDupe != null) {
 			throw new PrismLangException("There were multiple init...endinit constructs", initDupe);
-		}
-		if (sysDupe != null) {
-			throw new PrismLangException("There were multiple system...endsystem constructs", sysDupe);
 		}
 		
 		// Set model type (note default is MDP)
@@ -875,13 +873,22 @@ Expression Init() :
 
 // System definition ("system...endsystem" construct)
 
-SystemDefn SystemEndsystem() :
+void SystemEndsystem(ModulesFile mf) :
 {
-	SystemDefn ret;
+	String name = null;
+	SystemDefn sysdef;
 }
 {
-	<SYSTEM> ( ret = SystemDefn() ) <ENDSYSTEM>
-	{ return ret; }
+	<SYSTEM>
+	// Optional name
+	// (need lookahead because names look like references)
+	( LOOKAHEAD(<DQUOTE> name = Identifier() <DQUOTE> SystemDefn()) <DQUOTE> name = Identifier() <DQUOTE> )?
+	// The rest
+	( sysdef = SystemDefn() )
+	<ENDSYSTEM>
+	{
+		mf.addSystemDefn(sysdef, name);
+	}
 }
 
 // System definition component
@@ -908,7 +915,7 @@ SystemDefn SystemFullParallel() :
 	sys1 = SystemInterleaved()
 	( { par = new SystemFullParallel(); par.addOperand(sys1); } ( LOOKAHEAD(<OR> <OR>) <OR> <OR> sys2 = SystemParallel() { par.addOperand(sys2); } )* )
 	{
-		if (par==null) {
+		if (par==null || par.getNumOperands() == 1) {
 			return sys1;
 		}
 		else {
@@ -931,7 +938,7 @@ SystemDefn SystemInterleaved() :
 	sys1 = SystemParallel()
 	( { par = new SystemInterleaved(); par.addOperand(sys1); } ( LOOKAHEAD(<OR> <OR> <OR>) <OR> <OR> <OR>  sys2 = SystemFullParallel() { par.addOperand(sys2); } )* )
 	{
-		if (par==null) {
+		if (par==null || par.getNumOperands() == 1) {
 			return sys1;
 		}
 		else {
@@ -1008,10 +1015,14 @@ SystemDefn SystemAtomic() :
 }
 {
 	{ begin = getToken(1); }
+	(
 	// Module name
-	(( name = Identifier() { sys = new SystemModule(name); } )
+	( name = Identifier() { sys = new SystemModule(name); } )
+	// SystemDefn reference
+	|( <DQUOTE> name = Identifier() <DQUOTE> { sys = new SystemReference(name); } )
 	// Parentheses
-	|( <LPARENTH> sys = SystemDefn() <RPARENTH> { sys = new SystemBrackets(sys); } ))
+	|( <LPARENTH> sys = SystemDefn() <RPARENTH> { sys = new SystemBrackets(sys); } )
+	)
 	{ sys.setPosition(begin, getToken(0)); return sys; }
 }
 
@@ -1314,6 +1325,8 @@ Expression ExpressionBasic(boolean prop, boolean pathprop) :
 	|
 		ret = ExpressionForAll(prop, pathprop)
 	|
+		ret = ExpressionStrategy(prop, pathprop)
+	|
 		ret = ExpressionLabel(prop, pathprop)
 	|
 		ret = ExpressionFilter(prop, pathprop)
@@ -1544,7 +1557,6 @@ Expression ExpressionSS(boolean prop, boolean pathprop) :
 Expression ExpressionReward(boolean prop, boolean pathprop) :
 {
 	int r;
-	Object index = null;
 	String relOp = null;
 	Expression rew = null;
 	Expression expr;
@@ -1557,7 +1569,7 @@ Expression ExpressionReward(boolean prop, boolean pathprop) :
 	// This production is only allowed in expressions if the "prop" parameter is true
 	{ if (!prop) throw generateParseException(); }
 	// Various options for "R" keyword and attached symbols
-	(( begin = <R> (index = RewardIndex())?
+	(( begin = <R> (RewardIndex(ret))?
 	(( r = LtGt() rew = Expression(false, false) { relOp = ExpressionBinaryOp.opSymbols[r]; isBool = true; } )
 	   |( <EQ> <QMARK> { relOp = "="; isBool = false; } )
 	   |( <MIN> <EQ> <QMARK> { relOp = "min="; isBool = false; } )
@@ -1568,7 +1580,6 @@ Expression ExpressionReward(boolean prop, boolean pathprop) :
 	// Path formula, optional filter
 	<LBRACKET> expr = ExpressionRewardContents(prop, pathprop) (filter = Filter())? <RBRACKET>
 	{
-		ret.setRewardStructIndex(index);
 		ret.setRelOp(relOp);
 		ret.setReward(rew);
 		ret.setExpression(expr);
@@ -1588,14 +1599,22 @@ Expression ExpressionReward(boolean prop, boolean pathprop) :
 
 // Reward struct index for R operator
 
-Object RewardIndex() :
+void RewardIndex(ExpressionReward exprRew) :
 {
-	Object index;
+	Object index = null;
+	Object indexDiv = null;
 }
 {
 	// Lookahead here is to ensure that "id" is not misdetected as an ExpressionLabel
 	( <LBRACE> ( LOOKAHEAD(<DQUOTE>) ( <DQUOTE> index = Identifier() <DQUOTE> ) | index = Expression(false, false) ) <RBRACE> )
-	{ return index; }
+	// Optional second reward structure index (for ratio objectives)
+	( <DIVIDE> ( <LBRACE> ( LOOKAHEAD(<DQUOTE>) ( <DQUOTE> indexDiv = Identifier() <DQUOTE> ) | indexDiv = Expression(false, false) ) <RBRACE> ))?
+	{
+		exprRew.setRewardStructIndex(index);
+		if (indexDiv != null) {
+			exprRew.setRewardStructIndexDiv(indexDiv);
+		}
+	}
 }
 
 // Contents of an R operator
@@ -1648,6 +1667,32 @@ Expression ExpressionForAll(boolean prop, boolean pathprop) :
 	( begin = <A> <LBRACKET> expr = Expression(prop, true) <RBRACKET> )
 	{
 		ret.setExpression(expr);
+		ret.setPosition(begin, getToken(0));
+		return ret;
+	}
+}
+
+// (Property) expression: ATL strategy operators <<>> and [[]]
+
+Expression ExpressionStrategy(boolean prop, boolean pathprop) :
+{
+	ExpressionStrategy ret;
+	Expression expr;
+	Token begin = null;
+}
+{
+	// This production is only allowed in expressions if the "prop" parameter is true
+	{ if (!prop) throw generateParseException(); }
+	(
+	// <<...>> or [[...]]
+	(( begin = <DLT> { ret = new ExpressionStrategy(true); } <DGT> )
+	| (begin = <DLBRACKET> { ret = new ExpressionStrategy(false); } <DRBRACKET> ))
+	// Child expression
+	( expr = ExpressionProb(prop, pathprop) | expr = ExpressionReward(prop, pathprop)
+	| expr = ExpressionParenth(prop, pathprop) | expr = ExpressionFuncOrIdent(prop, pathprop) )
+	{ ret.setExpression(expr); }
+	)
+	{
 		ret.setPosition(begin, getToken(0));
 		return ret;
 	}

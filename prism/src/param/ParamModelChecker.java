@@ -222,7 +222,6 @@ final public class ParamModelChecker extends PrismComponent
 				model.getNumStates(), model.getFirstInitialState(), simplifyRegions, splitMethod);
 		valueComputer = new ValueComputer(paramModel, regionFactory, precision, eliminationOrder, bisimType);
 		
-		ExpressionFilter exprFilter = null;
 		long timer = 0;
 		
 		// Remove labels from property, using combined label list (on a copy of the expression)
@@ -233,48 +232,9 @@ final public class ParamModelChecker extends PrismComponent
 		// Also evaluate/replace any constants
 		//expr = (Expression) expr.replaceConstants(constantValues);
 
-		// The final result of model checking will be a single value. If the expression to be checked does not
-		// already yield a single value (e.g. because a filter has not been explicitly included), we need to wrap
-		// a new (invisible) filter around it. Note that some filters (e.g. print/argmin/argmax) also do not
-		// return single values and have to be treated in this way.
-		if (!expr.returnsSingleValue()) {
-			// New filter depends on expression type and number of initial states.
-			// Boolean expressions...
-			if (expr.getType() instanceof TypeBool) {
-				// Result is true iff true for all initial states
-				exprFilter = new ExpressionFilter("forall", expr, new ExpressionLabel("init"));
-			}
-			// Non-Boolean (double or integer) expressions...
-			else {
-				// Result is for the initial state, if there is just one,
-				// or the range over all initial states, if multiple
-				if (model.getNumInitialStates() == 1) {
-					exprFilter = new ExpressionFilter("state", expr, new ExpressionLabel("init"));
-				} else {
-					exprFilter = new ExpressionFilter("range", expr, new ExpressionLabel("init"));
-				}
-			}
-		}
-		// Even, when the expression does already return a single value, if the the outermost operator
-		// of the expression is not a filter, we still need to wrap a new filter around it.
-		// e.g. 2*filter(...) or 1-P=?[...{...}]
-		// This because the final result of model checking is only stored when we process a filter.
-		else if (!(expr instanceof ExpressionFilter)) {
-			// We just pick the first value (they are all the same)
-			exprFilter = new ExpressionFilter("first", expr, new ExpressionLabel("init"));
-			// We stop any additional explanation being displayed to avoid confusion.
-			exprFilter.setExplanationEnabled(false);
-		}
-		
-		// For any case where a new filter was created above...
-		if (exprFilter != null) {
-			// Make it invisible (not that it will be displayed)
-			exprFilter.setInvisible(true);
-			// Compute type of new filter expression (will be same as child)
-			exprFilter.typeCheck();
-			// Store as expression to be model checked
-			expr = exprFilter;
-		}
+		// Wrap a filter round the property, if needed
+		// (in order to extract the final result of model checking) 
+		expr = ExpressionFilter.addDefaultFilterIfNeeded(expr, model.getNumInitialStates() == 1);
 
 		// Do model checking and store result vector
 		timer = System.currentTimeMillis();
@@ -288,13 +248,6 @@ final public class ParamModelChecker extends PrismComponent
 		result = new Result();
 		vals.clearExceptInit();
 		result.setResult(vals);
-		
-		// Print result to log
-		String resultString = "Result";
-		if (!("Result".equals(expr.getResultName())))
-			resultString += " (" + expr.getResultName().toLowerCase() + ")";
-		resultString += ": " + result.getResultString();
-		mainLog.print("\n" + resultString);
 		
 		/* // Output plot to tex file
 		if (paramLower.length == 2) {
@@ -423,9 +376,9 @@ final public class ParamModelChecker extends PrismComponent
 		return res;
 	}
 
-	private RegionValues checkExpressionAtomic(ParamModel model,
-			Expression expr, BitSet needStates) throws PrismException {
-		expr = (Expression) expr.replaceConstants(constantValues);
+	private RegionValues checkExpressionAtomic(ParamModel model, Expression expr, BitSet needStates) throws PrismException
+	{
+		expr = (Expression) expr.deepCopy().replaceConstants(constantValues);
 		
 		int numStates = model.getNumStates();
 		List<State> statesList = model.getStatesList();
@@ -435,7 +388,7 @@ final public class ParamModelChecker extends PrismComponent
 			varMap[var] = var;
 		}
 		for (int state = 0; state < numStates; state++) {
-			Expression exprVar = (Expression) expr.evaluatePartially(statesList.get(state), varMap);
+			Expression exprVar = (Expression) expr.deepCopy().evaluatePartially(statesList.get(state), varMap);
 			if (needStates.get(state)) {
 				if (exprVar instanceof ExpressionLiteral) {
 					ExpressionLiteral exprLit = (ExpressionLiteral) exprVar;
@@ -913,7 +866,7 @@ final public class ParamModelChecker extends PrismComponent
 			if (p.compareTo(0) == -1 || p.compareTo(1) == 1)
 				throw new PrismException("Invalid probability bound " + p + " in P operator");
 		}
-		min = relOp.isLowerBound();
+		min = relOp.isLowerBound() || relOp.isMin();
 
 		// Compute probabilities
 		if (!expr.getExpression().isSimplePathFormula()) {
@@ -997,18 +950,13 @@ final public class ParamModelChecker extends PrismComponent
 	 */
 	protected RegionValues checkExpressionReward(ParamModel model, ExpressionReward expr, BitSet needStates) throws PrismException
 	{
-		Object rs; // Reward struct index
-		RewardStruct rewStruct = null; // Reward struct object
 		Expression rb; // Reward bound (expression)
 		BigRational r = null; // Reward bound (actual value)
-		//String relOp; // Relational operator
-		ModelType modelType = model.getModelType();
 		RegionValues rews = null;
-		int i;
 		boolean min = false;
 
 		// Get info from reward operator
-		rs = expr.getRewardStructIndex();
+		RewardStruct rewStruct = expr.getRewardStructByIndexObject(modulesFile, constantValues);
 		RelOp relOp = expr.getRelOp();
 		rb = expr.getReward();
 		if (rb != null) {
@@ -1017,26 +965,8 @@ final public class ParamModelChecker extends PrismComponent
 			if (r.compareTo(0) == -1)
 				throw new PrismException("Invalid reward bound " + r + " in R[] formula");
 		}
-		min = relOp.isLowerBound();
+		min = relOp.isLowerBound() || relOp.isMin();
 
-		// Get reward info
-		if (modulesFile == null)
-			throw new PrismException("No model file to obtain reward structures");
-		if (modulesFile.getNumRewardStructs() == 0)
-			throw new PrismException("Model has no rewards specified");
-		if (rs == null) {
-			rewStruct = modulesFile.getRewardStruct(0);
-		} else if (rs instanceof Expression) {
-			i = ((Expression) rs).evaluateInt(constantValues);
-			rs = new Integer(i); // for better error reporting below
-			rewStruct = modulesFile.getRewardStruct(i - 1);
-		} else if (rs instanceof String) {
-			rewStruct = modulesFile.getRewardStructByName((String) rs);
-		}
-		if (rewStruct == null)
-			throw new PrismException("Invalid reward structure index \"" + rs + "\"");
-
-		
 		ParamRewardStruct rew = constructRewards(model, rewStruct, constantValues);
 		mainLog.println("Building reward structure...");
 		rews = checkRewardFormula(model, rew, expr.getExpression(), min, needStates);
@@ -1111,7 +1041,7 @@ final public class ParamModelChecker extends PrismComponent
 		int numRewItems = rewStruct.getNumItems();
 		for (int rewItem = 0; rewItem < numRewItems; rewItem++) {
 			Expression expr = rewStruct.getReward(rewItem);
-			expr = (Expression) expr.replaceConstants(constantValues);
+			expr = (Expression) expr.deepCopy().replaceConstants(constantValues);
 			Expression guard = rewStruct.getStates(rewItem);
 			String action = rewStruct.getSynch(rewItem);
 			boolean isTransitionReward = rewStruct.getRewardStructItem(rewItem).isTransitionReward();
@@ -1121,7 +1051,7 @@ final public class ParamModelChecker extends PrismComponent
 					for (int i = 0; i < varMap.length; i++) {
 						varMap[i] = i;
 					}
-					Expression exprState = (Expression) expr.evaluatePartially(statesList.get(state), varMap);
+					Expression exprState = (Expression) expr.deepCopy().evaluatePartially(statesList.get(state), varMap);
 					Function newReward = modelBuilder.expr2function(functionFactory, exprState);
 					for (int choice = model.stateBegin(state); choice < model.stateEnd(state); choice++) {
 						Function sumOut = model.sumLeaving(choice);
@@ -1170,7 +1100,7 @@ final public class ParamModelChecker extends PrismComponent
 			if (p.compareTo(0) == -1 || p.compareTo(1) == 1)
 				throw new PrismException("Invalid probability bound " + p + " in P operator");
 		}
-		min = relOp.isLowerBound();
+		min = relOp.isLowerBound() || relOp.isMin();
 
 		// Compute probabilities
 		probs = checkProbSteadyState(model, expr.getExpression(), min, needStates);

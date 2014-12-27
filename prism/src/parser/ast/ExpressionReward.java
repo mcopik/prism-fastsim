@@ -28,11 +28,13 @@ package parser.ast;
 
 import parser.*;
 import parser.visitor.*;
+import prism.PrismException;
 import prism.PrismLangException;
 
 public class ExpressionReward extends Expression
 {
 	Object rewardStructIndex = null;
+	Object rewardStructIndexDiv = null;
 	RelOp relOp = null;
 	Expression reward = null;
 	Expression expression = null;
@@ -58,6 +60,11 @@ public class ExpressionReward extends Expression
 	public void setRewardStructIndex(Object o)
 	{
 		rewardStructIndex = o;
+	}
+
+	public void setRewardStructIndexDiv(Object o)
+	{
+		rewardStructIndexDiv = o;
 	}
 
 	public void setRelOp(RelOp relOp)
@@ -92,6 +99,11 @@ public class ExpressionReward extends Expression
 		return rewardStructIndex;
 	}
 
+	public Object getRewardStructIndexDiv()
+	{
+		return rewardStructIndexDiv;
+	}
+
 	public RelOp getRelOp()
 	{
 		return relOp;
@@ -112,6 +124,54 @@ public class ExpressionReward extends Expression
 		return filter;
 	}
 
+	// Other methods
+	
+	/**
+	 * Get a string describing the type of R operator, e.g. "R=?" or "R<r".
+	 */
+	public String getTypeOfROperator()
+	{
+		String s = "";
+		s += "R" + relOp;
+		s += (reward == null) ? "?" : "r";
+		return s;
+	}
+
+	/**
+	 * Get the reward structure (from a model) corresponding to the index of this R operator.
+	 * Throws an exception (with explanatory message) if it cannot be found.
+	 */
+	public RewardStruct getRewardStructByIndexObject(ModulesFile modulesFile, Values constantValues) throws PrismException
+	{
+		RewardStruct rewStruct = null;
+		Object rsi = rewardStructIndex;
+		// Recall: the index is an Object which is either an Integer, denoting the index (starting from 0) directly,
+		// or an expression, which can be evaluated (possibly using the passed in constants) to an index. 
+		if (modulesFile == null)
+			throw new PrismException("No model file to obtain reward structures");
+		if (modulesFile.getNumRewardStructs() == 0)
+			throw new PrismException("Model has no rewards specified");
+		// No index specified - use the first one
+		if (rsi == null) {
+			rewStruct = modulesFile.getRewardStruct(0);
+		}
+		// Expression - evaluate to an index
+		else if (rewardStructIndex instanceof Expression) {
+			int i = ((Expression) rewardStructIndex).evaluateInt(constantValues);
+			rsi = new Integer(i); // (for better error reporting below)
+			rewStruct = modulesFile.getRewardStruct(i - 1);
+		}
+		// String - name of reward structure
+		else if (rsi instanceof String) {
+			rewStruct = modulesFile.getRewardStructByName((String) rsi);
+		}
+		if (rewStruct == null) {
+			throw new PrismException("Invalid reward structure index \"" + rsi + "\"");
+		}
+		return rewStruct;
+		
+	}
+	
 	// Methods required for Expression:
 	
 	/**
@@ -148,7 +208,14 @@ public class ExpressionReward extends Expression
 			if (relOp == RelOp.MIN) s = "Minimum e";
 			else if (relOp == RelOp.MAX) s = "Maximum e";
 			else s = "E";
-			if (rewardStructIndex instanceof String) s += "xpected "+rewardStructIndex;
+			if (rewardStructIndex instanceof String) {
+				if (rewardStructIndexDiv instanceof String)
+					s += "xpected "+rewardStructIndex + "/" + rewardStructIndexDiv;
+				else if (rewardStructIndexDiv == null)
+					s += "xpected "+rewardStructIndex;
+				else
+					s += "xpected reward";
+			}
 			// Or just call it "Expected reward"
 			else s += "xpected reward";
 			return s;
@@ -186,6 +253,11 @@ public class ExpressionReward extends Expression
 		if (rewardStructIndex != null) {
 			if (rewardStructIndex instanceof Expression) s += "{"+rewardStructIndex+"}";
 			else if (rewardStructIndex instanceof String) s += "{\""+rewardStructIndex+"\"}";
+			if (rewardStructIndexDiv != null) {
+				s += "/";
+				if (rewardStructIndexDiv instanceof Expression) s += "{"+rewardStructIndexDiv+"}";
+				else if (rewardStructIndexDiv instanceof String) s += "{\""+rewardStructIndexDiv+"\"}";
+			}
 		}
 		s += relOp;
 		s += (reward==null) ? "?" : reward.toString();
@@ -207,6 +279,8 @@ public class ExpressionReward extends Expression
 		expr.setReward(reward == null ? null : reward.deepCopy());
 		if (rewardStructIndex != null && rewardStructIndex instanceof Expression) expr.setRewardStructIndex(((Expression)rewardStructIndex).deepCopy());
 		else expr.setRewardStructIndex(rewardStructIndex);
+		if (rewardStructIndexDiv != null && rewardStructIndexDiv instanceof Expression) expr.setRewardStructIndexDiv(((Expression)rewardStructIndexDiv).deepCopy());
+		else expr.setRewardStructIndexDiv(rewardStructIndexDiv);
 		expr.setFilter(filter == null ? null : (Filter)filter.deepCopy());
 		expr.setType(type);
 		expr.setPosition(this);

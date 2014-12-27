@@ -138,11 +138,14 @@ public class ConstructModel extends PrismComponent
 		int i, j, nc, nt, src, dest;
 		long timer;
 
+		// Get model info
+		modelType = modulesFile.getModelType();
+		
 		// Display a warning if there are unbounded vars
 		VarList varList = modulesFile.createVarList();
 		if (varList.containsUnboundedVariables())
 			mainLog.printWarning("Model contains one or more unbounded variables: model construction may not terminate");
-		
+
 		// Starting reachability...
 		mainLog.print("\nComputing reachable states...");
 		mainLog.flush();
@@ -151,7 +154,6 @@ public class ConstructModel extends PrismComponent
 		timer = System.currentTimeMillis();
 
 		// Initialise simulator for this model
-		modelType = modulesFile.getModelType();
 		engine.createNewOnTheFlyPath(modulesFile);
 
 		// Create model storage
@@ -170,6 +172,10 @@ public class ConstructModel extends PrismComponent
 			case CTMDP:
 				modelSimple = ctmdp = new CTMDPSimple();
 				break;
+			case STPG:
+			case SMG:
+			case PTA:
+				throw new PrismException("Model construction not supported for " + modelType + "s");
 			}
 		}
 
@@ -213,8 +219,8 @@ public class ConstructModel extends PrismComponent
 			// Look at each outgoing choice in turn
 			nc = engine.getNumChoices();
 			for (i = 0; i < nc; i++) {
-
-				if (!justReach && (modelType == ModelType.MDP || modelType == ModelType.CTMDP)) {
+				// For nondet models, collect transitions in a Distribution
+				if (!justReach && modelType.nondeterministic()) {
 					distr = new Distribution();
 				}
 				// Look at each transition in the choice
@@ -242,14 +248,17 @@ public class ConstructModel extends PrismComponent
 							ctmc.addToProbability(src, dest, engine.getTransitionProbability(i, j));
 							break;
 						case MDP:
-							distr.add(dest, engine.getTransitionProbability(i, j));
-							break;
 						case CTMDP:
 							distr.add(dest, engine.getTransitionProbability(i, j));
 							break;
+						case STPG:
+						case SMG:
+						case PTA:
+							throw new PrismException("Model construction not supported for " + modelType + "s");
 						}
 					}
 				}
+				// For nondet models, add collated transition to model 
 				if (!justReach) {
 					if (modelType == ModelType.MDP) {
 						if (distinguishActions) {
@@ -319,6 +328,10 @@ public class ConstructModel extends PrismComponent
 			case CTMDP:
 				model = sort ? new CTMDPSimple(ctmdp, permut) : mdp;
 				break;
+			case STPG:
+			case SMG:
+			case PTA:
+				throw new PrismException("Model construction not supported for " + modelType + "s");
 			}
 			model.setStatesList(statesList);
 			model.setConstantValues(new Values(modulesFile.getConstantValues()));

@@ -26,11 +26,14 @@
 
 package parser.ast;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Vector;
 
 import parser.*;
 import parser.visitor.*;
 import prism.PrismLangException;
+import prism.PrismUtils;
 import parser.type.*;
 
 /**
@@ -112,64 +115,25 @@ public class ConstantList extends ASTElement
 	*/
 	public void findCycles() throws PrismLangException
 	{
-		int i, j, k, l, n, firstCycle = -1;
-		Vector<String> v;
-		boolean matrix[][];
-		boolean foundCycle = false;
-		Expression e;
-		
-		// initialise boolean matrix
-		n = constants.size();
-		matrix = new boolean[n][n];
-		for (i = 0; i < n; i++) {
-			for (j = 0; j < n; j++) {
-				matrix[i][j] = false;
-			}
-		}
-		
-		// determine which constants contain which other constants
-		// and store this info in boolean matrix
-		for (i = 0; i < n; i++) {
-			e = getConstant(i);
+		// Create boolean matrix of dependencies
+		// (matrix[i][j] is true if constant i contains constant j)
+		int n = constants.size();
+		boolean matrix[][] = new boolean[n][n];
+		for (int i = 0; i < n; i++) {
+			Expression e = getConstant(i);
 			if (e != null) {
-				v = e.getAllConstants();
-				for (j = 0; j < v.size(); j++) {
-					k = getConstantIndex(v.elementAt(j));
+				Vector<String> v = e.getAllConstants();
+				for (int j = 0; j < v.size(); j++) {
+					int k = getConstantIndex(v.elementAt(j));
 					if (k != -1) {
 						matrix[i][k] = true;
 					}
 				}
 			}
 		}
-		
-		// check for dependencies
-		// (loop a maximum of n times)
-		// (n = max length of possible cycle)
-		for (i = 0 ; i < n; i++) {
-			// see if there is a cycle yet
-			for (j = 0; j < n; j++) {
-				if (matrix[j][j]) {
-					foundCycle = true;
-					firstCycle = j;
-					break;
-				}
-			}
-			// if so, stop
-			if (foundCycle) break;
-			// extend dependencies
-			for (j = 0; j < n; j++) {
-				for (k = 0; k < n; k++) {
-					if (matrix[j][k]) {
-						for (l = 0; l < n; l++) {
-							matrix[j][l] |= matrix[k][l];
-						}
-					}
-				}
-			}
-		}
-		
-		// report dependency
-		if (foundCycle) {
+		// Check for and report dependencies
+		int firstCycle = PrismUtils.findCycle(matrix);
+		if (firstCycle != -1) {
 			String s = "Cyclic dependency in definition of constant \"" + getConstantName(firstCycle) + "\"";
 			throw new PrismLangException(s, getConstant(firstCycle));
 		}
@@ -324,6 +288,71 @@ public class ConstantList extends ASTElement
 		}
 		
 		return allValues;
+	}
+
+	/**
+	 * Set values for some undefined constants, then partially evaluate values for constants where possible
+	 * and return a map from constant names to the Expression representing its value. 
+	 * Argument 'someValues' contains values for undefined ones, can be null if all already defined.
+	 * Argument 'otherValues' contains any other values which may be needed, null if none.
+	 */
+	public Map<String,Expression> evaluateConstantsPartially(Values someValues, Values otherValues) throws PrismLangException
+	{
+		ConstantList cl;
+		Expression e;
+		int i, j, n, numToEvaluate;
+		Type t = null;
+		ExpressionIdent s;
+		
+		// Create new copy of this ConstantList
+		// (copy existing constant definitions, add new ones where undefined)
+		cl = new ConstantList();
+		n = constants.size();
+		for (i = 0; i < n; i++) {
+			s = getConstantNameIdent(i);
+			e = getConstant(i);
+			t = getConstantType(i);
+			if (e != null) {
+				cl.addConstant((ExpressionIdent)s.deepCopy(), e.deepCopy(), t);
+			} else {
+				// Create new literal expression using values passed in (if possible and needed)
+				if (someValues != null && (j = someValues.getIndexOf(s.getName())) != -1) {
+					cl.addConstant((ExpressionIdent) s.deepCopy(), new ExpressionLiteral(t, t.castValueTo(someValues.getValue(j))), t);
+				}
+			}
+		}
+		numToEvaluate = cl.size();
+		
+		// Now add constants corresponding to the 'otherValues' argument to the new constant list
+		if (otherValues != null) {
+			n = otherValues.getNumValues();
+			for (i = 0; i < n; i++) {
+				Type iType = otherValues.getType(i);
+				cl.addConstant(new ExpressionIdent(otherValues.getName(i)), new ExpressionLiteral(iType, iType.castValueTo(otherValues.getValue(i))), iType);
+			}
+		}
+		
+		// Go trough and expand definition of each constant
+		// (i.e. replace other constant references with their definitions)
+		// Note: work with new copy of constant list, don't need to expand 'otherValues' ones.
+		for (i = 0; i < numToEvaluate; i++) {
+			try {
+				e = (Expression)cl.getConstant(i).expandConstants(cl);
+				cl.setConstant(i, e);
+			} catch (PrismLangException ex) {
+				cl.setConstant(i, null);
+			}
+		}
+		
+		// Store final expressions for each constant in a map and return
+		Map<String,Expression> constExprs = new HashMap<>();
+		for (i = 0; i < numToEvaluate; i++) {
+			if (cl.getConstant(i) != null) {
+				constExprs.put(cl.getConstantName(i), cl.getConstant(i).deepCopy());
+			}
+		}
+		
+		return constExprs;
 	}
 
 	// Methods required for ASTElement:

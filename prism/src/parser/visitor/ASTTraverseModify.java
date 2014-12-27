@@ -2,7 +2,7 @@
 //	
 //	Copyright (c) 2002-
 //	Authors:
-//	* Dave Parker <david.parker@comlab.ox.ac.uk> (University of Oxford, formerly University of Birmingham)
+//	* Dave Parker <d.a.parker@cs.bham.ac.uk> (University of Birmingham/Oxford)
 //	
 //------------------------------------------------------------------------------
 //	
@@ -57,7 +57,10 @@ public class ASTTraverseModify implements ASTVisitor
 		for (i = 0; i < n; i++) {
 			if (e.getModule(i) != null) e.setModule(i, (Module)(e.getModule(i).accept(this)));
 		}
-		if (e.getSystemDefn() != null) e.setSystemDefn((SystemDefn)(e.getSystemDefn().accept(this)));
+		n = e.getNumSystemDefns();
+		for (i = 0; i < n; i++) {
+			if (e.getSystemDefn(i) != null) e.setSystemDefn(i, (SystemDefn)(e.getSystemDefn(i).accept(this)), e.getSystemDefnName(i));
+		}
 		n = e.getNumRewardStructs();
 		for (i = 0; i < n; i++) {
 			if (e.getRewardStruct(i) != null) e.setRewardStruct(i, (RewardStruct)(e.getRewardStruct(i).accept(this)));
@@ -378,6 +381,15 @@ public class ASTTraverseModify implements ASTVisitor
 	}
 	public void visitPost(SystemBrackets e) throws PrismLangException { defaultVisitPost(e); }
 	// -----------------------------------------------------------------------------------
+	public void visitPre(SystemReference e) throws PrismLangException { defaultVisitPre(e); }
+	public Object visit(SystemReference e) throws PrismLangException
+	{
+		visitPre(e);
+		visitPost(e);
+		return e;
+	}
+	public void visitPost(SystemReference e) throws PrismLangException { defaultVisitPost(e); }
+	// -----------------------------------------------------------------------------------
 	public void visitPre(ExpressionTemporal e) throws PrismLangException { defaultVisitPre(e); }
 	public Object visit(ExpressionTemporal e) throws PrismLangException
 	{
@@ -501,6 +513,8 @@ public class ASTTraverseModify implements ASTVisitor
 		visitPre(e);
 		if (e.getRewardStructIndex() != null && e.getRewardStructIndex() instanceof Expression)
 			e.setRewardStructIndex((Expression)(((Expression)e.getRewardStructIndex()).accept(this)));
+		if (e.getRewardStructIndexDiv() != null && e.getRewardStructIndexDiv() instanceof Expression)
+			e.setRewardStructIndexDiv((Expression)(((Expression)e.getRewardStructIndexDiv()).accept(this)));
 		if (e.getReward() != null) e.setReward((Expression)(e.getReward().accept(this)));
 		if (e.getExpression() != null) e.setExpression((Expression)(e.getExpression().accept(this)));
 		if (e.getFilter() != null) e.setFilter((Filter)(e.getFilter().accept(this)));
@@ -540,6 +554,16 @@ public class ASTTraverseModify implements ASTVisitor
 		return e;
 	}
 	public void visitPost(ExpressionForAll e) throws PrismLangException { defaultVisitPost(e); }
+	// -----------------------------------------------------------------------------------
+	public void visitPre(ExpressionStrategy e) throws PrismLangException { defaultVisitPre(e); }
+	public Object visit(ExpressionStrategy e) throws PrismLangException
+	{
+		visitPre(e);
+		if (e.getExpression() != null) e.setExpression((Expression)(e.getExpression().accept(this)));
+		visitPost(e);
+		return e;
+	}
+	public void visitPost(ExpressionStrategy e) throws PrismLangException { defaultVisitPost(e); }
 	// -----------------------------------------------------------------------------------
 	public void visitPre(ExpressionLabel e) throws PrismLangException { defaultVisitPre(e); }
 	public Object visit(ExpressionLabel e) throws PrismLangException

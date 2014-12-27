@@ -58,13 +58,14 @@ endif
 # Architecture #
 ################
 
-# To build on AMD64 or Itanium machines, ARCH should be set.
-# We attempt to auto-detect this here.
-ifneq (,$(findstring 86_64, $(shell uname -m)))
-	ARCH = amd64
-endif
-ifneq (,$(findstring ia64, $(shell uname -m)))
-	ARCH = ia64
+# For Linux, we use uname to see if we are on a 64-bit (AMD64 or Itanium) machine
+ifeq ($(OSTYPE),linux)
+	ifneq (,$(findstring 86_64, $(shell uname -m)))
+		ARCH = amd64
+	endif
+	ifneq (,$(findstring ia64, $(shell uname -m)))
+		ARCH = ia64
+	endif
 endif
 # For Mac/Windows, we decide whether to build in 64-bit mode based on
 # whether java is 32/64-bit (since these need to match)
@@ -173,7 +174,7 @@ ifeq ($(OSTYPE),linux)
 	endif
 	endif
 	BIN_TARGETS=prism.linux xprism.linux
-	JFLAGS =
+	JFLAGS = -encoding UTF8
 	SHARED = -shared
 	#SHARED = -G
 	EXE =
@@ -190,7 +191,7 @@ ifeq ($(OSTYPE),solaris)
 	LDFLAGS = $(CUDD_XCFLAGS) $(OPTIMISE)
 	BINDISTSUFFIX = solaris
 	BIN_TARGETS=prism.linux xprism.linux
-	JFLAGS =
+	JFLAGS = -encoding UTF8
 	SHARED = -shared -mimpure-text
 	EXE =
 	LIBPREFIX = lib
@@ -245,7 +246,7 @@ ifeq ($(OSTYPE),darwin)
 		BINDISTSUFFIX = osx32
 		BIN_TARGETS=prism.darwin32 xprism.linux
 	endif
-	JFLAGS =
+	JFLAGS = -encoding UTF8
 	SHARED = -dynamiclib
 	EXE =
 	LIBPREFIX = lib
@@ -359,7 +360,7 @@ make_dirs:
 	  LD="$(LD)" \
 	  JAVAC="$(JAVAC) $(JFLAGS)" \
 	  JAVACC="$(JAVACC)" \
-	  JAVAH="$(JAVAH)" \
+	  JAVAH="$(JAVAH) $(JFLAGS)" \
 	  CFLAGS="$(CFLAGS)" \
 	  CPPFLAGS="$(CPPFLAGS)" \
 	  LDFLAGS="$(LDFLAGS)" \
@@ -413,7 +414,7 @@ add_rev:
 
 dist_src: dist_check_version dist_copy clean_all dist_tidy
 
-dist_bin: JFLAGS += -source 1.6 -target 1.6
+dist_bin: JFLAGS += -source 1.7 -target 1.7
 dist_bin: dist_check_version all binary dist_tidy dist_bin_copy
 
 dist_check_version:
@@ -494,7 +495,7 @@ tarcf:
 PRISM_CLASSPATH = "$(THIS_DIR)/$(PRISM_DIR_REL)/$(CLASSES_DIR)$(CLASSPATHSEP)$(THIS_DIR)/$(PRISM_DIR_REL)/lib/*"
 
 javadoc:
-	@JAVADOC_DIRS=`echo $(MAKE_DIRS) | sed 's/\//./g' | sed 's/ /:/g'` && \mkdir -p javadoc; javadoc -d javadoc -overview $(SRC_DIR)/overview.html -sourcepath $(SRC_DIR) -classpath $(SRC_DIR)$(CLASSPATHSEP)$(PRISM_CLASSPATH) -subpackages $$JAVADOC_DIRS
+	@JAVADOC_DIRS=`echo $(MAKE_DIRS) | sed 's/\//./g' | sed 's/ /:/g'` && \mkdir -p javadoc; javadoc $(JFLAGS) -d javadoc -overview $(SRC_DIR)/overview.html -sourcepath $(SRC_DIR) -classpath $(SRC_DIR)$(CLASSPATHSEP)$(PRISM_CLASSPATH) -subpackages $$JAVADOC_DIRS
 
 clean: checks
 	@(for dir in $(MAKE_DIRS); do \

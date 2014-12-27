@@ -46,11 +46,12 @@ import prism.PrismException;
 import prism.PrismLangException;
 import prism.PrismLog;
 import prism.PrismUtils;
+import prism.StateVector;
 
 /**
  * Class for explicit-state storage of a state-indexed vector of values (int, double, boolean).
  */
-public class StateValues
+public class StateValues implements StateVector
 {
 	// Type (int, double or boolean)
 	protected Type type;
@@ -206,16 +207,16 @@ public class StateValues
 	 * Generate BitSet for states in the given interval
 	 * (interval specified as relational operator and bound)
 	 */
-	public BitSet getBitSetFromInterval(String relOpString, double bound)
+	public BitSet getBitSetFromInterval(String relOpString, double bound) throws PrismException
 	{
 		return getBitSetFromInterval(RelOp.parseSymbol(relOpString), bound);
 	}
-	
+
 	/**
 	 * Generate BitSet for states in the given interval
 	 * (interval specified as relational operator and bound)
 	 */
-	public BitSet getBitSetFromInterval(RelOp relOp, double bound)
+	public BitSet getBitSetFromInterval(RelOp relOp, double bound) throws PrismException
 	{
 		BitSet sol = new BitSet();
 
@@ -240,8 +241,9 @@ public class StateValues
 				for (int i = 0; i < size; i++) {
 					sol.set(i, valuesI[i] < bound);
 				}
+				break;
 			default:
-				// Don't handle
+				throw new PrismException("Unsupported operator " + relOp + " for getBitSetFromInterval()");
 			}
 		} else if (type instanceof TypeDouble) {
 			switch (relOp) {
@@ -264,9 +266,12 @@ public class StateValues
 				for (int i = 0; i < size; i++) {
 					sol.set(i, valuesD[i] < bound);
 				}
+				break;
 			default:
-				// Don't handle
+				throw new PrismException("Unsupported operator " + relOp + " for getBitSetFromInterval()");
 			}
+		} else {
+			throw new PrismException("Can't getBitSetFromInterval for a vector of type " + type);
 		}
 
 		return sol;
@@ -277,7 +282,7 @@ public class StateValues
 	 * (within either absolute or relative error 'epsilon')
 	 * The type of 'value' is assumed to match that of the vector.
 	 */
-	public BitSet getBitSetFromCloseValue(Object value, double epsilon, boolean abs)
+	public BitSet getBitSetFromCloseValue(Object value, double epsilon, boolean abs) throws PrismException
 	{
 		BitSet sol = new BitSet();
 
@@ -291,6 +296,8 @@ public class StateValues
 			for (int i = 0; i < size; i++) {
 				sol.set(i, PrismUtils.doublesAreClose(valuesD[i], valueD, epsilon, abs));
 			}
+		} else {
+			throw new PrismException("Can't getBitSetFromCloseValue for a vector of type " + type);
 		}
 
 		return sol;
@@ -1262,12 +1269,10 @@ public class StateValues
 
 	// ...
 
-	/**
-	 * Clear the vector, i.e. free any used memory.
-	 * (Well, actually, just set pointer to null and wait for later garbage collection.)
-	 */
+	@Override
 	public void clear()
 	{
+		// Actually, just set pointers to null and wait for later garbage collection.
 		valuesI = null;
 		valuesD = null;
 		valuesB = null;
@@ -1275,9 +1280,13 @@ public class StateValues
 
 	// METHODS TO ACCESS VECTOR DATA
 
-	/**
-	 * Get the value of the ith element of the vector, as an Object.
-	 */
+	@Override
+	public int getSize()
+	{
+		return size;
+	}
+
+	@Override
 	public Object getValue(int i)
 	{
 		if (type instanceof TypeInt) {

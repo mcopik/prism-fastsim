@@ -53,10 +53,18 @@ public class CTMCModelChecker extends DTMCModelChecker
 	
 	// Model checking functions
 
-	/**
-	 * Model check a time-bounded until operator; return vector of probabilities for all states.
-	 */
-	protected StateValues checkProbBoundedUntil(Model model, ExpressionTemporal expr) throws PrismException
+	@Override
+	protected StateValues checkProbPathFormulaLTL(Model model, Expression expr, boolean qual, MinMax minMax) throws PrismException
+	{
+		mainLog.println("Building embedded DTMC...");
+		DTMC dtmcEmb = ((CTMC)model).buildImplicitEmbeddedDTMC();
+		
+		// use superclass (DTMCModelChecker) method on the embedded DTMC
+		return super.checkProbPathFormulaLTL(dtmcEmb, expr, qual, minMax);
+	}
+	
+	@Override
+	protected StateValues checkProbBoundedUntil(Model model, ExpressionTemporal expr, MinMax minMax) throws PrismException
 	{
 		double lTime, uTime; // time bounds
 		Expression exprTmp;
@@ -212,13 +220,13 @@ public class CTMCModelChecker extends DTMCModelChecker
 	/**
 	 * Compute next=state probabilities.
 	 * i.e. compute the probability of being in a state in {@code target} in the next step.
-	 * @param dtmc The DTMC
+	 * @param ctmc The CTMC
 	 * @param target Target states
 	 */
-	public ModelCheckerResult computeNextProbs(DTMC dtmc, BitSet target) throws PrismException
+	public ModelCheckerResult computeNextProbs(CTMC ctmc, BitSet target) throws PrismException
 	{
 		mainLog.println("Building embedded DTMC...");
-		DTMC dtmcEmb = ((CTMC) dtmc).buildImplicitEmbeddedDTMC();
+		DTMC dtmcEmb = ctmc.buildImplicitEmbeddedDTMC();
 		return super.computeNextProbs(dtmcEmb, target);
 	}
 
@@ -226,17 +234,17 @@ public class CTMCModelChecker extends DTMCModelChecker
 	 * Compute reachability/until probabilities.
 	 * i.e. compute the probability of reaching a state in {@code target},
 	 * while remaining in those in @{code remain}.
-	 * @param dtmc The CTMC
+	 * @param ctmc The CTMC
 	 * @param remain Remain in these states (optional: null means "all")
 	 * @param target Target states
 	 * @param init Optionally, an initial solution vector (may be overwritten) 
 	 * @param known Optionally, a set of states for which the exact answer is known
 	 * Note: if 'known' is specified (i.e. is non-null, 'init' must also be given and is used for the exact values.  
 	 */
-	public ModelCheckerResult computeReachProbs(DTMC dtmc, BitSet remain, BitSet target, double init[], BitSet known) throws PrismException
+	public ModelCheckerResult computeReachProbs(CTMC ctmc, BitSet remain, BitSet target, double init[], BitSet known) throws PrismException
 	{
 		mainLog.println("Building embedded DTMC...");
-		DTMC dtmcEmb = ((CTMC) dtmc).buildImplicitEmbeddedDTMC();
+		DTMC dtmcEmb = ctmc.buildImplicitEmbeddedDTMC();
 		return super.computeReachProbs(dtmcEmb, remain, target, init, known);
 	}
 
@@ -400,8 +408,7 @@ public class CTMCModelChecker extends DTMCModelChecker
 	 * @param mcRewards The rewards
 	 * @param t Time bound
 	 */
-	@Override
-	public ModelCheckerResult computeCumulativeRewards(DTMC dtmc, MCRewards mcRewards, double t) throws PrismException
+	public ModelCheckerResult computeCumulativeRewards(CTMC ctmc, MCRewards mcRewards, double t) throws PrismException
 	{
 		ModelCheckerResult res = null;
 		int i, n, iters;
@@ -415,15 +422,13 @@ public class CTMCModelChecker extends DTMCModelChecker
 		// Optimisation: If t = 0, this is easy.
 		if (t == 0) {
 			res = new ModelCheckerResult();
-			res.soln = new double[dtmc.getNumStates()];
+			res.soln = new double[ctmc.getNumStates()];
 			return res;
 		}
 
 		// Start backwards transient computation
 		timer = System.currentTimeMillis();
 		mainLog.println("\nStarting backwards cumulative rewards computation...");
-
-		CTMC ctmc = (CTMC) dtmc;
 
 		// Store num states
 		n = ctmc.getNumStates();
@@ -457,7 +462,7 @@ public class CTMCModelChecker extends DTMCModelChecker
 		mainLog.println("Fox-Glynn (" + acc + "): left = " + left + ", right = " + right);
 
 		// Build (implicit) uniformised DTMC
-		dtmc = ctmc.buildImplicitUniformisedDTMC(q);
+		DTMC dtmcUnif = ctmc.buildImplicitUniformisedDTMC(q);
 
 		// Create solution vector(s)
 		soln = new double[n];
@@ -481,7 +486,7 @@ public class CTMCModelChecker extends DTMCModelChecker
 		iters = 1;
 		while (iters <= right) {
 			// Matrix-vector multiply
-			dtmc.mvMult(soln, soln2, null, false);
+			dtmcUnif.mvMult(soln, soln2, null, false);
 			// Swap vectors for next iter
 			tmpsoln = soln;
 			soln = soln2;
@@ -620,21 +625,21 @@ public class CTMCModelChecker extends DTMCModelChecker
 
 	/**
 	 * Compute expected reachability rewards.
-	 * @param dtmc The CTMC
+	 * @param ctmc The CTMC
 	 * @param mcRewards The rewards
 	 * @param target Target states
 	 */
-	public ModelCheckerResult computeReachRewards(DTMC dtmc, MCRewards mcRewards, BitSet target) throws PrismException
+	public ModelCheckerResult computeReachRewards(CTMC ctmc, MCRewards mcRewards, BitSet target) throws PrismException
 	{
 		int i, n;
 		// Build embedded DTMC
 		mainLog.println("Building embedded DTMC...");
-		DTMC dtmcEmb = ((CTMC) dtmc).buildImplicitEmbeddedDTMC();
+		DTMC dtmcEmb = ctmc.buildImplicitEmbeddedDTMC();
 		// Convert rewards
-		n = dtmc.getNumStates();
+		n = ctmc.getNumStates();
 		StateRewardsArray rewEmb = new StateRewardsArray(n);
 		for (i = 0; i < n; i++) {
-			rewEmb.setStateReward(i, mcRewards.getStateReward(i) / ((CTMC) dtmc).getExitRate(i));
+			rewEmb.setStateReward(i, mcRewards.getStateReward(i) / ctmc.getExitRate(i));
 		}
 		// Do computation on DTMC
 		return super.computeReachRewards(dtmcEmb, rewEmb, target);

@@ -237,14 +237,39 @@ public class StateValuesMTBDD implements StateValues
 		values = JDD.Apply(JDD.MAX, values, vec2);
 	}
 	
-	// clear
-	
+	@Override
 	public void clear()
 	{
 		JDD.Deref(values);
 	}
 
 	// METHODS TO ACCESS VECTOR DATA
+	
+	@Override
+	public int getSize()
+	{
+		return (int) model.getNumStates();
+	}
+	
+	@Override
+	public Object getValue(int i)
+	{
+		JDDNode dd = values;
+		ODDNode ptr = odd;
+		int o = 0;
+		for (int k = 0; k < numVars; k++) {
+			if (ptr.getEOff() > i - o) {
+				dd = dd.getIndex() > vars.getVarIndex(k) ? dd : dd.getElse();
+				ptr = ptr.getElse();
+			} else {
+				dd = dd.getIndex() > vars.getVarIndex(k) ? dd : dd.getThen();
+				o += ptr.getEOff();
+				ptr = ptr.getThen();
+			}
+		}
+		// TODO: cast to Integer or Double as required?
+		return dd.getValue();
+	}
 	
 	// get mtbdd
 	
@@ -599,7 +624,7 @@ public class StateValuesMTBDD implements StateValues
 				}
 				if (i < j-1) outputLog.print(",");
 			}
-			outputLog.print(")=" + dd.getValue() + " ");
+			outputLog.print(")=" + dd.getValue());
 			outputLog.println();
 			return;
 		}

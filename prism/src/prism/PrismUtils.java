@@ -28,6 +28,7 @@ package prism;
 
 import java.text.DecimalFormat;
 import java.util.List;
+import java.util.Locale;
 
 /**
  * Various general-purpose utility methods in Java
@@ -193,8 +194,9 @@ public class PrismUtils
 	 */
 	public static String formatDouble(double d)
 	{
-		// Note that we have to tweak this since Java do it quite like C. 
-		return String.format("%.12g", d).replaceFirst("\\.?0+(e|$)", "$1");
+		// Use UK locale to avoid . being changed to , in some countries.
+		// To match C's printf, we have to tweak the Java version (strip trailing .000)
+		return String.format(Locale.UK, "%.12g", d).replaceFirst("\\.?0+(e|$)", "$1");
 	}
 
 	/**
@@ -202,8 +204,9 @@ public class PrismUtils
 	 */
 	public static String formatDouble(int prec, double d)
 	{
-		// Note that we have to tweak this since Java do it quite like C. 
-		return String.format("%." + prec + "g", d).replaceFirst("\\.?0+(e|$)", "$1");
+		// Use UK locale to avoid . being changed to , in some countries.
+		// To match C's printf, we have to tweak the Java version (strip trailing .000)
+		return String.format(Locale.UK, "%." + prec + "g", d).replaceFirst("\\.?0+(e|$)", "$1");
 	}
 	
 	/**
@@ -242,6 +245,43 @@ public class PrismUtils
 			s += obj.toString();
 		}
 		return s;
+	}
+	
+	/**
+	 * Check for any cycles in an 2D boolean array representing a graph.
+	 * Useful for checking for cyclic dependencies in connected definitions.
+	 * Returns the lowest index of a node contained in a cycle, if there is one, -1 if not.  
+	 * @param matrix Square matrix of connections: {@code matr[i][j] == true} iff
+	 * there is a connection from {@code i} to {@code j}.
+	 */
+	public static int findCycle(boolean matrix[][])
+	{
+		int n = matrix.length;
+		int firstCycle = -1;
+		// Go through nodes
+		for (int i = 0; i < n; i++) {
+			// See if there is a cycle yet
+			for (int j = 0; j < n; j++) {
+				if (matrix[j][j]) {
+					firstCycle = j;
+					break;
+				}
+			}
+			// If so, stop
+			if (firstCycle != -1)
+				break;
+			// Extend dependencies
+			for (int j = 0; j < n; j++) {
+				for (int k = 0; k < n; k++) {
+					if (matrix[j][k]) {
+						for (int l = 0; l < n; l++) {
+							matrix[j][l] |= matrix[k][l];
+						}
+					}
+				}
+			}
+		}
+		return firstCycle;
 	}
 }
 
