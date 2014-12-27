@@ -30,6 +30,7 @@ package prism;
 
 import simulator.method.SimulationMethod;
 import strat.Strategy;
+import prism.StateVector;
 
 /**
  * This class stores the result of a single verification/simulation.
@@ -45,7 +46,9 @@ public class Result
 	// Counterexample (optional)
 	private Object cex;
 	// Strategy (optional)
-	private Strategy strat;
+	private Strategy strat;        
+	// Simulation method (optional)
+    private SimulationMethod method;
 	// Solution vector (optional)
 	private StateVector vect;
 	
@@ -103,6 +106,14 @@ public class Result
 	}
 	
 	/**
+     * Set the simulation method (null denotes n/a).
+     */
+    public void setSimulationMethod(SimulationMethod method)
+    {
+    	this.method = method;
+    }
+    
+	/**
 	 * Set the result vector (null denotes n/a).
 	 */
 	public void setVector(StateVector vect)
@@ -142,6 +153,14 @@ public class Result
 		return strat;
 	}
 	
+	/**
+     * Get the simulation method (null denotes n/a).
+     */
+    public SimulationMethod getSimulationMethod()
+    {
+            return method;
+    }
+    
 	/**
 	 * Get the result vector (null denotes n/a).
 	 */
