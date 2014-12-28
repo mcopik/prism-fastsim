@@ -10,10 +10,6 @@
 	<classpathentry kind="lib" path="lib/lpsolve55j.jar"/>
 	<classpathentry kind="lib" path="lib/log4j.jar"/>
 	<classpathentry kind="lib" path="lib/jas-2013137.jar"/>
-	<classpathentry kind="lib" path="lib/javacl-1.0.0-RC3.jar" sourcepath="lib/javacl-1.0.0-RC3-sources.jar">
-		<attributes>
-			<attribute name="javadoc_location" value="jar:platform:/resource/Prism/lib/javacl-1.0.0-RC3-javadoc.jar!/"/>
-		</attributes>
-	</classpathentry>
+	<classpathentry kind="lib" path="lib/javacl-1.0.0-RC3-javadoc.jar"/>
 	<classpathentry kind="output" path="classes"/>
 </classpath>
