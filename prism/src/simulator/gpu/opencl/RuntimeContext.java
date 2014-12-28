@@ -28,6 +28,7 @@ package simulator.gpu.opencl;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.LinkedList;
@@ -74,7 +75,8 @@ public class RuntimeContext
 	 */
 	private abstract class ContextState
 	{
-		public List<Sampler> properties;
+		public List< Sampler > properties;
+		public Boolean[] propertiesStatus;
 		protected int globalWorkSize;
 		protected int localWorkSize;
 		protected boolean finished = false;
@@ -87,6 +89,8 @@ public class RuntimeContext
 		protected ContextState(List<Sampler> properties, int gwSize, int lwSize)
 		{
 			this.properties = properties;
+			propertiesStatus = new Boolean[properties.size()];
+			Arrays.fill(propertiesStatus, false);
 			this.globalWorkSize = roundUp(lwSize, gwSize);
 			this.localWorkSize = lwSize;
 		}
@@ -138,6 +142,11 @@ public class RuntimeContext
 
 		protected void readResults(int start, int samples) throws PrismException
 		{
+			readResults(start, samples, -1);
+		}
+		
+		protected void readResults(int start, int samples, int periodityOfSamplerCheck) throws PrismException
+		{
 			List<Pair<SamplerBoolean, Pointer<Byte>>> bytes = new ArrayList<>();
 			List<CLEvent> readEvents = new ArrayList<>();
 			/**
@@ -145,7 +154,7 @@ public class RuntimeContext
 			 */
 			for (int i = 0; i < properties.size(); ++i) {
 				SamplerBoolean sampler = (SamplerBoolean) properties.get(i);
-				if (!sampler.isCurrentValueKnown()) {
+				if (!propertiesStatus[i]) {
 					bytes.add(new Pair<SamplerBoolean, Pointer<Byte>>(sampler, Pointer.allocateBytes(samples)));
 					readEvents.add(resultBuffers.get(i).read(queue, start, samples, bytes.get(i).second, false));
 				}
@@ -157,7 +166,9 @@ public class RuntimeContext
 			/**
 			 * Add read data to sampler.
 			 */
-			for (Pair<SamplerBoolean, Pointer<Byte>> pair : bytes) {
+			
+			for (int i = 0;i < bytes.size(); ++i) {
+				Pair<SamplerBoolean, Pointer<Byte>> pair = bytes.get(i);
 				NativeList<Byte> results = pair.second.asList();
 				for (int j = 0; j < results.size(); ++j) {
 					Byte _byte = results.get(j);
@@ -178,6 +189,16 @@ public class RuntimeContext
 					 */
 					else {
 						pair.first.addSample(_byte == 1);
+						if(periodityOfSamplerCheck != -1 && j % periodityOfSamplerCheck == 0) {
+							Sampler sampler = pair.first;
+							if(sampler.getSimulationMethod().shouldStopNow(samplesProcessed + j, sampler)) {
+								/**
+								 * We're already finished with sampler, jump to next property.
+								 */
+								propertiesStatus[i] = true;
+								break;
+							}
+						}
 					}
 				}
 			}
@@ -185,6 +206,7 @@ public class RuntimeContext
 
 		protected void readPathLength(int start, int samples)
 		{
+			mainLog.println("lengths " + start + " samples " + samples);
 			NativeList<Integer> lengths = pathLengths.read(queue, start, samples).asList();
 			long sum = 0;
 			for (Integer i : lengths) {
@@ -269,6 +291,7 @@ public class RuntimeContext
 
 	private class NotKnownIterationsState extends ContextState
 	{
+		public static final int PERIODITY_OF_SAMPLER_STOP_CHECK = 50;
 		public int resultCheckPeriod;
 		public int pathCheckPeriod;
 		private int samplesFinished = 0;
@@ -276,13 +299,17 @@ public class RuntimeContext
 		private List<Integer> pathCheckIndices = new LinkedList<>();
 		private SortedSet<Integer> freeResultIndices = new TreeSet<>();
 		private SortedSet<Integer> freePathIndices = new TreeSet<>();
+		/**
+		 * Key: Integers in pair denote indices of buffers: result and path.
+		 * Value: CLEvent connected to this NDRange.
+		 */
 		private Map<Pair<Integer, Integer>, CLEvent> events = new HashMap<>();
 
 		public NotKnownIterationsState(List<Sampler> properties, int lwSize)
 		{
 			super(properties, currentDevice.isGPU() ? config.inDirectMethodGWSizeGPU : config.inDirectMethodGWSizeCPU, lwSize);
 			//todo: remove, test!
-			globalWorkSize = 40960;
+			//globalWorkSize = 40960;
 			resultCheckPeriod = config.inDirectResultCheckPeriod;
 			pathCheckPeriod = config.inDirectPathCheckPeriod;
 			createBuffers();
@@ -297,6 +324,7 @@ public class RuntimeContext
 		@Override
 		protected void createBuffers()
 		{
+			mainLog.println("Path Lengths " + globalWorkSize * pathCheckPeriod);
 			pathLengths = context.createIntBuffer(CLMem.Usage.Output, globalWorkSize * pathCheckPeriod);
 			for (int i = 0; i < properties.size(); ++i) {
 				resultBuffers.add(context.createByteBuffer(CLMem.Usage.Output, globalWorkSize * resultCheckPeriod));
@@ -337,10 +365,8 @@ public class RuntimeContext
 			}
 			finished = true;
 			//check if all sampler values are knowng
-			for (Sampler sampler : properties) {
-				if (!sampler.getSimulationMethod().shouldStopNow(samplesFinished, sampler)) {
-					finished = false;
-				}
+			for (Boolean value : propertiesStatus) {
+				finished &= value;
 			}
 			//if all properties are computed, then we can simply wait and read last results
 			if (finished) {
@@ -365,7 +391,8 @@ public class RuntimeContext
 		{
 			//result buffers
 			for (int i = 0; i < resultBuffers; ++i) {
-				readResults(resultsCheckIndices.get(i) * globalWorkSize, globalWorkSize);
+				mainLog.println(String.format("Read results start %d count %d",resultsCheckIndices.get(i) * globalWorkSize, globalWorkSize));
+				readResults(resultsCheckIndices.get(i) * globalWorkSize, globalWorkSize, PERIODITY_OF_SAMPLER_STOP_CHECK);
 			}
 			samplesFinished += resultBuffers * globalWorkSize;
 			List<Integer> freedIndices = resultsCheckIndices.subList(0, resultBuffers);
@@ -377,6 +404,7 @@ public class RuntimeContext
 		{
 			//path buffers
 			for (int i = 0; i < pathBuffers; ++i) {
+				mainLog.println(String.format("Read paths start %d count %d",pathCheckIndices.get(i) * globalWorkSize, globalWorkSize));
 				readPathLength(pathCheckIndices.get(i) * globalWorkSize, globalWorkSize);
 			}
 			List<Integer> freedIndices = pathCheckIndices.subList(0, pathBuffers);
@@ -400,6 +428,7 @@ public class RuntimeContext
 				Integer secondIndice = null;
 				if (resultCheckPeriod <= pathCheckPeriod) {
 					secondIndice = freePathIndices.first();
+					mainLog.println(String.format("Enqeueue result %d path %d samples %d",indice, secondIndice, globalWorkSize));
 					events.put(new Pair<Integer, Integer>(indice, secondIndice),
 					//create and send the kernel
 							enqueueKernel(globalWorkSize, indice * globalWorkSize, secondIndice * globalWorkSize));
@@ -409,7 +438,8 @@ public class RuntimeContext
 				} else {
 					//identical as above, only for different combination of sets
 					secondIndice = freeResultIndices.first();
-					events.put(new Pair<Integer, Integer>(indice, secondIndice),
+					mainLog.println(String.format("Enqeueue result %d path %d samples %d", secondIndice, indice, globalWorkSize));
+					events.put(new Pair<Integer, Integer>(secondIndice, indice),
 							enqueueKernel(globalWorkSize, secondIndice * globalWorkSize, indice * globalWorkSize));
 					set.remove(indice);
 					freeResultIndices.remove(secondIndice);
@@ -541,6 +571,7 @@ public class RuntimeContext
 				while (!state.processResults()) {
 					Thread.sleep(1);
 				}
+				mainLog.flush();
 			} while (!state.hasFinished());
 		} catch (PrismException exc) {
 			throw exc;
