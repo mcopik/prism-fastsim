@@ -83,7 +83,7 @@ public class PrismDevNullLog extends PrismLog
 	public void print(String s)
 	{
 	}
-
+	
 	public void println()
 	{
 	}

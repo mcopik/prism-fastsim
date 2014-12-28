@@ -27,6 +27,9 @@
 
 package prism;
 
+import java.io.PrintWriter;
+import java.io.StringWriter;
+
 public abstract class PrismLog
 {
 	/**
@@ -107,6 +110,12 @@ public abstract class PrismLog
 	public abstract void print(Object obj);
 
 	public abstract void print(String s);
+	
+	public void print(Exception exc)
+	{
+		print( exc.getMessage() );
+		print( stackTraceToString(exc) );
+	}
 
 	public abstract void println();
 
@@ -189,6 +198,15 @@ public abstract class PrismLog
 	{
 		if (level <= this.verbosityLevel)
 			print(arr);
+	}	
+	
+	/**
+	 * Prints out the exception {@code exc} if the log's verbosity level is at least {@code level}
+	 */
+	public void print(Exception exc, int level)
+	{
+		if (level <= this.verbosityLevel)
+			print(exc);
 	}
 
 	public void print(double arr[])
@@ -270,6 +288,12 @@ public abstract class PrismLog
 	public void println(int arr[])
 	{
 		print(arr);
+		println();
+	}	
+	
+	public void println(Exception exc)
+	{
+		print(exc);
 		println();
 	}
 
@@ -361,6 +385,15 @@ public abstract class PrismLog
 	{
 		if (level <= this.verbosityLevel)
 			println(arr);
+	}	
+	
+	/**
+	 * Prints out the exception {@code exc} followed by a newline character, provided that the log's verbosity level is at least {@code level}
+	 */
+	public void println(Exception exc, int level)
+	{
+		if (level <= this.verbosityLevel)
+			println(exc);
 	}
 
 	/**
@@ -383,6 +416,20 @@ public abstract class PrismLog
 	{
 		println("\nWarning: " + s);
 		this.numberOfWarnings++;
+	}
+	
+	/**
+	 * Extract the stack trace from exception and write it to the string.
+	 * @param exc
+	 * @return Stack trace.
+	 */
+	protected String stackTraceToString(Exception exc)
+	{
+		StringWriter writer = new StringWriter();
+		PrintWriter printWriter = new PrintWriter( writer );
+		exc.printStackTrace( printWriter );
+		printWriter.flush();
+		return writer.toString();
 	}
 }
 

@@ -25,6 +25,8 @@
 //==============================================================================
 package simulator.gpu.opencl;
 
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -543,14 +545,9 @@ public class RuntimeContext
 		} catch (PrismException exc) {
 			throw exc;
 		} catch (Exception exc) {
-			//TODO - kernel abort
-			mainLog.println(exc.toString());
-			mainLog.println(exc.getMessage());
-			mainLog.println(exc.getStackTrace().toString());
+			mainLog.println(exc);
 		} catch (Error exc) {
-			mainLog.println(exc.toString());
-			mainLog.println(exc.getMessage());
-			mainLog.println(exc.getStackTrace().toString());
+			mainLog.println(exc);
 		} finally {
 			mainLog.flush();
 			queue.finish();

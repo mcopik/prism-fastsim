@@ -182,7 +182,7 @@ public class PrismFileLog extends PrismLog
 	{
 		printToLog(s);
 	}
-
+	
 	@Override
 	public void println()
 	{

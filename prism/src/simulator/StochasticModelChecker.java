@@ -183,6 +183,7 @@ public class StochasticModelChecker extends PrismComponent
 			samplers[i] = sampler;
 		}
 	}
+	
 	/**
 	 * Perform approximate model checking of a property on a model, using the simulator.
 	 * Sampling starts from the initial state provided or, if null, the default
