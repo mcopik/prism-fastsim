@@ -188,6 +188,7 @@ public class Method extends ComplexKernelComponent
 			expr.accept(v);
 		}
 		for (KernelComponent component : body) {
+			System.out.println("Visit: " + component.getClass().getName());
 			component.accept(v);
 		}
 	}

@@ -138,6 +138,7 @@ public class ForLoop extends ComplexKernelComponent
 			expr.accept(v);
 		}
 		for (KernelComponent component : body) {
+			System.out.println("Visit forLoopBody: " + component.getSource());
 			component.accept(v);
 		}
 	}
