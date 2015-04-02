@@ -1572,7 +1572,7 @@ public class PrismCL implements PrismModelListener
 				} else if (sw.equals("simdevicetype")) {
 					if (i < args.length - 1) {
 						simDeviceType = args[++i];
-						if (!simPlatform.equalsIgnoreCase("cpu") && !simPlatform.equalsIgnoreCase("gpu"))
+						if (!simDeviceType.equalsIgnoreCase("cpu") && !simDeviceType.equalsIgnoreCase("gpu"))
 							errorAndExit("Invalid value for -" + sw + " switch");
 						simDeviceTypeGiven = true;
 					} else {
