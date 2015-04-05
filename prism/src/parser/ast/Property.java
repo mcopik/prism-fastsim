@@ -197,10 +197,10 @@ public class Property extends ASTElement
 					// Otherwise just check for exact string match for now
 					else
 						match &= constValToMatch.toString().equals(constVal);
-					if (!match)
-						break;
 					// We need all constants to match
 					allMatch &= match;
+					if (!match)
+						break;
 				}
 				// Found it...
 				if (allMatch) {
