@@ -488,7 +488,7 @@ public class RuntimeContext
 	/**
 	 * Updated by Strategy object.
 	 */
-	long kernelTime = 0;
+	long kernelTime = 0;	
 	int samplesProcessed = 0;
 
 	public RuntimeContext(CLDeviceWrapper device, PrismLog mainLog)
@@ -509,7 +509,8 @@ public class RuntimeContext
 
 			mainLog.flush();
 			System.out.println(kernel.getSource());
-			CLProgram program = context.createProgram(kernel.getSource());
+			String str = kernel.getSource();
+			CLProgram program = context.createProgram( str );
 			//add include directories for PRNG
 			//has to work when applications is executed as Java class or as a jar
 			//			//TODO: for others rng

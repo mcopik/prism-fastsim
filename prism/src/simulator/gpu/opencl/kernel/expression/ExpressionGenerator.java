@@ -378,11 +378,13 @@ public class ExpressionGenerator
 		convertEquality(builder);
 		builderReplace(builder, "|", "||");
 		builderReplace(builder, "&", "&&");
-		if (builder.charAt(0) == ('!')) {
-			return String.format("!(%s)", builder.substring(1));
-		} else {
-			return builder.toString();
-		}
+		// TODO: check if it doesn't break anything
+//		if (builder.charAt(0) == ('!')) {
+//			return String.format("!(%s)", builder.substring(1));
+//		} else {
+//			return builder.toString();
+//		}
+		return builder.toString();
 	}
 
 	static private void builderReplace(StringBuilder builder, String first, String second)

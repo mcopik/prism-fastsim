@@ -374,10 +374,6 @@ public class KernelGeneratorDTMC extends KernelGenerator
 			call = helperMethods.get(KernelMethods.UPDATE_PROPERTIES).callMethod(varStateVector.convertToPointer(), varPropertiesArray);
 		}
 		IfElse ifElse = new IfElse(call);
-		//		ifElse.addExpression(
-		//				0,
-		//				new Expression(
-		//						"if(get_global_id(0) < 10)printf(\"%f %f %f %d %d\\n\",time,updatedTime,selectionSize,stateVector.__STATE_VECTOR_q,properties[0].propertyState);\n"));
 		ifElse.addExpression(0, new Expression("break;\n"));
 		parent.addExpression(ifElse);
 	}

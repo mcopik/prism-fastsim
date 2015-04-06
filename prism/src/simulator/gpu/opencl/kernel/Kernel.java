@@ -43,35 +43,35 @@ import simulator.sampler.Sampler;
 public class Kernel
 {
 	/**
-	 * BasicDebug_Kernel.cl from AMDAPP's samples.
-	 */
-	//public final static String TEST_KERNEL = "__kernel void main() { \n" + "uint globalID = get_global_id(0); \n" + "uint groupID = get_group_id(0);  \n"
-		//	+ "uint localID = get_local_id(0); \n" + "printf(\"the global ID of this thread is : %d\\n\",globalID); \n" + "}";
-
-	/**
 	 * Input - three objects which determine kernel's source.
 	 */
 	@SuppressWarnings("unused")
 	private RuntimeConfig config = null;
+	
 	/**
 	 * PRISM automaton.
 	 */
 	private AbstractAutomaton model = null;
 	@SuppressWarnings("unused")
+	
 	//TODO: why the hell this is unused?
 	private List<Sampler> properties = null;
+	
 	/**
 	 * Source components.
 	 */
 	private String kernelSource = null;
+	
 	/**
 	 * List of includes.
 	 */
 	private List<Include> includes = new ArrayList<>();
+	
 	/**
 	 * State vector structure.
 	 */
 	private StructureType stateVectorType = null;
+	
 	/**
 	 * Main kernel method.
 	 * INPUT:
@@ -89,16 +89,20 @@ public class Kernel
 	 * Kernel generator.
 	 */
 	private KernelGenerator methodsGenerator = null;
+
 	/**
 	 * Helper methods, used for checking guards etc.
 	 */
 	private Collection<Method> helperMethods = null;
+	
 	/**
 	 * Global declarations.
 	 */
 	private List<KernelComponent> globalDeclarations = new ArrayList<>();
+
 	/**
-	 * 
+	 * Not necessary right now, because Random123 provides these definition in include.
+	 * May be helpful later.
 	 */
 	public final static String KERNEL_TYPEDEFS = "typedef char int8_t;\n" + "typedef unsigned char uint8_t;\n" + "typedef unsigned short uint16_t;\n"
 			+ "typedef short int16_t;\n" + "typedef unsigned int uint32_t;\n" + "typedef int int32_t;\n" + "typedef long int64_t;\n"
@@ -189,7 +193,7 @@ public class Kernel
 		for (Include include : includes) {
 			builder.append(include.getSource()).append("\n");
 		}
-//		builder.append(KERNEL_TYPEDEFS).append("\n");
+		//builder.append(KERNEL_TYPEDEFS).append("\n");
 		builder.append("typedef unsigned char uchar;\n");
 		for (KernelComponent expr : globalDeclarations) {
 			builder.append(expr.getSource()).append("\n");

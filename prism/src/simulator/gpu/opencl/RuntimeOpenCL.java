@@ -246,12 +246,15 @@ public class RuntimeOpenCL extends PrismComponent implements SMCRuntimeInterface
 		int samplesProcessed = 0;
 		try {
 			currentContexts = new ArrayList<>();
+			mainLog.println("Using " + currentContexts.size() + " OpenCL device(s):");
+			int counter = 1;
 			for (CLDeviceWrapper device : currentDevices) {
+				mainLog.println(Integer.toString(counter++) + " : " + device.getName());
 				RuntimeContext currentContext = new RuntimeContext(device, mainLog);
 				currentContext.createKernel(model, properties, config);
 				currentContexts.add(currentContext);
 			}
-			mainLog.println("Using " + currentContexts.size() + " OpenCL devices.");
+			mainLog.flush();
 			for (RuntimeContext context : currentContexts) {
 				context.runSimulation();
 			}
@@ -273,7 +276,8 @@ public class RuntimeOpenCL extends PrismComponent implements SMCRuntimeInterface
 	@Override
 	public void checkModelForAMC(ModulesFile modulesFile) throws PrismException
 	{
-		if (modulesFile.getModelType() != ModelType.DTMC && modulesFile.getModelType() != ModelType.CTMC) {
+		if (modulesFile.getModelType() != ModelType.DTMC && 
+				modulesFile.getModelType() != ModelType.CTMC) {
 			throw new PrismException("Currently only DTMC/CTMC is supported!");
 		}
 	}

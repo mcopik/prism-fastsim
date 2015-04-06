@@ -604,8 +604,6 @@ public abstract class KernelGenerator
 		mainMethodLoopDetection(loop);
 		//loop.addExpression(new Expression("if(s==4)break;"));
 		currentMethod.addExpression(loop);
-		//		currentMethod.addExpression(new Expression(
-		//				"if(globalID<100 )printf(\"end loop gID %d %d %d %d \\n\",globalID,selectionSize,stateVector.__STATE_VECTOR_s,stateVector.__STATE_VECTOR_z);"));
 		/**
 		 * Write results.
 		 */
