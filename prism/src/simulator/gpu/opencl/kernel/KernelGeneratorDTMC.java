@@ -474,6 +474,7 @@ public class KernelGeneratorDTMC extends KernelGenerator
 	@Override
 	protected void propertiesMethodAddBoundedUntil(Method currentMethod, ComplexKernelComponent parent, SamplerBoolean property, CLVariable propertyVar)
 	{
+		//TODO: check if it will always work (e.g. CTMC case)
 		CLVariable time = currentMethod.getArg("time");
 		SamplerBoundedUntilDisc prop = (SamplerBoundedUntilDisc) property;
 		/**

@@ -441,41 +441,78 @@ public class KernelGeneratorCTMC extends KernelGenerator
 	{
 		CLVariable updTime = currentMethod.getArg("updated_time");
 		SamplerBoundedUntilCont prop = (SamplerBoundedUntilCont) property;
+		
 		/**
 		 * if(updated_time > upper_bound)
 		 */
-		IfElse ifElse = new IfElse(createBasicExpression(updTime.getSource(), Operator.GT, fromString(prop.getUpperBound())));
-		/**
-		 * if(right_side == true) -> true
-		 * else -> false
-		 */
-		IfElse rhsCheck = createPropertyCondition(propertyVar, false, prop.getRightSide().toString(), true);
-		createPropertyCondition(rhsCheck, propertyVar, false, null, false);
-		ifElse.addExpression(rhsCheck);
+		IfElse ifElse = null;
+		if( !Double.isInfinite( prop.getUpperBound() ) ) {
+			ifElse = new IfElse(createBasicExpression(updTime.getSource(), Operator.GT, 
+					fromString(prop.getUpperBound())));
+			/**
+			 * if(right_side == true) -> true
+			 * else -> false
+			 */
+			IfElse rhsCheck = createPropertyCondition(propertyVar, false, 
+					prop.getRightSide().toString(), true);
+			createPropertyCondition(rhsCheck, propertyVar, false, null, false);
+			ifElse.addExpression(rhsCheck);
+		}
+
 		/**
 		 * else if(updated_time < low_bound)
 		 */
-		ifElse.addElif(createBasicExpression(updTime.getSource(), Operator.LE,
-		// updated_time < lb
-				fromString(prop.getLowBound())));
-		/**
-		 * if(left_side == false) -> false
-		 */
-		if (!(prop.getLeftSide() instanceof ExpressionLiteral)) {
-			IfElse lhsCheck = createPropertyCondition(propertyVar, true, prop.getLeftSide().toString(), false);
-			ifElse.addExpression(1, lhsCheck);
+		if( prop.getLowBound() != 0.0 ) {
+			int position = 0;
+			Expression condition = createBasicExpression(updTime.getSource(), Operator.LE,
+					// updated_time < lb
+							fromString(prop.getLowBound()));
+			if(ifElse != null) {
+				ifElse.addElif(condition);
+				position = 1;
+			} else {
+				ifElse = new IfElse( condition );
+				position = 0;
+			}
+			/**
+			 * if(left_side == false) -> false
+			 */
+			if (!(prop.getLeftSide() instanceof ExpressionLiteral)) {
+				IfElse lhsCheck = createPropertyCondition(propertyVar, true, 
+						prop.getLeftSide().toString(), false);
+				ifElse.addExpression(position, lhsCheck);
+			}
 		}
-		ifElse.addElse();
+		
+		/**
+		 * Else - inside the interval
+		 */
+		
 		/**
 		 * if(right_side == true) -> true
 		 * else if(left_side == false) -> false
 		 */
-		IfElse betweenBounds = createPropertyCondition(propertyVar, false, prop.getRightSide().toString(), true);
+		IfElse betweenBounds = createPropertyCondition(propertyVar, false, 
+				prop.getRightSide().toString(), true);
 		if (!(prop.getLeftSide() instanceof ExpressionLiteral)) {
-			createPropertyCondition(betweenBounds, propertyVar, true, prop.getLeftSide().toString(), false);
+			createPropertyCondition(betweenBounds, propertyVar, true, 
+					prop.getLeftSide().toString(), false);
 		}
-		ifElse.addExpression(2, betweenBounds);
-		parent.addExpression(ifElse);
+	
+		/**
+		 * No condition before, just add this check to method.
+		 */
+		if(ifElse == null) {
+			parent.addExpression(betweenBounds);
+		} 
+		/**
+		 * Add 'else'
+		 */
+		else {
+			ifElse.addElse();
+			ifElse.addExpression(ifElse.size() - 1, betweenBounds);
+			parent.addExpression(ifElse);
+		}
 	}
 
 	/*********************************

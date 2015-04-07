@@ -401,13 +401,15 @@ public class ExpressionGenerator
 		int index = 0;
 		while ((index = builder.indexOf(first, index)) != -1) {
 			//check whether it is a prefix
-			if (builder.length() != index + first.length()
+			if (builder.length() > index + first.length()
 					//&& (Character.isAlphabetic(builder.charAt(index + first.length())) || Character.isDigit(builder.charAt(index + first.length())))) {
-					&& !Character.isWhitespace(builder.charAt(index + first.length()))) {
+					//&& !Character.isWhitespace(builder.charAt(index + first.length()))) {
+					&& isIdentifierCharacter( builder.charAt(index + first.length()) ) ) {
 				index += first.length();
 			}
 			//check if it is a suffix
-			else if (index != 0 && !Character.isWhitespace(builder.charAt(index -1))) {//&& (Character.isAlphabetic(builder.charAt(index - 1)) || Character.isDigit(builder.charAt(index - 1)))) {
+			else if (index != 0 && isIdentifierCharacter( builder.charAt(index -1) ) ) {
+				/*!Character.isWhitespace(builder.charAt(index -1))) && (Character.isAlphabetic(builder.charAt(index - 1)) || Character.isDigit(builder.charAt(index - 1)))) {*/
 				index += first.length();
 			} else {
 				builder.replace(index, index + first.length(), second);
@@ -416,5 +418,10 @@ public class ExpressionGenerator
 			//for safety
 			index = Math.min(index, builder.length());
 		}
+	}
+	
+	static private boolean isIdentifierCharacter(char c)
+	{
+		return c == '_' || Character.isAlphabetic(c) || Character.isDigit(c);
 	}
 }

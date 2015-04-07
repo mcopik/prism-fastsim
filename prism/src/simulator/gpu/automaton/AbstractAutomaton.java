@@ -91,7 +91,7 @@ public abstract class AbstractAutomaton
 	{
 		varList = modulesFile.createVarList();
 		modulesFile = (ModulesFile) modulesFile.deepCopy().replaceConstants(modulesFile.getConstantValues());
-		//TODO: error in nand.pm
+		//TODO: error in nand.pm gone, but still in embedded.sm
 		modulesFile.simplify();
 		this.modulesFile = modulesFile;
 		this.modulesFile.tidyUp();
