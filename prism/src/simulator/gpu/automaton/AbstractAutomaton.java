@@ -90,10 +90,10 @@ public abstract class AbstractAutomaton
 	public AbstractAutomaton(ModulesFile modulesFile) throws PrismException
 	{
 		varList = modulesFile.createVarList();
-		modulesFile = (ModulesFile) modulesFile.deepCopy().replaceConstants(modulesFile.getConstantValues());
-		//TODO: error in nand.pm gone, but still in embedded.sm
-		modulesFile.simplify();
-		this.modulesFile = modulesFile;
+		//assume that the replaceConstants and simplify has been already done in SimulatorEngine!
+		this.modulesFile = (ModulesFile) modulesFile.deepCopy().
+				replaceConstants(modulesFile.getConstantValues()).
+				simplify().accept(new ParsTreeModifier());
 		this.modulesFile.tidyUp();
 		extractVariables();
 		extractUpdates();

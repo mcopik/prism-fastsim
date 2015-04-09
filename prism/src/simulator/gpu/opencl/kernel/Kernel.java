@@ -29,6 +29,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
+import prism.PrismLangException;
 import simulator.gpu.automaton.AbstractAutomaton;
 import simulator.gpu.automaton.AbstractAutomaton.AutomatonType;
 import simulator.gpu.automaton.PrismVariable;
@@ -114,8 +115,9 @@ public class Kernel
 	 * @param model
 	 * @param properties
 	 * @throws KernelException
+	 * @throws PrismLangException 
 	 */
-	public Kernel(RuntimeConfig config, AbstractAutomaton model, List<Sampler> properties) throws KernelException
+	public Kernel(RuntimeConfig config, AbstractAutomaton model, List<Sampler> properties) throws KernelException, PrismLangException
 	{
 		this.config = config;
 		this.model = model;

@@ -327,8 +327,10 @@ public class ExpressionGenerator
 		StringBuilder builder = new StringBuilder(action);
 		for (Map.Entry<String, String> entry : translations.entrySet()) {
 			//while ((index = builder.indexOf(entry.getKey(), index)) != -1) {
-
-			builderReplaceMostCommon(builder, entry.getKey(), String.format("((float)%s)", entry.getValue()));
+			//if(entry.getKey().contains("i") ||entry.getKey().contains("nrtr") || entry.getKey().contains("ab") )
+			//if(entry.getKey().contains("nrtr"))
+			//continue;
+			//builderReplaceMostCommon(builder, entry.getKey(), String.format("((float)%s)", entry.getValue()));
 
 			//builder.replace(index, index + entry.getKey().length(), String.format("((float)%s)", entry.getValue()));
 			//index += entry.getValue().length() + 9;
@@ -345,7 +347,7 @@ public class ExpressionGenerator
 			//				builder.replace(index, index + stateVector[i].name.length(), String.format("((float)%s)", stateVector[i].name));
 			//				index += stateVector[i].name.length() + 9;
 			//			}
-			builderReplaceMostCommon(builder, stateVector[i].name, String.format("((float)%s)", stateVector[i].name));
+			//builderReplaceMostCommon(builder, stateVector[i].name, String.format("((float)%s)", stateVector[i].name));
 		}
 		return builder.toString();
 	}
@@ -354,7 +356,7 @@ public class ExpressionGenerator
 	{
 		StringBuilder builder = new StringBuilder(expr);
 		for (int i = 0; i < vars.length; ++i) {
-			builderReplaceMostCommon(builder, vars[i].name, String.format("((float)%s)", vars[i].name));
+			//builderReplaceMostCommon(builder, vars[i].name, String.format("((float)%s)", vars[i].name));
 		}
 		convertEquality(builder);
 		builderReplace(builder, "|", "||");
@@ -373,7 +375,7 @@ public class ExpressionGenerator
 	{
 		StringBuilder builder = new StringBuilder(expr);
 		for (int i = 0; i < vars.length; ++i) {
-			builderReplaceMostCommon(builder, vars[i].name, String.format("((float)%s)", vars[i].name));
+			//builderReplaceMostCommon(builder, vars[i].name, String.format("((float)%s)", vars[i].name));
 		}
 		convertEquality(builder);
 		builderReplace(builder, "|", "||");

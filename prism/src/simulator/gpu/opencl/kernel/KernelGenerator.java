@@ -1030,15 +1030,15 @@ public abstract class KernelGenerator
 
 	protected void propertiesMethodAddUntil(ComplexKernelComponent parent, SamplerUntil property, CLVariable propertyVar) throws PrismLangException
 	{
-		IfElse ifElse = createPropertyCondition(propertyVar, false, property.getRightSide().toString(), true);
-		//String propertyStringRight = visitPropertyExpression( property.getRightSide()).toString();
-		//String propertyStringLeft = visitPropertyExpression( property.getLeftSide()).toString();
-		//IfElse ifElse = createPropertyCondition(propertyVar, false, propertyStringRight, true);
+		//IfElse ifElse = createPropertyCondition(propertyVar, false, property.getRightSide().toString(), true);
+		String propertyStringRight = visitPropertyExpression( property.getRightSide()).toString();
+		String propertyStringLeft = visitPropertyExpression( property.getLeftSide()).toString();
+		IfElse ifElse = createPropertyCondition(propertyVar, false, propertyStringRight, true);
 		/**
 		 * in F/G it is true
 		 */
 		if (!(property.getLeftSide() instanceof ExpressionLiteral)) {
-			createPropertyCondition(ifElse, propertyVar, true, property.getLeftSide().toString(), false);
+			createPropertyCondition(ifElse, propertyVar, true, propertyStringLeft, false);
 		}
 		parent.addExpression(ifElse);
 	}

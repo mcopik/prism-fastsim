@@ -177,7 +177,7 @@ public abstract class CIMethod extends SimulationMethod
 		Preconditions.checkCondition(prOp == 0, "The method checkAgainstExpectedResult doesn't apply to non-quantitative properties");
 
 		if (Math.abs(result - expectedResult) > width) {
-			throw new PrismException(String.format("Expected result %g doesn't lie within the confidence interval [%g,%g]", expectedResult, result - width,
+			throw new PrismException(String.format("Expected result %g doesn't lie within the confidence interval [%g,%g]", expectedResult, Math.max(0.0, result - width),
 					result + width));
 		}
 	}

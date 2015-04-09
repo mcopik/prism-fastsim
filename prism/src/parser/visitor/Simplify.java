@@ -76,19 +76,6 @@ public class Simplify extends ASTTraverseModify
 			}
 			break;
 		case ExpressionBinaryOp.OR:
-
-			// if the the logical operation involves some other expression, then it
-			// would be good to save information about necessary parentheses which we're removed
-			// in recursive application of accept() at the beginning of this method
-			// so a | (b & c) won't change into a | b & c
-			// tree structure is preserved, but if we wan't to use string description then it will
-			// useless
-			if (e.getOperand2() instanceof ExpressionBinaryOp) {
-				e.setOperand2(Expression.Parenth(e.getOperand2()));
-			}
-			if (e.getOperand1() instanceof ExpressionBinaryOp) {
-				e.setOperand1(Expression.Parenth(e.getOperand1()));
-			}
 			if (Expression.isTrue(e.getOperand1()) || Expression.isTrue(e.getOperand2()))
 				return Expression.True();
 			if (Expression.isFalse(e.getOperand2()))
@@ -97,18 +84,6 @@ public class Simplify extends ASTTraverseModify
 				return e.getOperand2();
 			break;
 		case ExpressionBinaryOp.AND:
-			// if the the logical operation involves some other expression, then it
-			// would be good to save information about necessary parentheses which we're removed
-			// in recursive application of accept() at the beginning of this method
-			// so a | (b & c) won't change into a | b & c
-			// tree structure is preserved, but if we wan't to use string description then it will
-			// useless
-			if (e.getOperand2() instanceof ExpressionBinaryOp) {
-				e.setOperand2(Expression.Parenth(e.getOperand2()));
-			}
-			if (e.getOperand1() instanceof ExpressionBinaryOp) {
-				e.setOperand1(Expression.Parenth(e.getOperand1()));
-			}
 			if (Expression.isFalse(e.getOperand1()) || Expression.isFalse(e.getOperand2()))
 				return Expression.False();
 			if (Expression.isTrue(e.getOperand2()))
@@ -146,17 +121,6 @@ public class Simplify extends ASTTraverseModify
 				return new ExpressionUnaryOp(ExpressionUnaryOp.MINUS, e.getOperand2());
 			break;
 		case ExpressionBinaryOp.TIMES:
-			// if the the multiplication involves some other expression, then it
-			// would be good to save information about necessary parentheses which we're removed
-			// in recursive application of accept() at the beginning of this method
-			// e.g. i = (a+1)*(a+2) will become in toString:
-			// i = a+1*a+2
-			if (e.getOperand2() instanceof ExpressionBinaryOp) {
-				e.setOperand2(Expression.Parenth(e.getOperand2()));
-			}
-			if (e.getOperand1() instanceof ExpressionBinaryOp) {
-				e.setOperand1(Expression.Parenth(e.getOperand1()));
-			}
 			if (Expression.isInt(e.getOperand2()) && e.getOperand2().evaluateInt() == 1)
 				return e.getOperand1();
 			if (Expression.isInt(e.getOperand1()) && e.getOperand1().evaluateInt() == 1)
@@ -186,14 +150,6 @@ public class Simplify extends ASTTraverseModify
 			if (Expression.isDouble(e.getOperand1()) && e.getOperand1().evaluateDouble() == 0.0) {
 				// Need to be careful that type is preserved
 				return (e.getType() instanceof TypeDouble) ? Expression.Double(0.0) : Expression.Int(0);
-			}
-			break;
-		case ExpressionBinaryOp.DIVIDE:
-			// if the the division involves some other expression, then it
-			// would be good to save information about necessary parentheses which we're removed
-			// in recursive application of accept() at the beginning of this method
-			if (e.getOperand2() instanceof ExpressionBinaryOp) {
-				e.setOperand2(Expression.Parenth(e.getOperand2()));
 			}
 			break;
 		}
