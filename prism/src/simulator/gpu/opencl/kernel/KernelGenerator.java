@@ -46,8 +46,10 @@ import java.util.Map;
 import java.util.LinkedHashMap;
 
 import parser.ast.ExpressionLiteral;
+import prism.PrismLangException;
 import simulator.gpu.automaton.AbstractAutomaton;
 import simulator.gpu.automaton.AbstractAutomaton.StateVector;
+import simulator.gpu.automaton.ParsTreeModifier;
 import simulator.gpu.automaton.PrismVariable;
 import simulator.gpu.automaton.command.Command;
 import simulator.gpu.automaton.command.CommandInterface;
@@ -211,6 +213,8 @@ public abstract class KernelGenerator
 	 */
 	protected boolean timingProperty = false;
 
+	protected ParsTreeModifier treeVisitor = new ParsTreeModifier();
+	
 	//	/**
 	//	 * Contains names of variables that need to be copied before update.
 	//	 */
@@ -401,8 +405,9 @@ public abstract class KernelGenerator
 
 	/*********************************
 	 * MAIN METHOD
+	 * @throws PrismLangException 
 	 ********************************/
-	public Method createMainMethod() throws KernelException
+	public Method createMainMethod() throws KernelException, PrismLangException
 	{
 		Method currentMethod = new KernelMethod();
 
@@ -939,8 +944,9 @@ public abstract class KernelGenerator
 	 * 
 	 * @return
 	 * @throws KernelException
+	 * @throws PrismLangException 
 	 */
-	protected Method createPropertiesMethod() throws KernelException
+	protected Method createPropertiesMethod() throws KernelException, PrismLangException
 	{
 		Method currentMethod = new Method("checkProperties", new StdVariableType(StdType.BOOL));
 		/**
@@ -1006,18 +1012,28 @@ public abstract class KernelGenerator
 
 	protected abstract void propertiesMethodTimeArg(Method currentMethod) throws KernelException;
 
-	protected abstract void propertiesMethodAddBoundedUntil(Method currentMethod, ComplexKernelComponent parent, SamplerBoolean property, CLVariable propertyVar);
+	protected abstract void propertiesMethodAddBoundedUntil(Method currentMethod, ComplexKernelComponent parent, SamplerBoolean property, CLVariable propertyVar) throws PrismLangException;
 
-	protected void propertiesMethodAddNext(ComplexKernelComponent parent, SamplerNext property, CLVariable propertyVar)
+	protected parser.ast.Expression visitPropertyExpression(parser.ast.Expression prop) throws PrismLangException
 	{
-		IfElse ifElse = createPropertyCondition(propertyVar, false, property.getExpression().toString(), true);
+		return (parser.ast.Expression) prop.accept( treeVisitor );
+	}
+	
+	protected void propertiesMethodAddNext(ComplexKernelComponent parent, SamplerNext property, CLVariable propertyVar) throws PrismLangException
+	{
+		//IfElse ifElse = createPropertyCondition(propertyVar, false, property.getExpression().toString(), true);
+		String propertyString = visitPropertyExpression( property.getExpression()).toString();
+		IfElse ifElse = createPropertyCondition(propertyVar, false, propertyString, true);
 		createPropertyCondition(ifElse, propertyVar, false, null, false);
 		parent.addExpression(ifElse);
 	}
 
-	protected void propertiesMethodAddUntil(ComplexKernelComponent parent, SamplerUntil property, CLVariable propertyVar)
+	protected void propertiesMethodAddUntil(ComplexKernelComponent parent, SamplerUntil property, CLVariable propertyVar) throws PrismLangException
 	{
 		IfElse ifElse = createPropertyCondition(propertyVar, false, property.getRightSide().toString(), true);
+		//String propertyStringRight = visitPropertyExpression( property.getRightSide()).toString();
+		//String propertyStringLeft = visitPropertyExpression( property.getLeftSide()).toString();
+		//IfElse ifElse = createPropertyCondition(propertyVar, false, propertyStringRight, true);
 		/**
 		 * in F/G it is true
 		 */

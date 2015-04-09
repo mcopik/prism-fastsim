@@ -36,10 +36,12 @@ import static simulator.gpu.opencl.kernel.expression.ExpressionGenerator.functio
 import static simulator.gpu.opencl.kernel.expression.ExpressionGenerator.postIncrement;
 
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 
 import parser.ast.ExpressionLiteral;
 import prism.Preconditions;
+import prism.PrismLangException;
 import simulator.gpu.automaton.AbstractAutomaton;
 import simulator.gpu.automaton.command.Command;
 import simulator.gpu.automaton.command.SynchronizedCommand;
@@ -75,7 +77,7 @@ public class KernelGeneratorDTMC extends KernelGenerator
 	@Override
 	protected void createSynchronizedStructures()
 	{
-		synchronizedStates = new HashMap<>();
+		synchronizedStates = new LinkedHashMap<>();
 		CLVariable size = null, array = null, guards = null;
 		int sum = 1, max = 0;
 		int cmdNumber = 0;
@@ -472,15 +474,19 @@ public class KernelGeneratorDTMC extends KernelGenerator
 	}
 
 	@Override
-	protected void propertiesMethodAddBoundedUntil(Method currentMethod, ComplexKernelComponent parent, SamplerBoolean property, CLVariable propertyVar)
+	protected void propertiesMethodAddBoundedUntil(Method currentMethod, ComplexKernelComponent parent, SamplerBoolean property, CLVariable propertyVar) throws PrismLangException
 	{
 		//TODO: check if it will always work (e.g. CTMC case)
 		CLVariable time = currentMethod.getArg("time");
 		SamplerBoundedUntilDisc prop = (SamplerBoundedUntilDisc) property;
+		
+		String propertyStringRight = visitPropertyExpression( prop.getRightSide()).toString();
+		String propertyStringLeft = visitPropertyExpression( prop.getLeftSide()).toString();
 		/**
 		 * if(time > upper_bound)
 		 */
-		IfElse ifElse = new IfElse(createBasicExpression(time.getSource(), Operator.GE, fromString(prop.getUpperBound())));
+		IfElse ifElse = new IfElse(createBasicExpression(time.getSource(), Operator.GE, 
+				fromString(prop.getUpperBound())));
 		/**
 		 * if(right_side == true) -> true
 		 * else -> false
@@ -488,9 +494,11 @@ public class KernelGeneratorDTMC extends KernelGenerator
 		IfElse rhsCheck = null;
 		//TODO: always !prop?
 		if (prop.getRightSide().toString().charAt(0) == '!') {
-			rhsCheck = createPropertyCondition(propertyVar, true, prop.getRightSide().toString().substring(1), true);
+			rhsCheck = createPropertyCondition(propertyVar, true, 
+					propertyStringRight.substring(1), true);
 		} else {
-			rhsCheck = createPropertyCondition(propertyVar, false, prop.getRightSide().toString(), true);
+			rhsCheck = createPropertyCondition(propertyVar, 
+					false, propertyStringRight, true);
 		}
 		createPropertyCondition(rhsCheck, propertyVar, false, null, false);
 		ifElse.addExpression(rhsCheck);
@@ -504,12 +512,15 @@ public class KernelGeneratorDTMC extends KernelGenerator
 		 */
 		IfElse betweenBounds = null;
 		if (prop.getRightSide().toString().charAt(0) == '!') {
-			betweenBounds = createPropertyCondition(propertyVar, true, prop.getRightSide().toString().substring(1), true);
+			betweenBounds = createPropertyCondition(propertyVar, true, 
+					propertyStringRight.substring(1), true);
 		} else {
-			betweenBounds = createPropertyCondition(propertyVar, false, prop.getRightSide().toString(), true);
+			betweenBounds = createPropertyCondition(propertyVar, false, 
+					propertyStringRight.toString(), true);
 		}
 		if (!(prop.getLeftSide() instanceof ExpressionLiteral)) {
-			createPropertyCondition(betweenBounds, propertyVar, true, prop.getLeftSide().toString(), false);
+			createPropertyCondition(betweenBounds, propertyVar, true, 
+					propertyStringLeft, false);
 		}
 		ifElse.addExpression(1, betweenBounds);
 		parent.addExpression(ifElse);
