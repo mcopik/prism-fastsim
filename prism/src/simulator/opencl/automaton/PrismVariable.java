@@ -27,9 +27,24 @@ package simulator.opencl.automaton;
 
 public class PrismVariable
 {
+	/**
+	 * Var name.
+	 */
 	public final String name;
+
+	/**
+	 * True when variable has to support negative values.
+	 */
 	public final boolean signFlag;
+
+	/**
+	 * Initial value for the variable.
+	 */
 	public final int initValue;
+
+	/**
+	 * Number of bits which is necessary to support all possible values of variable.
+	 */
 	public final int bitsNumber;
 
 	/**

@@ -52,6 +52,8 @@ public class ParsTreeModifier extends ASTTraverseModify
 	public Object visit(ExpressionUnaryOp e) throws PrismLangException
 	{
 		e.setOperand((Expression) (e.getOperand().accept(this)));
+		// avoid expressions of form !a op b
+		// it's much better to have !(a op b)
 		if (e.getOperator() == ExpressionUnaryOp.NOT) {
 			e.setOperand(Expression.Parenth(e.getOperand()));
 		}

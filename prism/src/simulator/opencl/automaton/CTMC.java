@@ -39,6 +39,7 @@ public class CTMC extends AbstractAutomaton
 		}
 	}
 
+	@Override
 	public AutomatonType getType()
 	{
 		return AutomatonType.CTMC;

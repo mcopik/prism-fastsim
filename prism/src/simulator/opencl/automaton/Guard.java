@@ -29,19 +29,31 @@ import parser.ast.Expression;
 
 public class Guard
 {
+	/**
+	 * Parser's expression.
+	 */
 	private Expression guard;
 
+	/**
+	 * Right now, doesn't do anything else except storing PRISM's Expression.
+	 * Leave the class for future usage.
+	 * @param guard
+	 */
 	public Guard(Expression guard)
 	{
 		this.guard = guard;
 		simplify(guard);
 	}
 
+	@Override
 	public String toString()
 	{
 		return guard.toString();
 	}
 
+	/**
+	 * Leave for potential future usage.
+	 */
 	private void simplify(Expression guard)
 	{
 

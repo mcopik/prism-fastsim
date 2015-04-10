@@ -39,6 +39,7 @@ public class DTMC extends AbstractAutomaton
 		}
 	}
 
+	@Override
 	public AutomatonType getType()
 	{
 		return AutomatonType.DTMC;

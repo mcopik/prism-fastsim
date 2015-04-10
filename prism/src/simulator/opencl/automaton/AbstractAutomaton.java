@@ -41,42 +41,92 @@ import simulator.opencl.automaton.command.CommandInterface;
 
 public abstract class AbstractAutomaton
 {
+	/**
+	 * Right now supports only Markov chains.
+	 */
 	public enum AutomatonType {
 		DTMC, CTMC
 	}
 
+	/**
+	 * Parser files.
+	 */
 	protected ModulesFile modulesFile = null;
+
+	/**
+	 * Used for extraction of variables in model.
+	 */
 	protected VarList varList = null;
+
+	/**
+	 * Contains all commands, non-synchronized and synchronized.
+	 */
 	protected List<CommandInterface> commands = new ArrayList<>();
+
+	/**
+	 * Model's state vector - contains all variables.
+	 */
 	protected StateVector variables = new StateVector();
+
+	/**
+	 * Number of non-synchronized commands.
+	 */
 	protected int numOfCommands = 0;
+
+	/**
+	 * Number of synchronized commands.
+	 */
 	protected int numOfSyncCommands = 0;
 
+	/**
+	 * Represent all variables in PRISM model.
+	 */
 	public class StateVector
 	{
+		/**
+		 * variable name -> variable object
+		 */
 		protected Map<String, PrismVariable> variables = new HashMap<>();
 
+		/**
+		 * Add new variable to SV. Assume that a variable with this name doesn't exist!
+		 * @param var
+		 */
 		public void addVariable(PrismVariable var)
 		{
+			Preconditions.checkCondition(!variables.containsKey(var.name));
 			variables.put(var.name, var);
 		}
 
+		/**
+		 * Assumes that a variable with given name exists in model!
+		 * @param name
+		 * @return variable for given name
+		 */
 		public PrismVariable getVar(String name)
 		{
+			Preconditions.checkCondition(variables.containsKey(name));
 			return variables.get(name);
 		}
 
+		/**
+		 * @return all variables in model
+		 */
 		public PrismVariable[] getVars()
 		{
 			Collection<PrismVariable> vars = variables.values();
 			return vars.toArray(new PrismVariable[vars.size()]);
 		}
 
+		/**
+		 * @return number of variables
+		 */
 		public int size()
 		{
 			return variables.size();
 		}
 
+		@Override
 		public String toString()
 		{
 			StringBuilder builder = new StringBuilder();
@@ -87,34 +137,52 @@ public abstract class AbstractAutomaton
 		}
 	}
 
+	/**
+	 * Default constructor. Performs additional transformation of parse tree - replaceConstants and simplify should have
+	 * been done in SimulatorEngine.
+	 * @param modulesFile
+	 * @throws PrismException
+	 */
 	public AbstractAutomaton(ModulesFile modulesFile) throws PrismException
 	{
 		varList = modulesFile.createVarList();
 		//assume that the replaceConstants and simplify has been already done in SimulatorEngine!
-		this.modulesFile = (ModulesFile) modulesFile.deepCopy().
-				replaceConstants(modulesFile.getConstantValues()).
-				simplify().accept(new ParsTreeModifier());
+		//this.modulesFile = (ModulesFile) modulesFile.deepCopy().replaceConstants(modulesFile.getConstantValues()).simplify().accept(new ParsTreeModifier());
+		this.modulesFile = (ModulesFile) modulesFile.deepCopy().accept(new ParsTreeModifier());
 		this.modulesFile.tidyUp();
 		extractVariables();
 		extractUpdates();
 	}
 
+	/**
+	 * @return number of non-synchronized commands.
+	 */
 	public int synchCmdsNumber()
 	{
 		return numOfSyncCommands;
 	}
 
+	/**
+	 * @return number of synchronized commands.
+	 */
 	public int commandsNumber()
 	{
 		return commands.size();
 	}
 
+	/**
+	 * @param number
+	 * @return n-th command in model
+	 */
 	public CommandInterface getCommand(int number)
 	{
 		Preconditions.checkIndex(number, commands.size(), String.format("Command number %d is bigger than commands size", number));
 		return commands.get(number);
 	}
 
+	/**
+	 * Internal method - create PrismVariable objects for each variable in model.
+	 */
 	protected void extractVariables()
 	{
 		int varLen = varList.getNumVars(), i = 0;
@@ -124,6 +192,9 @@ public abstract class AbstractAutomaton
 		}
 	}
 
+	/**
+	 * Internal method - create PrismVariable objects for each variable in model.
+	 */
 	protected void extractUpdates()
 	{
 		CommandBuilder builder = new CommandBuilder(getType(), variables);
@@ -139,11 +210,13 @@ public abstract class AbstractAutomaton
 	}
 
 	/**
-	 * 
-	 * @return
+	 * @return type of automaton implemented in subclass
 	 */
 	public abstract AutomatonType getType();
 
+	/**
+	 * @return SV object
+	 */
 	public StateVector getStateVector()
 	{
 		return variables;
