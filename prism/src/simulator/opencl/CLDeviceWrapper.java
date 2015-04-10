@@ -65,7 +65,7 @@ public class CLDeviceWrapper implements SMCRuntimeDeviceInterface
 
 	public String getFrameworkVersion()
 	{
-		return device.getOpenCLVersion();
+		return device.getOpenCLCVersion();
 	}
 
 	public CLContext createDeviceContext()
