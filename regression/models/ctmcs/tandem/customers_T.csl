@@ -1,0 +1,9 @@
+const double T=0.6;
+
+// Expected number of customers in the network at time T
+// RESULT(c=5): 5.339352771699679
+// RESULT(c=7): 7.3979323038235
+// RESULT(c=15): 15.45717240355029
+// RESULT(c=31): 31.477503080689
+// RESULT(c=63): 63.48679740449141
+"customers_T": R=? [ I=T ];

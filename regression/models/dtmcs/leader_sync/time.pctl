@@ -1,0 +1,6 @@
+// Expected time (num. rounds) to elect a leader
+
+// RESULT(N=3,K=2): 1.3333330154418945
+// RESULT(N=4,K=3): 1.3499998755069562
+// RESULT(N=5,K=2): 3.199993547996921
+"time": R{"num_rounds"}=? [ F "elected" ];

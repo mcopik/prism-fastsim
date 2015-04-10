@@ -1,0 +1,8 @@
+const double T=24;
+
+// Probability of I/O failure within T hours
+// RESULT(MAX_COUNT=5): 0.005723470399732545
+// RESULT(MAX_COUNT=6): 0.00551845979427307
+// RESULT(MAX_COUNT=7): 0.005447609305620534
+// RESULT(MAX_COUNT=8): 0.005421476750723331
+"io_T": P=? [ !"down" U<=(T*3600) "fail_io" ];

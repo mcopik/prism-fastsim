@@ -1,0 +1,8 @@
+const double T=0.1;
+
+// Probability of main system failure within T hours
+// RESULT(MAX_COUNT=5): 1.1415454097512153E-5
+// RESULT(MAX_COUNT=6): 1.1415457010893315E-5
+// RESULT(MAX_COUNT=7): 1.1415458058306268E-5
+// RESULT(MAX_COUNT=8): 1.1415458443948673E-5
+"main_T": P=? [ !"down" U<=(T*3600) "fail_main" ];

@@ -1,0 +1,9 @@
+const double T=50;
+
+// Probability that it takes more than T time units to recover from insufficient QoS
+// RESULT(N=2): 0.0
+// RESULT(N=4): 0.0
+// RESULT(N=8): 0.0
+// RESULT(N=16): 0.0
+// RESULT(N=32): 0.0
+"qos4": P=? [ !"minimum" U>=T "minimum" ];

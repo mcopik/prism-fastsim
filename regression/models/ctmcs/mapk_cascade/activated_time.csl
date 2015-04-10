@@ -1,0 +1,6 @@
+// Expected time until all MAPK are activated at the same time instant
+// RESULT(N=1): 66.18239710702922
+// RESULT(N=2): 57.526445788903104
+// RESULT(N=3): 46.88192250430013
+// RESULT(N=4): 40.67270371188303
+"activated_time": R{"time"}=? [ F kpp=N ];

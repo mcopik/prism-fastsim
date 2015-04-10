@@ -1,0 +1,8 @@
+const double T=30;
+
+// Expected time spent in "danger" by time T (hours)
+// RESULT(MAX_COUNT=5): 0.020670498005351878
+// RESULT(MAX_COUNT=6): 0.020672668592879275
+// RESULT(MAX_COUNT=7): 0.020673438096776603
+// RESULT(MAX_COUNT=8): 0.02067374062217494
+"danger_T": R{"danger"}=? [ C<=(T*3600) ];

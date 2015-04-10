@@ -1,0 +1,10 @@
+const double T=50;
+
+// Probability of going from minimum QoS to premium QoS
+// within T time units without violating the minimum QoS constraint along the way
+// RESULT(N=2): 1.0
+// RESULT(N=4): 1.0
+// RESULT(N=8): 1.0
+// RESULT(N=16): 1.0
+// RESULT(N=32): 1.0
+"qos3": P=? [ "minimum" U<=T "premium" ];

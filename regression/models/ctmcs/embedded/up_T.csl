@@ -1,0 +1,8 @@
+const double T=10;
+
+// Expected time spent in "up" by time T (hours)
+// RESULT(MAX_COUNT=5): 9.974223341664045
+// RESULT(MAX_COUNT=6): 9.974262136747232
+// RESULT(MAX_COUNT=7): 9.974299936028887
+// RESULT(MAX_COUNT=8): 9.97433736139329
+"up_T": R{"up"}=? [ C<=(T*3600) ];

@@ -1,0 +1,9 @@
+const double T=30;
+
+// Expected amount of activated MAPK at time T
+// RESULT(N=1): 0.04028853534606023
+// RESULT(N=2): 0.38550655380379645
+// RESULT(N=3): 1.1456406982391172
+// RESULT(N=4): 2.1081670934173826
+// RESULT(N=5): 3.1179979107813276
+"activated_T": R{"activated"}=? [ I=T ];

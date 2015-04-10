@@ -1,0 +1,4 @@
+const double T=500;
+
+// Probability network becomes full in T time units
+"network": P=? [ F<=T sc=c & sm=c & ph=2 ];

@@ -1,0 +1,8 @@
+const double T=0.2;
+// Probability first queue becomes full in T time units
+// RESULT(c=5): 0.33526051182652195
+// RESULT(c=7): 0.29692715660717495
+// RESULT(c=15): 0.2060312079919098
+// RESULT(c=31): 0.11644153385864799
+// RESULT(c=63): 0.044034001556982415
+"first_queue": P=? [ F<=T sc=c ];

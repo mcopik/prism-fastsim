@@ -1,0 +1,10 @@
+const double T=5;
+
+// Probability that station 1 will be polled within T time units
+// RESULT(N=3): 1.0
+// RESULT(N=4): 1.0
+// RESULT(N=5): 1.0
+// RESULT(N=6): 1.0
+// RESULT(N=7): 1.0
+// RESULT(N=8): 1.0
+"station1_polled": P=? [ F<=T (s=1 & a=0) ];

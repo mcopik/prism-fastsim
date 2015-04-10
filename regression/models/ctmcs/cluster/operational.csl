@@ -1,0 +1,9 @@
+const double T=10;
+
+// Percentage of operational workstations at time T
+// RESULT(N=2): 99.87782690888835
+// RESULT(N=4): 99.87733171389176
+// RESULT(N=8): 99.87632818509108
+// RESULT(N=16): 99.87426692095471
+// RESULT(N=32): 99.86991347825587
+"operational": R{"percent_op"}=? [ I=T ];
