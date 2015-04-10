@@ -39,10 +39,9 @@ import parser.ast.PropertiesFile;
 import parser.ast.Property;
 import prism.Prism.StrategyExportType;
 import simulator.GenerateSimulationPath;
-import simulator.SimulationSettings;
+import simulator.SMCRuntimeDeviceInterface;
 import simulator.SMCRuntimeInterface;
-import simulator.gpu.RuntimeDeviceInterface;
-import simulator.gpu.opencl.RuntimeOpenCL;
+import simulator.SimulationSettings;
 import simulator.method.ACIconfidence;
 import simulator.method.ACIiterations;
 import simulator.method.ACIwidth;
@@ -54,6 +53,7 @@ import simulator.method.CIiterations;
 import simulator.method.CIwidth;
 import simulator.method.SPRTMethod;
 import simulator.method.SimulationMethod;
+import simulator.opencl.RuntimeOpenCL;
 
 // prism - command line version
 
@@ -2153,10 +2153,10 @@ public class PrismCL implements PrismModelListener
 				RuntimeOpenCL runtime = new RuntimeOpenCL(prism);
 				simMaxPath = prism.getSettings().getInteger(PrismSettings.OPENCL_SIMULATOR_DEFAULT_MAX_PATH);
 				if (simDeviceGiven) {
-					String[] names = runtime.getDevicesNames();
+					String[] names = runtime.getDevicesExtendedNames();
 					int device = -1;
 					for (int i = 0; i < names.length; ++i) {
-						if (names[i].toLowerCase().contains(simDevice)) {
+						if (names[i].toLowerCase().contains(simDevice.toLowerCase())) {
 							if (device == -1) {
 								device = i;
 							} else {
@@ -2362,7 +2362,7 @@ public class PrismCL implements PrismModelListener
 		mainLog.println("Devices available in OpenCL engine:");
 		try {
 			RuntimeOpenCL runtime = new RuntimeOpenCL(prism);
-			RuntimeDeviceInterface[] devs = runtime.getDevices();
+			SMCRuntimeDeviceInterface[] devs = runtime.getDevices();
 			for (int i = 0; i < devs.length; ++i) {
 				mainLog.println(String.format("#%d : %s", i, devs[i].getName()));
 				mainLog.println("Platform: " + devs[i].getPlatformName());

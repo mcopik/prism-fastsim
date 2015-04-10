@@ -31,7 +31,6 @@ import parser.State;
 import parser.ast.Expression;
 import parser.ast.ModulesFile;
 import prism.PrismException;
-import simulator.gpu.RuntimeDeviceInterface;
 import simulator.sampler.Sampler;
 
 /**
@@ -75,7 +74,7 @@ public interface SMCRuntimeInterface
 	/**
 	 * @return array with available devices
 	 */
-	RuntimeDeviceInterface[] getDevices();
+	SMCRuntimeDeviceInterface[] getDevices();
 
 	/**
 	 * @return array with device names
@@ -83,38 +82,43 @@ public interface SMCRuntimeInterface
 	String[] getDevicesNames();
 
 	/**
+	 * @return array with device extended names
+	 */
+	String[] getDevicesExtendedNames();
+
+	/**
 	 * Get the device with maximum FLOPS.
 	 * @return theoretically "best" device
 	 */
-	RuntimeDeviceInterface getMaxFlopsDevice();
+	SMCRuntimeDeviceInterface getMaxFlopsDevice();
 
 	/**
 	 * Get the device of selected type with maximum FLOPS.
 	 * @param type type of device
 	 * @return theoretically "best" device
 	 */
-	RuntimeDeviceInterface getMaxFlopsDevice(DeviceType type);
+	SMCRuntimeDeviceInterface getMaxFlopsDevice(DeviceType type);
 
 	/**
 	 * Select device used by the framework.
 	 * @param device
 	 */
-	void selectDevice(RuntimeDeviceInterface device);
-	
+	void selectDevice(SMCRuntimeDeviceInterface device);
+
 	/**
 	 * Check if this model can be processed by this runtime.
 	 * @param modulesFile
 	 * @throws PrismException
 	 */
 	void checkModelForAMC(ModulesFile modulesFile) throws PrismException;
-	
+
 	/**
 	 * Check if this property can be processed by this runtime.
 	 * @param expr
 	 * @throws PrismException
 	 */
 	void checkPropertyForAMC(Expression expr) throws PrismException;
-	
+
 	/**
 	 * Execute sampling for the set of currently loaded properties.
 	 * Sample paths are from the specified initial state and maximum length.

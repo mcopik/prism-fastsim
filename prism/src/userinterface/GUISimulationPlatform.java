@@ -37,12 +37,11 @@ import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.border.TitledBorder;
 
-import prism.Prism;
 import prism.PrismComponent;
 import prism.PrismException;
+import simulator.SMCRuntimeDeviceInterface;
 import simulator.SMCRuntimeInterface;
-import simulator.gpu.RuntimeDeviceInterface;
-import simulator.gpu.opencl.RuntimeOpenCL;
+import simulator.opencl.RuntimeOpenCL;
 
 @SuppressWarnings("serial")
 public class GUISimulationPlatform extends JPanel
@@ -84,11 +83,11 @@ public class GUISimulationPlatform extends JPanel
 	/**
 	 * ComboBox with devices.
 	 */
-	private JComboBox<String> selectDevice = new JComboBox<>();
+	private JComboBox<SMCRuntimeDeviceInterface> selectDevice = new JComboBox<>();
 	/**
 	 * Hard coded possible device for default platform.
 	 */
-	private DefaultComboBoxModel<String> availableDevices = new DefaultComboBoxModel<>(new String[] { "CPU" });
+	//private DefaultComboBoxModel<String> availableDevices = new DefaultComboBoxModel<>(new String[] { "CPU" });
 	//--------------DEVICE INFO------------------
 	/**
 	 * Device name label - caption.
@@ -121,12 +120,12 @@ public class GUISimulationPlatform extends JPanel
 	/**
 	 * Current selected device.
 	 */
-	private RuntimeDeviceInterface currentDevice = null;
+	private SMCRuntimeDeviceInterface currentDevice = null;
 	/**
 	 * Prism main object.
 	 */
 	private PrismComponent parent;
-	
+
 	public GUISimulationPlatform(PrismComponent parent)
 	{
 		super(new GridBagLayout());
@@ -200,7 +199,7 @@ public class GUISimulationPlatform extends JPanel
 		gridBagConstraints.gridy = 3;
 		gridBagConstraints.fill = GridBagConstraints.HORIZONTAL;
 		selectDevice.setEnabled(false);
-		selectDevice.setModel(availableDevices);
+		//selectDevice.setModel(availableDevices);
 		selectDevice.addActionListener(new ActionListener()
 		{
 			public void actionPerformed(ActionEvent evt)
@@ -249,7 +248,8 @@ public class GUISimulationPlatform extends JPanel
 			selectDevice.setEnabled(true);
 			try {
 				currentFramework = new RuntimeOpenCL(parent);
-				selectDevice.setModel(new DefaultComboBoxModel<String>(currentFramework.getDevicesNames()));
+				selectDevice.setModel(new DefaultComboBoxModel<SMCRuntimeDeviceInterface>(currentFramework.getDevices()));
+				changeSelectedDevice(null);
 				previousPlatformSelection = 1;
 			} catch (PrismException exc) {
 				JOptionPane.showMessageDialog(null, exc.getMessage(), "Error!", JOptionPane.ERROR_MESSAGE);
@@ -265,8 +265,7 @@ public class GUISimulationPlatform extends JPanel
 	 */
 	private void changeSelectedDevice(ActionEvent evt)
 	{
-		RuntimeDeviceInterface[] devices = currentFramework.getDevices();
-		currentDevice = devices[selectDevice.getSelectedIndex()];
+		currentDevice = (SMCRuntimeDeviceInterface) selectDevice.getSelectedItem();
 		labelName.setText(DEVICE_NAME_CAPTION + currentDevice.getName());
 		labelPlatformName.setText(DEVICE_PLATFORM_CAPTION + currentDevice.getPlatformName());
 		labelVersion.setText(DEVICE_VERSION_CAPTION + currentDevice.getFrameworkVersion());

@@ -61,13 +61,11 @@ import parser.ast.Property;
 import pta.DigitalClocks;
 import pta.PTAModelChecker;
 import simulator.GenerateSimulationPath;
-import simulator.SMCRuntimeInterface;
 import simulator.PrismModelExplorer;
+import simulator.SMCRuntimeInterface;
 import simulator.SimulationSettings;
 import simulator.SimulatorEngine;
 import simulator.StochasticModelChecker;
-import simulator.gpu.GPUSimulatorEngine;
-import simulator.gpu.opencl.RuntimeOpenCL;
 import simulator.method.SimulationMethod;
 import sparse.PrismSparse;
 import strat.Strategy;
@@ -202,7 +200,7 @@ public class Prism extends PrismComponent implements PrismSettingsListener
 	protected boolean exportProductStates = false;
 	protected String exportProductStatesFilename = null;
 	// Store the final results vector after model checking?
-	protected boolean storeVector = false; 
+	protected boolean storeVector = false;
 	// Generate/store a strategy during model checking?
 	protected boolean genStrat = false;
 	// Do bisimulation minimisation before model checking?
@@ -1043,15 +1041,15 @@ public class Prism extends PrismComponent implements PrismSettingsListener
 		}
 		return theSimulator;
 	}
-	
+
 	public StochasticModelChecker getSMC()
 	{
 		if (stochasticMC == null) {
-			stochasticMC = new StochasticModelChecker(getSimulator(),this);
+			stochasticMC = new StochasticModelChecker(getSimulator(), this);
 		}
 		return stochasticMC;
 	}
-	
+
 	/**
 	 * Get the SimulatorEngine object for PRISM, creating if necessary.
 	 * Enables choosing between different implementations of simulator.
@@ -3037,10 +3035,10 @@ public class Prism extends PrismComponent implements PrismSettingsListener
 		// Do simulation
 		return getSMC().modelCheckMultipleProperties(currentModulesFile, propertiesFile, exprs, initialState, maxPathLength, simMethod);
 
-//		Result[] resArray = new Result[res.length];
-//		for (int i = 0; i < res.length; i++)
-//			resArray[i] = new Result(res[i]);
-//		return resArray;
+		//		Result[] resArray = new Result[res.length];
+		//		for (int i = 0; i < res.length; i++)
+		//			resArray[i] = new Result(res[i]);
+		//		return resArray;
 	}
 
 	/**
@@ -3100,8 +3098,7 @@ public class Prism extends PrismComponent implements PrismSettingsListener
 
 		// Do simulation
 		configureStochasticMC(simSettings);
-		getSMC().modelCheckExperiment(currentModulesFile, propertiesFile, undefinedConstants, results, expr, initialState, pathLength,
-				simSettings.getMethod());
+		getSMC().modelCheckExperiment(currentModulesFile, propertiesFile, undefinedConstants, results, expr, initialState, pathLength, simSettings.getMethod());
 	}
 
 	/**
@@ -3131,7 +3128,7 @@ public class Prism extends PrismComponent implements PrismSettingsListener
 		mc.setParameters(paramNames, paramLowerBounds, paramUpperBounds);
 		mc.setModulesFileAndPropertiesFile(currentModulesFile, propertiesFile);
 		Result result = mc.check(modelExpl, prop.getExpression());
-		
+
 		// Convert result of parametric model checking to just a rational
 		// There should be just one region since no parameters are used
 		RegionValues regVals = (RegionValues) result.getResult();
@@ -3142,17 +3139,17 @@ public class Prism extends PrismComponent implements PrismSettingsListener
 		BigRational rat = func.evaluate(new param.Point(new BigRational[] { new BigRational(0) }));
 		// Restore in result object
 		result.setResult(rat);
-		
+
 		// Print result to log
 		String resultString = "Result";
 		if (!("Result".equals(prop.getExpression().getResultName())))
 			resultString += " (" + prop.getExpression().getResultName().toLowerCase() + ")";
 		resultString += ": " + result.getResultString();
 		mainLog.print("\n" + resultString);
-		
+
 		return result;
 	}
-	
+
 	/**
 	 * Perform parametric model checking on the currently loaded model.
 	 * @param propertiesFile parent properties file
@@ -3195,14 +3192,14 @@ public class Prism extends PrismComponent implements PrismSettingsListener
 		mc.setParameters(paramNames, paramLowerBounds, paramUpperBounds);
 		mc.setModulesFileAndPropertiesFile(currentModulesFile, propertiesFile);
 		Result result = mc.check(modelExpl, prop.getExpression());
-		
+
 		// Print result to log
 		String resultString = "Result";
 		if (!("Result".equals(prop.getExpression().getResultName())))
 			resultString += " (" + prop.getExpression().getResultName().toLowerCase() + ")";
 		resultString += ": " + result.getResultString();
 		mainLog.print("\n" + resultString);
-		
+
 		return result;
 	}
 
@@ -3339,16 +3336,14 @@ public class Prism extends PrismComponent implements PrismSettingsListener
 		ProbModelChecker mc;
 		if (model.getModelType() == ModelType.DTMC) {
 			mc = new ProbModelChecker(this, model, null);
-		}
-		else if (model.getModelType() == ModelType.CTMC) {
+		} else if (model.getModelType() == ModelType.CTMC) {
 			mc = new StochModelChecker(this, model, null);
-		}
-		else {
+		} else {
 			throw new PrismException("Steady-state probabilities only computed for DTMCs/CTMCs");
 		}
 		return mc.doSteadyState(fileIn);
 	}
-	
+
 	/**
 	 * Compute steady-state probabilities (for a DTMC or CTMC) using the explicit engine.
 	 * Optionally (if non-null), read in the initial probability distribution from a file.

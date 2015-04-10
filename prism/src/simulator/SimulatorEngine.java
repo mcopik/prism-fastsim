@@ -34,10 +34,6 @@ import parser.State;
 import parser.Values;
 import parser.VarList;
 import parser.ast.Expression;
-import parser.ast.ExpressionFilter;
-import parser.ast.ExpressionProb;
-import parser.ast.ExpressionReward;
-import parser.ast.ExpressionTemporal;
 import parser.ast.LabelList;
 import parser.ast.ModulesFile;
 import parser.ast.PropertiesFile;
@@ -49,10 +45,6 @@ import prism.PrismFileLog;
 import prism.PrismLangException;
 import prism.PrismLog;
 import prism.PrismUtils;
-import prism.ResultsCollection;
-import prism.UndefinedConstants;
-import simulator.gpu.RuntimeDeviceInterface;
-import simulator.method.SimulationMethod;
 import simulator.sampler.Sampler;
 import strat.Strategy;
 import userinterface.graph.Graph;
@@ -112,7 +104,7 @@ public class SimulatorEngine extends PrismComponent implements SMCRuntimeInterfa
 	private List<State> reachableStates;
 	// Strategy
 	private Strategy strategy;
-	
+
 	// Labels + properties info
 	protected List<Expression> labels;
 	private List<Expression> properties;
@@ -494,7 +486,7 @@ public class SimulatorEngine extends PrismComponent implements SMCRuntimeInterfa
 	{
 		this.reachableStates = reachableStates;
 	}
-	
+
 	/**
 	 * Load a strategy for the currently loaded model into the simulator.
 	 */
@@ -502,7 +494,7 @@ public class SimulatorEngine extends PrismComponent implements SMCRuntimeInterfa
 	{
 		this.strategy = strategy;
 	}
-	
+
 	/**
 	 * Construct a path through a model to match a supplied path,
 	 * specified as a PathFullInfo object.
@@ -730,7 +722,7 @@ public class SimulatorEngine extends PrismComponent implements SMCRuntimeInterfa
 
 		// Clear storage for strategy
 		strategy = null;
-		
+
 		// Create storage for labels/properties
 		labels = new ArrayList<Expression>();
 		properties = new ArrayList<Expression>();
@@ -866,7 +858,7 @@ public class SimulatorEngine extends PrismComponent implements SMCRuntimeInterfa
 			strategy.initialise(s);
 		}
 	}
-	
+
 	/**
 	 * Update the state of the loaded strategy, if present, based on the last step that occurred.
 	 */
@@ -879,7 +871,7 @@ public class SimulatorEngine extends PrismComponent implements SMCRuntimeInterfa
 			strategy.update(action, s);
 		}
 	}
-	
+
 	// ------------------------------------------------------------------------------
 	// Queries regarding model
 	// ------------------------------------------------------------------------------
@@ -1348,8 +1340,6 @@ public class SimulatorEngine extends PrismComponent implements SMCRuntimeInterfa
 	// Model checking (approximate)
 	// ------------------------------------------------------------------------------
 
-	
-
 	@Override
 	public int doSampling(ModulesFile modulesFile, List<Sampler> properties, State initialState, long maxPathLength) throws PrismException
 	{
@@ -1382,7 +1372,7 @@ public class SimulatorEngine extends PrismComponent implements SMCRuntimeInterfa
 		createNewOnTheFlyPath(modulesFile);
 		propertySamplers.clear();
 		propertySamplers.addAll(properties);
-		
+
 		// Main sampling loop
 		iters = 0;
 		while (!shouldStopSampling) {
@@ -1511,7 +1501,7 @@ public class SimulatorEngine extends PrismComponent implements SMCRuntimeInterfa
 	/***
 	 * APPROXIMATE MODEL CHECKING INTERFACE
 	 */
-	
+
 	@Override
 	public String getFrameworkName()
 	{
@@ -1541,7 +1531,7 @@ public class SimulatorEngine extends PrismComponent implements SMCRuntimeInterfa
 	}
 
 	@Override
-	public RuntimeDeviceInterface[] getDevices()
+	public SMCRuntimeDeviceInterface[] getDevices()
 	{
 		// TODO Auto-generated method stub
 		return null;
@@ -1555,31 +1545,38 @@ public class SimulatorEngine extends PrismComponent implements SMCRuntimeInterfa
 	}
 
 	@Override
-	public RuntimeDeviceInterface getMaxFlopsDevice()
+	public String[] getDevicesExtendedNames()
 	{
 		// TODO Auto-generated method stub
 		return null;
 	}
 
 	@Override
-	public RuntimeDeviceInterface getMaxFlopsDevice(DeviceType type)
+	public SMCRuntimeDeviceInterface getMaxFlopsDevice()
 	{
 		// TODO Auto-generated method stub
 		return null;
 	}
 
 	@Override
-	public void selectDevice(RuntimeDeviceInterface device)
+	public SMCRuntimeDeviceInterface getMaxFlopsDevice(DeviceType type)
 	{
 		// TODO Auto-generated method stub
-		
+		return null;
+	}
+
+	@Override
+	public void selectDevice(SMCRuntimeDeviceInterface device)
+	{
+		// TODO Auto-generated method stub
+
 	}
 
 	@Override
 	public void checkModelForAMC(ModulesFile modulesFile) throws PrismException
 	{
 		// TODO Auto-generated method stub
-		
+
 	}
 
 	@Override

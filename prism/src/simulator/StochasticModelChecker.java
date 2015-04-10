@@ -1,3 +1,28 @@
+//==============================================================================
+//	
+//	Copyright (c) 2002-
+//	Authors:
+//	* Marcin Copik <mcopik@gmail.com> (RWTH Aachen, formerly Silesian University of Technology)
+//	
+//------------------------------------------------------------------------------
+//	
+//	This file is part of PRISM.
+//	
+//	PRISM is free software; you can redistribute it and/or modify
+//	it under the terms of the GNU General Public License as published by
+//	the Free Software Foundation; either version 2 of the License, or
+//	(at your option) any later version.
+//	
+//	PRISM is distributed in the hope that it will be useful,
+//	but WITHOUT ANY WARRANTY; without even the implied warranty of
+//	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//	GNU General Public License for more details.
+//	
+//	You should have received a copy of the GNU General Public License
+//	along with PRISM; if not, write to the Free Software Foundation,
+//	Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+//	
+//==============================================================================
 package simulator;
 
 import java.util.ArrayList;
@@ -23,6 +48,10 @@ import prism.UndefinedConstants;
 import simulator.method.SimulationMethod;
 import simulator.sampler.Sampler;
 
+/**
+ * Implements the statistical verification of properties,
+ * using the doSampling() method provided by SMC runtime. 
+ */
 public class StochasticModelChecker extends PrismComponent
 {
 	/**
@@ -30,32 +59,46 @@ public class StochasticModelChecker extends PrismComponent
 	 * Currently two are implemented: SimulatorEngine and OpenCLSimulatorEngine
 	 */
 	private SMCRuntimeInterface simulatorRuntime = null;
-	private List<Expression> properties;
+
+	/**
+	 * Properties converted to simulator's samplers.
+	 */
 	private List<Sampler> propertySamplers;
+
 	/**
 	 * Samplers for properties.
 	 * null if the property cannot be handled
 	 */
 	private Sampler[] samplers = null;
+
 	/**
 	 * Results of simulation.
 	 * Exception if the property cannot be handled.
 	 */
 	private Result[] results = null;
-	
+
+	/**
+	 * Default constructor.
+	 * @param simulator
+	 * @param parent
+	 */
 	public StochasticModelChecker(SMCRuntimeInterface simulator, PrismComponent parent)
 	{
 		super(parent);
 		Preconditions.checkNotNull(simulator);
 		simulatorRuntime = simulator;
 	}
-	
+
+	/**
+	 * Change used simulator runtime.
+	 * @param simulator
+	 */
 	public void selectSimulator(SMCRuntimeInterface simulator)
 	{
 		Preconditions.checkNotNull(simulator);
 		this.simulatorRuntime = simulator;
 	}
-	
+
 	/**
 	 * Check whether a model is suitable for for approximate model checking.
 	 * If not, an explanatory error message is thrown as an exception.
@@ -73,7 +116,7 @@ public class StochasticModelChecker extends PrismComponent
 		// additional checking if the implementation has additional restrictions
 		simulatorRuntime.checkModelForAMC(modulesFile);
 	}
-	
+
 	/**
 	 * Check whether a property is suitable for approximate model checking using the simulator.
 	 */
@@ -92,7 +135,7 @@ public class StochasticModelChecker extends PrismComponent
 		if (errMsg != null)
 			throw new PrismException(errMsg);
 	}
-	
+
 	/**
 	 * Check whether a property is suitable for approximate model checking using the simulator.
 	 * If yes, return null; if not, return an explanatory error message.
@@ -129,12 +172,12 @@ public class StochasticModelChecker extends PrismComponent
 		// No errors - check additional restrictions given by the implementation
 		try {
 			simulatorRuntime.checkPropertyForAMC(expr);
-		} catch(PrismException e) {
+		} catch (PrismException e) {
 			return e.getMessage();
 		}
 		return null;
 	}
-	
+
 	/**
 	 * Create samplers for properties using selected simulation method.
 	 * @param properties
@@ -142,11 +185,12 @@ public class StochasticModelChecker extends PrismComponent
 	 * @param simMethod
 	 * @throws PrismException
 	 */
-	private void createSamplers(ModulesFile modulesFile,List<Expression> properties, PropertiesFile pf, SimulationMethod simMethod) throws PrismException
+	private void createSamplers(ModulesFile modulesFile, List<Expression> properties, PropertiesFile pf, SimulationMethod simMethod) throws PrismException
 	{
 		simMethod.computeMissingParameterBeforeSim();
 		samplers = new Sampler[properties.size()];
 		results = new Result[properties.size()];
+
 		/**
 		 * Code taken from SimulatorEngine.java
 		 */
@@ -183,7 +227,7 @@ public class StochasticModelChecker extends PrismComponent
 			samplers[i] = sampler;
 		}
 	}
-	
+
 	/**
 	 * Perform approximate model checking of a property on a model, using the simulator.
 	 * Sampling starts from the initial state provided or, if null, the default
@@ -241,7 +285,7 @@ public class StochasticModelChecker extends PrismComponent
 		mainLog.println("Simulation parameters: max path length=" + maxPathLength);
 
 		// Add the properties to the simulator (after a check that they are valid)
-		createSamplers(modulesFile,exprs, propertiesFile, simMethod);
+		createSamplers(modulesFile, exprs, propertiesFile, simMethod);
 		List<Sampler> validSamplers = new ArrayList<>();
 		for (Sampler sampler : samplers) {
 			if (sampler != null) {
@@ -251,7 +295,7 @@ public class StochasticModelChecker extends PrismComponent
 
 		// As long as there are at least some valid props, do sampling
 		if (validSamplers.size() > 0) {
-			int samplesProcessed = simulatorRuntime.doSampling(modulesFile,validSamplers,initialState, maxPathLength);		
+			int samplesProcessed = simulatorRuntime.doSampling(modulesFile, validSamplers, initialState, maxPathLength);
 			for (int i = 0; i < samplers.length; i++) {
 				Sampler sampler = samplers[i];
 				if (sampler != null) {
@@ -270,25 +314,6 @@ public class StochasticModelChecker extends PrismComponent
 			}
 
 		}
-
-//		// Process the results
-//		for (int i = 0; i < results.length; i++) {
-//			// If there was an earlier error, nothing to do
-//			if (samplers[i] != null) {
-//				Sampler sampler = propertySamplers.get(indices[i]);
-//				//mainLog.print("Simulation results: mean: " + sampler.getMeanValue());
-//				//mainLog.println(", variance: " + sampler.getVariance());
-//				SimulationMethod sm = sampler.getSimulationMethod();
-//				// Compute/print any missing parameters that need to be done after simulation
-//				sm.computeMissingParameterAfterSim();
-//				// Extract result from SimulationMethod and store
-//				try {
-//					results[i] = sm.getResult(sampler);
-//				} catch (PrismException e) {
-//					results[i] = e;
-//				}
-//			}
-//		}
 
 		// Display results to log
 		if (results.length == 1) {
@@ -363,7 +388,7 @@ public class StochasticModelChecker extends PrismComponent
 			definedPFConstants = undefinedConstants.getPFConstantValues();
 			pfcs[i] = definedPFConstants;
 			propertiesFile.setSomeUndefinedConstants(definedPFConstants);
-			createSamplers(modulesFile,exprs, propertiesFile, simMethod);
+			createSamplers(modulesFile, exprs, propertiesFile, simMethod);
 			for (Sampler sampler : samplers) {
 				if (sampler != null) {
 					validSamplers.add(sampler);
@@ -374,7 +399,7 @@ public class StochasticModelChecker extends PrismComponent
 
 		// As long as there are at least some valid props, do sampling
 		if (validSamplers.size() > 0) {
-			simulatorRuntime.doSampling(modulesFile,validSamplers,initialState, maxPathLength);
+			simulatorRuntime.doSampling(modulesFile, validSamplers, initialState, maxPathLength);
 		}
 
 		// Process the results
