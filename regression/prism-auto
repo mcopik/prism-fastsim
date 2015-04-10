@@ -225,8 +225,8 @@ def runPrism(args, dir=""):
 		args.append("20000")
 		args.append("-simplatform")
 		args.append("opencl")
-		args.append("-simdevice")
-		args.append("amd")
+		#args.append("-simdevice")
+		#args.append("amd")
 		if options.simSeed != -1:
 			args.append("-simseed")
 			args.append(str(options.simSeed))

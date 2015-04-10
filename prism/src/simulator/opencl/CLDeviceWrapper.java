@@ -25,6 +25,7 @@
 //==============================================================================
 package simulator.opencl;
 
+import prism.Preconditions;
 import simulator.SMCRuntimeDeviceInterface;
 
 import com.nativelibs4java.opencl.CLContext;
@@ -34,15 +35,28 @@ import com.nativelibs4java.opencl.JavaCL;
 
 public class CLDeviceWrapper implements SMCRuntimeDeviceInterface
 {
+	/**
+	 * OpenCL device object.
+	 */
 	private CLDevice device = null;
 
+	/**
+	 * If true, then device name will be: "Platform_name : device_name".
+	 * Use it to get a unique name, when the device is available at many platforms
+	 * (e.g. Intel's CPU at AMD APP and Intel's OpenCL)
+	 */
 	private boolean extendedName = false;
 
+	/**
+	 * @param device JavaCL's object
+	 */
 	public CLDeviceWrapper(CLDevice device)
 	{
+		Preconditions.checkNotNull( device );
 		this.device = device;
 	}
 
+	@Override
 	public String getName()
 	{
 		return device.getName();
@@ -58,31 +72,43 @@ public class CLDeviceWrapper implements SMCRuntimeDeviceInterface
 		}
 	}
 
+	@Override
 	public String getPlatformName()
 	{
 		return device.getPlatform().getName();
 	}
 
+	@Override
 	public String getFrameworkVersion()
 	{
 		return device.getOpenCLCVersion();
 	}
 
+	/**
+	 * @return JavaCL's context, created at this device
+	 */
 	public CLContext createDeviceContext()
 	{
 		return JavaCL.createContext(null, device);
 	}
 
+	/**
+	 * @return JavaCL's platform object
+	 */
 	public CLPlatform getDevicePlatform()
 	{
 		return device.getPlatform();
 	}
 
+	/**
+	 * @return JavaCL's device object
+	 */
 	public CLDevice getDevice()
 	{
 		return device;
 	}
 
+	@Override
 	public String toString()
 	{
 		return getName();

@@ -1413,9 +1413,6 @@ public class SimulatorEngine extends PrismComponent implements SMCRuntimeInterfa
 			someUnknownButBounded = false;
 			i = 0;
 			while ((!allKnown && i < maxPathLength) || someUnknownButBounded) {
-				if (iters == 249 && i == 2999) {
-					mainLog.println('o');
-				}
 				// Check status of samplers
 				allKnown = true;
 				someUnknownButBounded = false;
@@ -1505,82 +1502,72 @@ public class SimulatorEngine extends PrismComponent implements SMCRuntimeInterfa
 	@Override
 	public String getFrameworkName()
 	{
-		// TODO Auto-generated method stub
-		return null;
+		return "PRISM's SimulatorEngine";
 	}
 
 	@Override
 	public String[] getPlatformNames()
 	{
-		// TODO Auto-generated method stub
 		return null;
 	}
 
 	@Override
 	public int getPlatformNumber()
 	{
-		// TODO Auto-generated method stub
 		return 0;
 	}
 
 	@Override
 	public String getPlatformInfo(int i)
 	{
-		// TODO Auto-generated method stub
 		return null;
 	}
 
 	@Override
 	public SMCRuntimeDeviceInterface[] getDevices()
 	{
-		// TODO Auto-generated method stub
 		return null;
 	}
 
 	@Override
 	public String[] getDevicesNames()
 	{
-		// TODO Auto-generated method stub
 		return null;
 	}
 
 	@Override
 	public String[] getDevicesExtendedNames()
 	{
-		// TODO Auto-generated method stub
 		return null;
 	}
 
 	@Override
 	public SMCRuntimeDeviceInterface getMaxFlopsDevice()
 	{
-		// TODO Auto-generated method stub
 		return null;
 	}
 
 	@Override
 	public SMCRuntimeDeviceInterface getMaxFlopsDevice(DeviceType type)
 	{
-		// TODO Auto-generated method stub
 		return null;
 	}
 
 	@Override
 	public void selectDevice(SMCRuntimeDeviceInterface device)
 	{
-		// TODO Auto-generated method stub
-
+		// Nothing to do, literally.
 	}
 
 	@Override
 	public void checkModelForAMC(ModulesFile modulesFile) throws PrismException
 	{
-		// TODO Auto-generated method stub
-
+		//No additional restrictions! Every check has been already done by StochasticModelChecker
 	}
 
 	@Override
 	public void checkPropertyForAMC(Expression expr) throws PrismException
 	{
+		//No additional restrictions! Every check has been already done by StochasticModelChecker
 	}
 }

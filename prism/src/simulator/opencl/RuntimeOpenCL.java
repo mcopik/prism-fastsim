@@ -272,16 +272,22 @@ public class RuntimeOpenCL extends PrismComponent implements SMCRuntimeInterface
 			currentContexts = new ArrayList<>();
 			mainLog.println("Using " + currentDevices.size() + " OpenCL device(s):");
 			int counter = 1;
+			long startTime = System.nanoTime();    
 			for (CLDeviceWrapper device : currentDevices) {
 				mainLog.println(Integer.toString(counter++) + " : " + device.getName());
 				RuntimeContext currentContext = new RuntimeContext(device, mainLog);
 				currentContext.createKernel(model, properties, config);
 				currentContexts.add(currentContext);
 			}
+			long time = System.nanoTime() - startTime;
+			mainLog.println("Time of generation and compilation of OpenCL kernel: " + 
+					String.format("%s", time*10e-10) + " seconds.");
 			mainLog.flush();
+			
 			for (RuntimeContext context : currentContexts) {
 				context.runSimulation();
 			}
+			
 			for (RuntimeContext context : currentContexts) {
 				mainLog.println(String.format("Sampling: %d samples in %d miliseconds.", context.getSamplesProcessed(), context.getTime()));
 				mainLog.println(String.format("Path length: min %d, max %d, avg %f", context.getMinPathLength(), context.getMaxPathLength(),

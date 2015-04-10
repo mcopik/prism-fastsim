@@ -204,7 +204,6 @@ public class RuntimeContext
 
 		protected void readPathLength(int start, int samples)
 		{
-			mainLog.println("lengths " + start + " samples " + samples);
 			NativeList<Integer> lengths = pathLengths.read(queue, start, samples).asList();
 			long sum = 0;
 			for (Integer i : lengths) {
@@ -513,7 +512,7 @@ public class RuntimeContext
 			//add include directories for PRNG
 			//has to work when applications is executed as Java class or as a jar
 			String location = this.getClass().getPackage().getName().replace(".", "/") + "/includes";
-			//mainLog.println("loc " + location);
+			mainLog.flush();
 			//when running a Java class
 			program.addInclude("src/" + location);
 			//when running a *.jar

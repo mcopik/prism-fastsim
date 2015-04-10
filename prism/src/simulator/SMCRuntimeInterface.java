@@ -56,7 +56,7 @@ public interface SMCRuntimeInterface
 	String getFrameworkName();
 
 	/**
-	 * @return name of available platforms
+	 * @return name of available platforms; null if the runtime doesn't support platforms
 	 */
 	String[] getPlatformNames();
 
@@ -67,35 +67,35 @@ public interface SMCRuntimeInterface
 
 	/**
 	 * @param i number of platform
-	 * @return string with detailed description of i-th platform
+	 * @return string with detailed description of i-th platform; null if the runtime doesn't support platforms
 	 */
 	String getPlatformInfo(int i);
 
 	/**
-	 * @return array with available devices
+	 * @return array with available devices; null if the runtime doesn't support devices
 	 */
 	SMCRuntimeDeviceInterface[] getDevices();
 
 	/**
-	 * @return array with device names
+	 * @return array with device names; null if the runtime doesn't support devices
 	 */
 	String[] getDevicesNames();
 
 	/**
-	 * @return array with device extended names
+	 * @return array with device extended names; null if the runtime doesn't support devices
 	 */
 	String[] getDevicesExtendedNames();
 
 	/**
 	 * Get the device with maximum FLOPS.
-	 * @return theoretically "best" device
+	 * @return theoretically "best" device; null if the runtime doesn't support devices
 	 */
 	SMCRuntimeDeviceInterface getMaxFlopsDevice();
 
 	/**
 	 * Get the device of selected type with maximum FLOPS.
 	 * @param type type of device
-	 * @return theoretically "best" device
+	 * @return theoretically "best" device; null if the runtime doesn't support devices
 	 */
 	SMCRuntimeDeviceInterface getMaxFlopsDevice(DeviceType type);
 
@@ -107,6 +107,7 @@ public interface SMCRuntimeInterface
 
 	/**
 	 * Check if this model can be processed by this runtime.
+	 * Used for additional restrictions, independent from general stochastic model checker.
 	 * @param modulesFile
 	 * @throws PrismException
 	 */
@@ -114,6 +115,7 @@ public interface SMCRuntimeInterface
 
 	/**
 	 * Check if this property can be processed by this runtime.
+	 * Used for additional restrictions, independent from general stochastic model checker.
 	 * @param expr
 	 * @throws PrismException
 	 */
