@@ -1034,6 +1034,9 @@ public abstract class KernelGenerator
 		String propertyStringRight = visitPropertyExpression( property.getRightSide()).toString();
 		String propertyStringLeft = visitPropertyExpression( property.getLeftSide()).toString();
 		IfElse ifElse = createPropertyCondition(propertyVar, false, propertyStringRight, true);
+		//String propertyStringRight = visitPropertyExpression( property.getRightSide()).toString();
+		//String propertyStringLeft = visitPropertyExpression( property.getLeftSide()).toString();
+		//IfElse ifElse = createPropertyCondition(propertyVar, false, propertyStringRight, true);
 		/**
 		 * in F/G it is true
 		 */

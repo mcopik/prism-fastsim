@@ -110,7 +110,7 @@ public class ParsTreeModifier extends ASTTraverseModify
 			// add casting to float
 			// it should be only an identifier or a literal
 			Expression operand = e.getOperand1();
-			
+			/*
 			if( operand instanceof ExpressionVar || operand instanceof ExpressionUnaryOp) {
 				e.setOperand1( new ExpressionConstant( String.format("((float)%s)", e.getOperand1()) , operand.getType()) );
 			} else {
@@ -118,12 +118,11 @@ public class ParsTreeModifier extends ASTTraverseModify
 				Object value = ( (ExpressionLiteral) operand).getValue();
 				Type type = ( (ExpressionLiteral) operand).getType();
 				//assume: only Double and Integer
-				Preconditions.checkCondition( value instanceof TypeInt || 
-						value instanceof TypeDouble);
+				Preconditions.checkCondition( value instanceof TypeInt || value instanceof TypeDouble);
 				if( type instanceof TypeInt ) {
 					e.setOperand2( new ExpressionLiteral(TypeDouble.getInstance(), Double.valueOf( (Integer) value) ) );
 				}
-			}
+			}*/
 			break;
 		}
 		return e;
