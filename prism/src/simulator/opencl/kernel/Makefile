@@ -10,7 +10,7 @@
 # Reminder: $@ = target, $* = target without extension, $< = dependency
 
 THIS_DIR = simulator/opencl/kernel
-PRISM_DIR_REL = ../../../
+PRISM_DIR_REL = ../../../..
 SUBDIRS = expression memory
 JAVA_FILES_ALL = $(wildcard *.java)
 JAVA_FILES = $(patsubst %package-info.java,,$(JAVA_FILES_ALL))
