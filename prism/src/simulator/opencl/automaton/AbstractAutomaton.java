@@ -138,17 +138,14 @@ public abstract class AbstractAutomaton
 	}
 
 	/**
-	 * Default constructor. Performs additional transformation of parse tree - replaceConstants and simplify should have
-	 * been done in SimulatorEngine.
+	 * Default constructor.
 	 * @param modulesFile
 	 * @throws PrismException
 	 */
 	public AbstractAutomaton(ModulesFile modulesFile) throws PrismException
 	{
 		varList = modulesFile.createVarList();
-		//assume that the replaceConstants and simplify has been already done in SimulatorEngine!
-		//this.modulesFile = (ModulesFile) modulesFile.deepCopy().replaceConstants(modulesFile.getConstantValues()).simplify().accept(new ParsTreeModifier());
-		this.modulesFile = (ModulesFile) modulesFile.deepCopy().accept(new ParsTreeModifier());
+		this.modulesFile = (ModulesFile) modulesFile.deepCopy().replaceConstants(modulesFile.getConstantValues()).simplify().accept(new ParsTreeModifier());
 		this.modulesFile.tidyUp();
 		extractVariables();
 		extractUpdates();

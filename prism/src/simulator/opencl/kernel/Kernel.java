@@ -32,8 +32,8 @@ import java.util.List;
 import prism.PrismLangException;
 import simulator.opencl.RuntimeConfig;
 import simulator.opencl.automaton.AbstractAutomaton;
-import simulator.opencl.automaton.PrismVariable;
 import simulator.opencl.automaton.AbstractAutomaton.AutomatonType;
+import simulator.opencl.automaton.PrismVariable;
 import simulator.opencl.kernel.expression.Include;
 import simulator.opencl.kernel.expression.KernelComponent;
 import simulator.opencl.kernel.expression.MemoryTranslatorVisitor;
@@ -48,31 +48,30 @@ public class Kernel
 	 */
 	@SuppressWarnings("unused")
 	private RuntimeConfig config = null;
-	
+
 	/**
 	 * PRISM automaton.
 	 */
 	private AbstractAutomaton model = null;
 	@SuppressWarnings("unused")
-	
 	//TODO: why the hell this is unused?
 	private List<Sampler> properties = null;
-	
+
 	/**
 	 * Source components.
 	 */
 	private String kernelSource = null;
-	
+
 	/**
 	 * List of includes.
 	 */
 	private List<Include> includes = new ArrayList<>();
-	
+
 	/**
 	 * State vector structure.
 	 */
 	private StructureType stateVectorType = null;
-	
+
 	/**
 	 * Main kernel method.
 	 * INPUT:
@@ -86,6 +85,7 @@ public class Kernel
 	public enum ArgsTypes {
 
 	}
+
 	/**
 	 * Kernel generator.
 	 */
@@ -95,7 +95,7 @@ public class Kernel
 	 * Helper methods, used for checking guards etc.
 	 */
 	private Collection<Method> helperMethods = null;
-	
+
 	/**
 	 * Global declarations.
 	 */
@@ -133,12 +133,13 @@ public class Kernel
 		globalDeclarations.addAll(methodsGenerator.getAdditionalDeclarations());
 		generateSource();
 	}
-/**
-	public Kernel(String source)
-	{
-		kernelSource = source;
-	}
-	*/
+
+	/**
+		public Kernel(String source)
+		{
+			kernelSource = source;
+		}
+		*/
 	private void updateIncludes()
 	{
 		List<Include> addIncludes = mainMethod.getIncludes();
@@ -154,7 +155,7 @@ public class Kernel
 			}
 		}
 	}
-	
+
 	@Deprecated
 	private MemoryTranslatorVisitor createTranslatorVisitor()
 	{
@@ -184,19 +185,22 @@ public class Kernel
 	private void generateSource() throws KernelException
 	{
 		StringBuilder builder = new StringBuilder();
+
 		/**
 		 * Structure of a kernel:
 		 * - includes
 		 * - declaration of methods
 		 * - definition of methods
 		 */
-		
+
 		updateIncludes();
 		for (Include include : includes) {
 			builder.append(include.getSource()).append("\n");
 		}
+
 		//builder.append(KERNEL_TYPEDEFS).append("\n");
-		builder.append("typedef unsigned char uchar;\n");
+		//builder.append("typedef unsigned char uchar;\n");
+
 		for (KernelComponent expr : globalDeclarations) {
 			builder.append(expr.getSource()).append("\n");
 		}
@@ -205,7 +209,6 @@ public class Kernel
 		defineMethods(builder);
 		kernelSource = builder.toString();
 	}
-
 
 	private void declareMethods(StringBuilder builder)
 	{
@@ -226,7 +229,7 @@ public class Kernel
 			builder.append(method.getSource()).append("\n");
 		}
 	}
-	
+
 	/**
 	 * @return OpenCL source code of this kernel
 	 */
