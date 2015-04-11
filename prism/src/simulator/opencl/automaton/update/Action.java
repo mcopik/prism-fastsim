@@ -35,30 +35,50 @@ import simulator.opencl.automaton.PrismVariable;
 
 public class Action
 {
+	/**
+	 * List of updates: var = new value
+	 */
 	public List<Pair<PrismVariable, Expression>> expressions = new ArrayList<>();
 
+	/**
+	 * Add new variable update
+	 * @param var
+	 * @param expr
+	 */
 	public void addExpr(PrismVariable var, Expression expr)
 	{
 		expressions.add(new Pair<>(var, expr));
 	}
 
+	/**
+	 * @return number of updates in this action
+	 */
 	public int getUpdatesNumber()
 	{
 		return expressions.size();
 	}
 
+	/**
+	 * @param updateNumber
+	 * @return updated variable in given update
+	 */
 	public PrismVariable getUpdateDestination(int updateNumber)
 	{
 		Preconditions.checkIndex(updateNumber, expressions.size());
 		return expressions.get(updateNumber).first;
 	}
 
+	/**
+	 * @param updateNumber
+	 * @return new value in given update
+	 */
 	public Expression getUpdateExpression(int updateNumber)
 	{
 		Preconditions.checkIndex(updateNumber, expressions.size());
 		return expressions.get(updateNumber).second;
 	}
 
+	@Override
 	public String toString()
 	{
 		StringBuilder builder = new StringBuilder();

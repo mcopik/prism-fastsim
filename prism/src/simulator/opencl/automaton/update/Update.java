@@ -32,13 +32,22 @@ import parser.ast.Expression;
 import parser.ast.ExpressionVar;
 import parser.ast.Updates;
 import prism.Pair;
-import simulator.opencl.automaton.PrismVariable;
+import prism.Preconditions;
 import simulator.opencl.automaton.AbstractAutomaton.StateVector;
+import simulator.opencl.automaton.PrismVariable;
 
 public class Update
 {
+	/**
+	 * Contains pairs of updates (variable and new value) with a rate.
+	 */
 	private List<Pair<Rate, Action>> updatesList = new ArrayList<>();
 
+	/**
+	 * Requires parser Updates object and created StateVector.
+	 * @param updates
+	 * @param variables
+	 */
 	public Update(Updates updates, StateVector variables)
 	{
 		int updatesCount = updates.getNumUpdates();
@@ -56,18 +65,31 @@ public class Update
 		}
 	}
 
+	/**
+	 * @return number of actions in this update
+	 */
 	public int getActionsNumber()
 	{
 		return updatesList.size();
 	}
 
+	/**
+	 * @param updateNumber
+	 * @return rate of specified update
+	 */
 	public Rate getRate(int updateNumber)
 	{
+		Preconditions.checkIndex(updateNumber, updatesList.size());
 		return updatesList.get(updateNumber).first;
 	}
 
+	/**
+	 * @param updateNumber
+	 * @return list of actions of specified update
+	 */
 	public Action getAction(int updateNumber)
 	{
+		Preconditions.checkIndex(updateNumber, updatesList.size());
 		return updatesList.get(updateNumber).second;
 	}
 
@@ -94,6 +116,7 @@ public class Update
 		return false;
 	}
 
+	@Override
 	public String toString()
 	{
 		StringBuilder builder = new StringBuilder();

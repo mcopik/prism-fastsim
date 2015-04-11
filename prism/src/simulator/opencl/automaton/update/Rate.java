@@ -33,15 +33,33 @@ import prism.PrismLangException;
 
 public class Rate
 {
+	/**
+	 * Value of constant part.
+	 */
 	public double rate = 0.0;
+
+	/**
+	 * Non-constant parts of the rate.
+	 */
 	public List<Expression> expressions = null;
+
+	/**
+	 * When false, then expressions contains list of volatile parts of rate.
+	 */
 	private boolean isConst = true;
 
+	/**
+	 * Default constructor.
+	 */
 	public Rate()
 	{
 
 	}
 
+	/**
+	 * Copy constructor.
+	 * @param rate
+	 */
 	public Rate(Rate rate)
 	{
 		this.rate = rate.rate;
@@ -54,11 +72,19 @@ public class Rate
 		}
 	}
 
+	/**
+	 * Constructor initializing rate with constant value.
+	 * @param initial
+	 */
 	public Rate(double initial)
 	{
 		rate = initial;
 	}
 
+	/**
+	 * Add an expression to rate (not necessarily constant.
+	 * @param expr
+	 */
 	public void addRate(Expression expr)
 	{
 		if (expr == null) {
@@ -74,6 +100,10 @@ public class Rate
 		}
 	}
 
+	/**
+	 * Add the whole rate.
+	 * @param rate
+	 */
 	public void addRate(Rate rate)
 	{
 		this.rate += rate.rate;
@@ -86,21 +116,29 @@ public class Rate
 		}
 	}
 
+	/**
+	 * Internal method - add ONLY constant expression to rate (evaluate and sum).
+	 * @param expr
+	 */
 	private void add(Expression expr)
 	{
 		try {
 			rate += expr.evaluateDouble();
 		} catch (PrismLangException e) {
-			// TODO Auto-generated catch block
+			// should not happen, this method will be called only for constant expressions
 			e.printStackTrace();
 		}
 	}
 
+	/**
+	 * @return true for constant expressions (no volatile expressions)
+	 */
 	public boolean isRateConst()
 	{
 		return isConst;
 	}
 
+	@Override
 	public String toString()
 	{
 		StringBuilder builder = new StringBuilder();
