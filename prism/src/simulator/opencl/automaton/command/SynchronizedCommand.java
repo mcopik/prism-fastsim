@@ -30,6 +30,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import prism.Preconditions;
 import prism.PrismException;
 import simulator.opencl.automaton.Guard;
 import simulator.opencl.automaton.update.Rate;
@@ -37,10 +38,21 @@ import simulator.opencl.automaton.update.Update;
 
 public class SynchronizedCommand implements CommandInterface
 {
+	/**
+	 * Represents the synchronized part for one module.
+	 */
 	public class ModuleGroup
 	{
 		public final String moduleName;
+
+		/**
+		 * Sum of rates of synchronized commands in the module.
+		 */
 		Rate rate = new Rate();
+
+		/**
+		 * All synchronized commands in the module.
+		 */
 		private List<Command> cmds = new ArrayList<>();
 
 		public ModuleGroup(String name)
@@ -60,20 +72,41 @@ public class SynchronizedCommand implements CommandInterface
 		}
 	}
 
+	/**
+	 * Synchronization label for this command.
+	 */
 	public final String synchLabel;
+
+	/**
+	 * module_name -> commands at module
+	 */
 	private Map<String, ModuleGroup> synchronizedCommands = new HashMap<>();
+
+	/**
+	 * All modules containing commands with given label.
+	 */
 	private List<String> moduleNames = new ArrayList<>();
 
+	/**
+	 * @param label synchronization label
+	 */
 	public SynchronizedCommand(String label)
 	{
 		synchLabel = label;
 	}
 
+	/**
+	 * @return number of modules activated in synchronization
+	 */
 	public int getModulesNum()
 	{
 		return synchronizedCommands.size();
 	}
 
+	/**
+	 * @param moduleName
+	 * @param cmd
+	 */
 	public void addCommand(String moduleName, Command cmd)
 	{
 		getModule(moduleName).addCommand(cmd);
@@ -82,6 +115,11 @@ public class SynchronizedCommand implements CommandInterface
 		}
 	}
 
+	/**
+	 * Internal helper method. Return or create&return module group.
+	 * @param moduleName
+	 * @return module group with given name
+	 */
 	private ModuleGroup getModule(String moduleName)
 	{
 		ModuleGroup group = null;
@@ -94,11 +132,23 @@ public class SynchronizedCommand implements CommandInterface
 		return group;
 	}
 
+	/**
+	 * @param module
+	 * @param command
+	 * @return command in given module
+	 */
 	public Command getCommand(int module, int command)
 	{
-		return synchronizedCommands.get(moduleNames.get(module)).cmds.get(command);
+		Preconditions.checkIndex(module, moduleNames.size());
+		List<Command> cmds = synchronizedCommands.get(moduleNames.get(module)).cmds;
+		Preconditions.checkIndex(command, cmds.size());
+		return cmds.get(command);
 	}
 
+	/**
+	 * @param module
+	 * @return number of commands in given module
+	 */
 	public int getCommandNumber(int module)
 	{
 		return synchronizedCommands.get(moduleNames.get(module)).getCommandsNum();
@@ -122,21 +172,43 @@ public class SynchronizedCommand implements CommandInterface
 		return true;
 	}
 
-	public Rate getRateSumUpdate(int module, int update) throws PrismException
+	/**
+	 * @param module
+	 * @param update
+	 * @return sum of rates for specific update in given module
+	 * @throws PrismException
+	 */
+	public Rate getRateSumUpdate(int module, int update)
 	{
-		return synchronizedCommands.get(module).cmds.get(update).getRateSum();
+		Preconditions.checkIndex(module, synchronizedCommands.size());
+		List<Command> cmds = synchronizedCommands.get(module).cmds;
+		Preconditions.checkIndex(update, cmds.size());
+		return cmds.get(update).getRateSum();
 	}
 
-	public Rate getRateSumModule(int i) throws PrismException
+	/**
+	 * @param i
+	 * @return sum of rates for specific module
+	 * @throws PrismException
+	 */
+	public Rate getRateSumModule(int i)
 	{
+		Preconditions.checkIndex(i, synchronizedCommands.size());
 		return synchronizedCommands.get(i).rate;
 	}
 
-	public int getUpdateNumberModule(int i) throws PrismException
+	/**
+	 * @param i
+	 * @return number of commands in a module
+	 * @throws PrismException
+	 */
+	public int getCmdsNumberModule(int i)
 	{
+		Preconditions.checkIndex(i, synchronizedCommands.size());
 		return synchronizedCommands.get(i).getCommandsNum();
 	}
 
+	@Override
 	public String toString()
 	{
 		StringBuilder builder = new StringBuilder();
@@ -160,6 +232,9 @@ public class SynchronizedCommand implements CommandInterface
 		return sum;
 	}
 
+	/**
+	 * @return maximal number of commands generated in this synchronized update (when every command is active)
+	 */
 	public int getMaxCommandsNum()
 	{
 		int cmdNumber = 0, sum = 1;
@@ -170,6 +245,9 @@ public class SynchronizedCommand implements CommandInterface
 		return sum;
 	}
 
+	/**
+	 * @return number of commands in all modules
+	 */
 	public int getCmdsNum()
 	{
 		int cmdNumber = 0;

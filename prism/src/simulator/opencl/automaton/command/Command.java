@@ -33,8 +33,18 @@ public class Command implements CommandInterface
 {
 	private final Guard guard;
 	private final Update update;
+
+	/**
+	 * Rate of whole command (1.0 for DTMC).
+	 */
 	private final Rate rate;
 
+	/**
+	 * Private constructor, create from static factory methods.
+	 * @param guard
+	 * @param update
+	 * @param rate
+	 */
 	private Command(Guard guard, Update update, Rate rate)
 	{
 		this.guard = guard;
@@ -42,11 +52,22 @@ public class Command implements CommandInterface
 		this.rate = rate;
 	}
 
+	/**
+	 * @param guard
+	 * @param update
+	 * @return command for discrete-time Markov chain
+	 */
 	static public Command createCommandDTMC(Guard guard, Update update)
 	{
 		return new Command(guard, update, new Rate(1));
 	}
 
+	/**
+	 * Additional task: create the sum of rates
+	 * @param guard
+	 * @param update
+	 * @return command for continuous-time Markov chain
+	 */
 	static public Command createCommandCTMC(Guard guard, Update update)
 	{
 		Rate rate = new Rate(0);

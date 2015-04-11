@@ -32,26 +32,59 @@ import java.util.Map;
 
 import parser.ast.Expression;
 import parser.ast.Updates;
+import prism.Preconditions;
 import simulator.opencl.automaton.AbstractAutomaton;
-import simulator.opencl.automaton.Guard;
 import simulator.opencl.automaton.AbstractAutomaton.AutomatonType;
 import simulator.opencl.automaton.AbstractAutomaton.StateVector;
+import simulator.opencl.automaton.Guard;
 import simulator.opencl.automaton.update.Update;
 
 public class CommandBuilder
 {
-	private AbstractAutomaton.AutomatonType type = null;
+	/**
+	 * Rates are summed differently for DTMC and CTMC.
+	 */
+	private final AbstractAutomaton.AutomatonType type;
+
+	/**
+	 * Contains generated non-synchronized commands.
+	 */
 	private List<CommandInterface> commands = new ArrayList<>();
+
+	/**
+	 * Contains generated synchronized commands.
+	 */
 	private Map<String, SynchronizedCommand> synchronizedCommands = new HashMap<>();
-	private StateVector variables = null;
+
+	/**
+	 * StateVector for this model.
+	 */
+	private final StateVector variables;
+
+	/**
+	 * Currently processed module - used for generation of synchronized commands.
+	 */
 	private String currentModule = null;
 
+	/**
+	 * Requires completely build StateVector for the model.
+	 * @param type
+	 * @param vars
+	 */
 	public CommandBuilder(AbstractAutomaton.AutomatonType type, StateVector vars)
 	{
+		//may add something in future
+		Preconditions.checkCondition(type == AutomatonType.DTMC || type == AutomatonType.CTMC);
 		this.type = type;
 		this.variables = vars;
 	}
 
+	/**
+	 * Add command from PRISM model.
+	 * @param synch synchronization label
+	 * @param expr guard
+	 * @param updates updates
+	 */
 	public void addCommand(String synch, Expression expr, Updates updates)
 	{
 		Command cmd = null;
@@ -74,17 +107,27 @@ public class CommandBuilder
 		}
 	}
 
+	/**
+	 * Change currently processed module (used only for synchronization commands)
+	 * @param name
+	 */
 	public void setCurrentModule(String name)
 	{
 		currentModule = name;
 	}
 
+	/**
+	 * @return non-synchronized first, then synchronized commands
+	 */
 	public List<CommandInterface> getResults()
 	{
 		commands.addAll(synchronizedCommands.values());
 		return commands;
 	}
 
+	/**
+	 * @return number of synchronized commands
+	 */
 	public int synchCmdsNumber()
 	{
 		return synchronizedCommands.size();

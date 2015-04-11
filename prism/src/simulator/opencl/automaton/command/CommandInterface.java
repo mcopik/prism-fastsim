@@ -31,18 +31,23 @@ import simulator.opencl.automaton.update.Update;
 
 public interface CommandInterface
 {
+	/**
+	 * @return command's guard
+	 */
 	Guard getGuard();
 
+	/**
+	 * @return command's update
+	 */
 	Update getUpdate();
 
-	/*
-	Rate getRateSumUpdate(int i) throws PrismException;
-	Rate getRateSumModule(int i) throws PrismException;
-	int getUpdateNumberModule(int i) throws PrismException;
-	*/
+	/**
+	 * @return sum of rates for the whole command; used in CTMC for transition selection
+	 */
 	Rate getRateSum();
 
+	/**
+	 * @return true for synchronized command
+	 */
 	boolean isSynchronized();
-
-	public String toString();
 }
