@@ -85,6 +85,7 @@ public class StructureType implements VariableTypeInterface, UDType
 			return new Expression(builder.toString());
 		}
 	}
+
 	/**
 	 * Structure fields. The order can't change!
 	 */
@@ -93,7 +94,7 @@ public class StructureType implements VariableTypeInterface, UDType
 	 * Structure type name.
 	 */
 	public final String typeName;
-	
+
 	/**
 	 * @param typeName
 	 */
@@ -101,7 +102,7 @@ public class StructureType implements VariableTypeInterface, UDType
 	{
 		this.typeName = typeName;
 	}
-	
+
 	/**
 	 * @param var
 	 */
@@ -109,7 +110,7 @@ public class StructureType implements VariableTypeInterface, UDType
 	{
 		fields.put(var.varName, var);
 	}
-	
+
 	/**
 	 * @return structure fields
 	 */
@@ -117,7 +118,7 @@ public class StructureType implements VariableTypeInterface, UDType
 	{
 		return fields.values();
 	}
-	
+
 	@Override
 	public Expression getDeclaration()
 	{
@@ -126,7 +127,7 @@ public class StructureType implements VariableTypeInterface, UDType
 		builder.append(typeName).append(";");
 		return new Expression(builder.toString());
 	}
-	
+
 	/**
 	 * @param type
 	 * @return true if the structures are compatible, i.e. the representation in memory
@@ -146,7 +147,7 @@ public class StructureType implements VariableTypeInterface, UDType
 		}
 		return true;
 	}
-	
+
 	/**
 	 * @param fieldName
 	 * @return true when the structure has a field with given name
@@ -155,7 +156,7 @@ public class StructureType implements VariableTypeInterface, UDType
 	{
 		return fields.containsKey(fieldName);
 	}
-	
+
 	/**
 	 * Initialize structure consisting only of standard type variables.
 	 * @param values
@@ -170,12 +171,22 @@ public class StructureType implements VariableTypeInterface, UDType
 		return new StructureValue(this, init);
 	}
 
+	/**
+	 * Initialize structure consisting only of standard type variables, with other variables.
+	 * @param values
+	 * @return init value
+	 */
+	public CLValue initializeStdStructure(CLValue[] values)
+	{
+		return new StructureValue(this, values);
+	}
+
 	@Override
 	public String getType()
 	{
 		return typeName;
 	}
-	
+
 	@Override
 	public Expression getDefinition()
 	{

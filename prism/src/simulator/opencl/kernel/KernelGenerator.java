@@ -910,7 +910,7 @@ public abstract class KernelGenerator
 			Update update = commands[i].getUpdate();
 			Rate rate = new Rate(update.getRate(0));
 			Action action;
-			Map<String, CLVariable> savedVariables = new HashMap<>();
+			Map<String, String> savedVariables = new HashMap<>();
 			if (update.getActionsNumber() > 1) {
 				IfElse ifElse = new IfElse(createBasicExpression(selectionSum.getSource(), Operator.LT, fromString(convertPrismRate(svPtrTranslations, rate))));
 				if (!update.isActionTrue(0)) {
@@ -965,8 +965,7 @@ public abstract class KernelGenerator
 	 * @param action
 	 * @param savedVariables map to save results
 	 */
-	protected void updateMethodAddSavedVariables(CLVariable stateVector, IfElse ifElse, int conditionalNumber, Action action,
-			Map<String, CLVariable> savedVariables)
+	protected void updateMethodAddSavedVariables(CLVariable stateVector, IfElse ifElse, int conditionalNumber, Action action, Map<String, String> savedVariables)
 	{
 		//clear previous adds
 		savedVariables.clear();
@@ -975,9 +974,9 @@ public abstract class KernelGenerator
 		for (PrismVariable var : varsToSave) {
 			CLVariable savedVar = new CLVariable(new StdVariableType(var), translateSavedVariable(var.name));
 			savedVar.setInitValue(stateVector.accessField(translateSVField(var.name)));
-
 			ifElse.addExpression(conditionalNumber, savedVar.getDefinition());
-			savedVariables.put(var.name, savedVar);
+
+			savedVariables.put(var.name, savedVar.varName);
 		}
 	}
 
@@ -990,7 +989,7 @@ public abstract class KernelGenerator
 	 * @param savedVariables map to save results
 	 */
 	protected void updateMethodAddSavedVariables(CLVariable stateVector, Switch _switch, int conditionalNumber, Action action,
-			Map<String, CLVariable> savedVariables)
+			Map<String, String> savedVariables)
 	{
 		//clear previous adds
 		savedVariables.clear();
@@ -999,9 +998,9 @@ public abstract class KernelGenerator
 		for (PrismVariable var : varsToSave) {
 			CLVariable savedVar = new CLVariable(new StdVariableType(var), translateSavedVariable(var.name));
 			savedVar.setInitValue(stateVector.accessField(translateSVField(var.name)));
-
 			_switch.addExpression(conditionalNumber, savedVar.getDefinition());
-			savedVariables.put(var.name, savedVar);
+
+			savedVariables.put(var.name, savedVar.varName);
 		}
 	}
 
@@ -1247,17 +1246,6 @@ public abstract class KernelGenerator
 		additionalMethods = new ArrayList<>();
 		for (SynchronizedCommand cmd : synCommands) {
 
-			/**
-			 * create updateSynchronized__Label method
-			 * takes three args:
-			 * - state vector
-			 * - module number
-			 * - selected guard
-			 * - pointer to probability(updates it)
-			 */
-			Method update = updateSynLabelMethod(cmd);
-			additionalMethods.add(update);
-
 			Method current = new Method(String.format("updateSyn__%s", cmd.synchLabel), new StdVariableType(timingProperty ? StdType.VOID : StdType.BOOL));
 			//state vector
 			CLVariable stateVector = new CLVariable(varStateVector.getPointer(), "sv");
@@ -1274,26 +1262,53 @@ public abstract class KernelGenerator
 			//size for current module
 			CLVariable totalSize = new CLVariable(saveSize.varType, "totalSize");
 			totalSize.setInitValue(saveSize);
-			//size for current module
-			CLVariable oldSV = new CLVariable(stateVectorType, "oldSV");
-			oldSV.setInitValue(stateVector.dereference());
 			//changeFlag - for loop detection
 			CLVariable changeFlag = null;
 			if (!timingProperty) {
 				changeFlag = new CLVariable(new StdVariableType(StdType.BOOL), "changeFlag");
 				changeFlag.setInitValue(StdVariableType.initialize(1));
 			}
+
+			/**
+			 * Obtain variables required to save, create a structure (when necessary),
+			 * initialize it with StateVector values.
+			 */
+			Set<PrismVariable> varsToSave = cmd.variablesCopiedBeforeUpdate();
+			CLVariable savedVarsInstance = null;
+			StructureType savedVarsType = null;
+			if (!varsToSave.isEmpty()) {
+				savedVarsType = new StructureType(String.format("SAVE_VARIABLES_SYNCHR_%s", cmd.synchLabel));
+				for (PrismVariable var : varsToSave) {
+					CLVariable structureVar = new CLVariable(new StdVariableType(var), translateSVField(var.name));
+					savedVarsType.addVariable(structureVar);
+				}
+				//add to global declarations
+				additionalDeclarations.add(savedVarsType.getDefinition());
+
+				savedVarsInstance = new CLVariable(savedVarsType, "oldSV");
+				CLValue[] init = new CLValue[varsToSave.size()];
+				int i = 0;
+				for (PrismVariable var : varsToSave) {
+					init[i++] = stateVector.accessField(translateSVField(var.name));
+				}
+				savedVarsInstance.setInitValue(savedVarsType.initializeStdStructure(init));
+			}
+
 			try {
 				current.addArg(stateVector);
 				current.addArg(synState);
 				current.addArg(propability);
-				current.addLocalVar(oldSV);
 				current.addLocalVar(guard);
 				current.addLocalVar(totalSize);
 				current.registerStateVector(stateVector);
 				if (!timingProperty) {
 					current.addLocalVar(changeFlag);
 				}
+
+				if (savedVarsInstance != null) {
+					current.addLocalVar(savedVarsInstance);
+				}
+
 				updateSynAdditionalVars(current, cmd);
 			} catch (KernelException e) {
 				throw new RuntimeException(e);
@@ -1305,6 +1320,19 @@ public abstract class KernelGenerator
 			//			CLVariable loopCounter = loop.getLoopCounter();
 			//for-each module
 			//TODO: check optimizing without loop unrolling?
+
+			/**
+			 * create updateSynchronized__Label method
+			 * takes three args:
+			 * - state vector
+			 * - module number
+			 * - selected guard
+			 * - pointer to probability(updates it)
+			 * - optional: saved values of state vector
+			 */
+			Method update = updateSynLabelMethod(cmd, savedVarsType);
+			additionalMethods.add(update);
+
 			for (int i = 0; i < cmd.getModulesNum(); ++i) {
 
 				moduleSize = synState.accessField("moduleSize").accessElement(fromString(i));
@@ -1314,8 +1342,8 @@ public abstract class KernelGenerator
 				 */
 				//				current.addExpression(new Expression("if(get_global_id(0) < 10)printf(\"%d " + cmd.synchLabel
 				//						+ " %f %d %f %f\\n\",get_global_id(0),prop,guard,totalSize,totalSize * (*synState).moduleSize[" + i + "]);\n"));
-				Expression callUpdate = update.callMethod(stateVector, oldSV.convertToPointer(), guardsTab, StdVariableType.initialize(i), guard,
-						propability.convertToPointer());
+				Expression callUpdate = update.callMethod(stateVector, guardsTab, StdVariableType.initialize(i), guard, propability.convertToPointer(),
+						savedVarsInstance.convertToPointer());
 				if (timingProperty) {
 					current.addExpression(callUpdate);
 				} else {
@@ -1373,19 +1401,24 @@ public abstract class KernelGenerator
 	protected abstract void updateSynAfterUpdateLabel(ComplexKernelComponent parent, CLVariable guard, CLVariable moduleSize, CLVariable totalSize,
 			CLVariable probability);
 
-	protected Method updateSynLabelMethod(SynchronizedCommand synCmd)
+	protected Method updateSynLabelMethod(SynchronizedCommand synCmd, StructureType savedVariables)
 	{
 		Method current = new Method(String.format("updateSynchronized__%s", synCmd.synchLabel),
 		//don't return anything
 				new StdVariableType(timingProperty ? StdType.VOID : StdType.BOOL));
 		CLVariable stateVector = new CLVariable(varStateVector.getPointer(), "sv");
-		CLVariable oldSV = new CLVariable(varStateVector.getPointer(), "oldSV");
 		//guardsTab
 		CLVariable guardsTab = new CLVariable(new PointerType(new StdVariableType(StdType.BOOL)), "guards");
 		//selected module
 		CLVariable module = new CLVariable(new StdVariableType(StdType.UINT8), "module");
 		CLVariable guard = new CLVariable(new StdVariableType(StdType.UINT8), "guard");
 		CLVariable probabilityPtr = new CLVariable(new PointerType(new StdVariableType(StdType.FLOAT)), "prob");
+		// saved values - optional argument
+		CLVariable oldSV = null;
+		if (savedVariables != null) {
+			oldSV = new CLVariable(new PointerType(savedVariables), "oldSV");
+		}
+
 		CLVariable probability = probabilityPtr.dereference();
 		CLVariable newValue = null, changeFlag = null;
 		if (!timingProperty) {
@@ -1396,24 +1429,20 @@ public abstract class KernelGenerator
 		}
 		try {
 			current.addArg(stateVector);
-			current.addArg(oldSV);
 			current.addArg(guardsTab);
 			current.addArg(module);
 			current.addArg(guard);
 			current.addArg(probabilityPtr);
-			current.registerStateVector(stateVector);
+			if (oldSV != null) {
+				current.addArg(oldSV);
+			}
+			//current.registerStateVector(stateVector);
 			if (!timingProperty) {
 				current.addLocalVar(newValue);
 				current.addLocalVar(changeFlag);
 			}
 		} catch (KernelException e) {
 			throw new RuntimeException(e);
-		}
-		Map<String, String> translations = new HashMap<>();
-		for (CLVariable var : stateVectorType.getFields()) {
-			String name = var.varName.substring(STATE_VECTOR_PREFIX.length());
-			CLVariable second = oldSV.accessField(var.varName);
-			translations.put(name, second.varName);
 		}
 		Switch _switch = new Switch(module);
 		Update update = null;
@@ -1426,6 +1455,19 @@ public abstract class KernelGenerator
 			current.addExpression(guardCounter.getDefinition());
 		}
 		current.addExpression(guardSelection.getDefinition());
+
+		// Create translations variable -> savedStructure.variable
+		// Provide alternative access to state vector variable (instead of regular structure)
+		Map<String, String> savedTranslations = null;
+		if (oldSV != null) {
+			savedTranslations = new HashMap<>();
+			for (CLVariable var : savedVariables.getFields()) {
+				String name = var.varName.substring(STATE_VECTOR_PREFIX.length());
+				CLVariable second = oldSV.accessField(var.varName);
+				savedTranslations.put(name, second.varName);
+			}
+		}
+
 		//for-each module
 		for (int i = 0; i < synCmd.getModulesNum(); ++i) {
 			_switch.addCase(fromString(i));
@@ -1447,27 +1489,30 @@ public abstract class KernelGenerator
 				//when update is in form prob:action + prob:action + ...
 				if (update.getActionsNumber() > 1) {
 					//TODO: null in convertPrismRate
-					IfElse ifElse = new IfElse(createBasicExpression(probability.getSource(), Operator.LT, fromString(convertPrismRate(null, rate))));
+					IfElse ifElse = new IfElse(createBasicExpression(probability.getSource(), Operator.LT,
+							fromString(convertPrismRate(svPtrTranslations, rate))));
 					if (!update.isActionTrue(0)) {
 						ifElse.addExpression(0, updateSynProbabilityRecompute(probability, null, rate));
 						//ifElse.addExpression(0, convertPrismAction(update.getAction(0)));
 						if (!timingProperty) {
-							ifElse.addExpression(0, convertPrismAction(stateVector, update.getAction(0), translations, null, changeFlag, newValue));
+							ifElse.addExpression(0,
+									convertPrismAction(stateVector, update.getAction(0), svPtrTranslations, savedTranslations, changeFlag, newValue));
 						} else {
-							ifElse.addExpression(0, convertPrismAction(stateVector, update.getAction(0), translations, null));
+							ifElse.addExpression(0, convertPrismAction(stateVector, update.getAction(0), svPtrTranslations, savedTranslations));
 						}
 					}
 					for (int k = 1; k < update.getActionsNumber(); ++k) {
 						Rate previous = new Rate(rate);
 						rate.addRate(update.getRate(k));
-						ifElse.addElif(createBasicExpression(probability.getSource(), Operator.LT, fromString(convertPrismRate(null, rate))));
+						ifElse.addElif(createBasicExpression(probability.getSource(), Operator.LT, fromString(convertPrismRate(svPtrTranslations, rate))));
 						ifElse.addExpression(k, updateSynProbabilityRecompute(probability, previous, update.getRate(k)));
 						if (!update.isActionTrue(k)) {
 							//ifElse.addExpression(k, convertPrismAction(update.getAction(k)));
 							if (!timingProperty) {
-								ifElse.addExpression(k, convertPrismAction(stateVector, update.getAction(k), translations, null, changeFlag, newValue));
+								ifElse.addExpression(k,
+										convertPrismAction(stateVector, update.getAction(k), svPtrTranslations, savedTranslations, changeFlag, newValue));
 							} else {
-								ifElse.addExpression(k, convertPrismAction(stateVector, update.getAction(k), translations, null));
+								ifElse.addExpression(k, convertPrismAction(stateVector, update.getAction(k), svPtrTranslations, savedTranslations));
 							}
 						}
 					}
@@ -1476,9 +1521,10 @@ public abstract class KernelGenerator
 					if (!update.isActionTrue(0)) {
 						//internalSwitch.addExpression(j, convertPrismAction(update.getAction(0)));
 						if (!timingProperty) {
-							internalSwitch.addExpression(j, convertPrismAction(stateVector, update.getAction(0), translations, null, changeFlag, newValue));
+							internalSwitch.addExpression(j,
+									convertPrismAction(stateVector, update.getAction(0), svPtrTranslations, savedTranslations, changeFlag, newValue));
 						} else {
-							internalSwitch.addExpression(j, convertPrismAction(stateVector, update.getAction(0), translations, null));
+							internalSwitch.addExpression(j, convertPrismAction(stateVector, update.getAction(0), svPtrTranslations, savedTranslations));
 						}
 						//no recomputation necessary!
 					}

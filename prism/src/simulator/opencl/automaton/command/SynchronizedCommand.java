@@ -27,12 +27,17 @@ package simulator.opencl.automaton.command;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import prism.Preconditions;
 import prism.PrismException;
 import simulator.opencl.automaton.Guard;
+import simulator.opencl.automaton.PrismVariable;
+import simulator.opencl.automaton.update.Action;
 import simulator.opencl.automaton.update.Rate;
 import simulator.opencl.automaton.update.Update;
 
@@ -69,6 +74,30 @@ public class SynchronizedCommand implements CommandInterface
 		public int getCommandsNum()
 		{
 			return cmds.size();
+		}
+
+		/**
+		 * @return string containing all new values, for all updates in this module
+		 */
+		private String getAllUpdates()
+		{
+			StringBuilder builder = new StringBuilder();
+
+			// for every command
+			for (Command cmd : cmds) {
+				Update up = cmd.getUpdate();
+
+				//for every action
+				for (int i = 0; i < up.getActionsNumber(); ++i) {
+					Action action = up.getAction(i);
+					//for every updated value
+					for (int j = 0; j < action.getUpdatesNumber(); ++j) {
+						builder.append(action.getUpdateExpression(j)).append(" ");
+					}
+				}
+			}
+
+			return builder.toString();
 		}
 	}
 
@@ -255,5 +284,65 @@ public class SynchronizedCommand implements CommandInterface
 			cmdNumber += getCommandNumber(i);
 		}
 		return cmdNumber;
+	}
+
+	/**
+	 * Generate set of variables which values need to be preserved before making the synchronized update.
+	 * For example, for update:
+	 * M_1
+	 * [s] z = 0
+	 * M_2
+	 * [s] zx = z
+	 * One need to save value of variable 'z' before processing the update.
+	 * 
+	 * For this procedure, just save every variable written in M_i and read in M_j, where i < j
+	 * (don't make any difference between actions - variables will be put in a structure, for the simplicity of argument
+	 * passing between helper methods). 
+	 * @return set of variables required for saving
+	 */
+	public Set<PrismVariable> variablesCopiedBeforeUpdate()
+	{
+		// variables to save
+		Set<PrismVariable> vars = new HashSet<>();
+		Set<PrismVariable> updatedVars = new HashSet<>();
+		for (Map.Entry<String, ModuleGroup> entry : synchronizedCommands.entrySet()) {
+			ModuleGroup module = entry.getValue();
+
+			Iterator<PrismVariable> it = updatedVars.iterator();
+			String updates = module.getAllUpdates();
+
+			while (it.hasNext()) {
+				PrismVariable var = it.next();
+
+				int index = updates.indexOf(var.name);
+				//check for existence, if it is a suffix or a prefix
+				if (index != -1) {
+
+					//check if it is a prefix (of longer variable)
+					if (updates.length() > index + var.name.length()) {
+						Character c = updates.charAt(index + var.name.length());
+						if (c == '_' || Character.isAlphabetic(c) || Character.isDigit(c))
+							continue;
+					}
+					//check if it is a suffix
+					if (index != 0) {
+						Character c = updates.charAt(index - 1);
+						if (c == '_' || Character.isAlphabetic(c) || Character.isDigit(c))
+							continue;
+					}
+
+					vars.add(var);
+					// no need to check it for other expressions, it's already saved
+					it.remove();
+				}
+			}
+
+			// add updated vars
+			for (Command cmd : entry.getValue().cmds) {
+				updatedVars.addAll(cmd.getUpdate().updatedVariables());
+			}
+		}
+
+		return vars;
 	}
 }

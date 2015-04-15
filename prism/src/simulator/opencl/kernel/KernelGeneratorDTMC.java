@@ -647,13 +647,13 @@ public class KernelGeneratorDTMC extends KernelGenerator
 		if (before != null) {
 			compute = createBasicExpression(probability.getSource(), Operator.SUB,
 			//probability - sum of rates before
-					fromString(convertPrismRate(null, before)));
+					fromString(convertPrismRate(svPtrTranslations, before)));
 		} else {
 			compute = probability.getSource();
 		}
 		addParentheses(compute);
 		return createAssignment(probability, createBasicExpression(compute, Operator.DIV,
 		//divide by current interval
-				fromString(convertPrismRate(null, current))));
+				fromString(convertPrismRate(svPtrTranslations, current))));
 	}
 }

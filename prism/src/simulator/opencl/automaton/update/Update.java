@@ -26,7 +26,9 @@
 package simulator.opencl.automaton.update;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import parser.ast.Expression;
 import parser.ast.ExpressionVar;
@@ -114,6 +116,20 @@ public class Update
 			}
 		}
 		return false;
+	}
+
+	/**
+	 * @return all variables updated in this update, for all rates
+	 */
+	public Set<PrismVariable> updatedVariables()
+	{
+		Set<PrismVariable> vars = new HashSet<>();
+
+		for (Pair<Rate, Action> pair : updatesList) {
+			vars.addAll(pair.second.updatedVariables());
+		}
+
+		return vars;
 	}
 
 	@Override

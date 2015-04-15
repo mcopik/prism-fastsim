@@ -81,6 +81,27 @@ public class Action
 		return expressions.get(updateNumber).second;
 	}
 
+	/**
+	 * @return all variables updated in this action
+	 */
+	public Set<PrismVariable> updatedVariables()
+	{
+		Set<PrismVariable> vars = new HashSet<>();
+
+		for (Pair<PrismVariable, Expression> pair : expressions) {
+			vars.add(pair.first);
+		}
+
+		return vars;
+	}
+
+	/**
+	 * Generate set of variables which values need to be preserved before making an update.
+	 * For example, for update:
+	 * z = 0, zx = z
+	 * One need to save value of variable 'z' before processing the update.
+	 * @return set of variables required for saving
+	 */
 	public Set<PrismVariable> variablesCopiedBeforeUpdate()
 	{
 		Set<PrismVariable> vars = new HashSet<>();
@@ -95,7 +116,7 @@ public class Action
 				// We need to have a copy
 				String varName = pair.second.toString();
 				int index = varName.indexOf(var.name);
-				//check for existince, if it is a suffix or a prefix
+				//check for existence, if it is a suffix or a prefix
 				if (index != -1) {
 
 					//check if it is a prefix (of longer variable)

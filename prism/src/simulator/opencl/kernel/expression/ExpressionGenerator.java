@@ -220,7 +220,7 @@ public class ExpressionGenerator
 	//		return list;
 	//	}
 
-	static public Expression convertPrismAction(CLVariable stateVector, Action action, Map<String, String> translations, Map<String, CLVariable> savedVariables)
+	static public Expression convertPrismAction(CLVariable stateVector, Action action, Map<String, String> translations, Map<String, String> savedVariables)
 	{
 		StringBuilder builder = new StringBuilder();
 		for (Pair<PrismVariable, parser.ast.Expression> expr : action.expressions) {
@@ -233,7 +233,7 @@ public class ExpressionGenerator
 	}
 
 	static public KernelComponent convertPrismAction(CLVariable stateVector, Action action, Map<String, String> translations,
-			Map<String, CLVariable> savedVariables, CLVariable changeFlag, CLVariable oldValue)
+			Map<String, String> savedVariables, CLVariable changeFlag, CLVariable oldValue)
 	{
 		ExpressionList list = new ExpressionList();
 		for (Pair<PrismVariable, parser.ast.Expression> expr : action.expressions) {
@@ -255,8 +255,7 @@ public class ExpressionGenerator
 		return list;
 	}
 
-	static private String convertUpdate(CLVariable stateVector, parser.ast.Expression expr, Map<String, String> translations,
-			Map<String, CLVariable> savedVariables)
+	static private String convertUpdate(CLVariable stateVector, parser.ast.Expression expr, Map<String, String> translations, Map<String, String> savedVariables)
 	{
 		StringBuilder assignment = new StringBuilder();
 		convertFunc(assignment, stateVector, translations, savedVariables, expr);
@@ -266,7 +265,7 @@ public class ExpressionGenerator
 		return assignment.toString();
 	}
 
-	static private void convertFunc(StringBuilder builder, CLVariable stateVector, Map<String, String> translations, Map<String, CLVariable> savedVariables,
+	static private void convertFunc(StringBuilder builder, CLVariable stateVector, Map<String, String> translations, Map<String, String> savedVariables,
 			parser.ast.Expression expr)
 	{
 		if (expr instanceof ExpressionFunc) {
@@ -330,7 +329,7 @@ public class ExpressionGenerator
 		}
 	}
 
-	static private String convertActionWithSV(CLVariable stateVector, Map<String, String> translations, Map<String, CLVariable> savedVariables, String action)
+	static private String convertActionWithSV(CLVariable stateVector, Map<String, String> translations, Map<String, String> savedVariables, String action)
 	{
 		StringBuilder builder = new StringBuilder(action);
 		for (Map.Entry<String, String> entry : translations.entrySet()) {
@@ -342,23 +341,26 @@ public class ExpressionGenerator
 			//builder.replace(index, index + entry.getKey().length(), String.format("((float)%s)", entry.getValue()));
 			//index += entry.getValue().length() + 9;
 			//}
-			if (!savedVariables.containsKey(entry.getKey())) {
+			if (savedVariables != null && !savedVariables.containsKey(entry.getKey())) {
 				builderReplaceMostCommon(builder, entry.getKey(), entry.getValue());//stateVector.accessField(entry.getValue()).toString());
 			}
 		}
 
-		for (Map.Entry<String, CLVariable> entry : savedVariables.entrySet()) {
-			//while ((index = builder.indexOf(entry.getKey(), index)) != -1) {
-			//if(entry.getKey().contains("i") ||entry.getKey().contains("nrtr") || entry.getKey().contains("ab") )
-			//if(entry.getKey().contains("nrtr"))
-			//continue;
+		if (savedVariables != null) {
+			for (Map.Entry<String, String> entry : savedVariables.entrySet()) {
+				//while ((index = builder.indexOf(entry.getKey(), index)) != -1) {
+				//if(entry.getKey().contains("i") ||entry.getKey().contains("nrtr") || entry.getKey().contains("ab") )
+				//if(entry.getKey().contains("nrtr"))
+				//continue;
 
-			//builder.replace(index, index + entry.getKey().length(), String.format("((float)%s)", entry.getValue()));
-			//index += entry.getValue().length() + 9;
-			//}
-			builderReplaceMostCommon(builder, entry.getKey(), entry.getValue().varName);
+				//builder.replace(index, index + entry.getKey().length(), String.format("((float)%s)", entry.getValue()));
+				//index += entry.getValue().length() + 9;
+				//}
+				builderReplaceMostCommon(builder, entry.getKey(), entry.getValue());
 
+			}
 		}
+
 		return builder.toString();
 	}
 
