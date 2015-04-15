@@ -54,7 +54,7 @@ public class Method extends ComplexKernelComponent
 	 */
 	@Deprecated
 	protected CLVariable stateVectorAccess = null;
-	
+
 	/**
 	 * Default constructor from name and return type.
 	 * @param name
@@ -65,7 +65,7 @@ public class Method extends ComplexKernelComponent
 		methodName = name;
 		methodType = returnType;
 	}
-	
+
 	/**
 	 * Add method argument.
 	 * @param var
@@ -80,7 +80,7 @@ public class Method extends ComplexKernelComponent
 		args.put(var.varName, var);
 		updateIncludes(var);
 	}
-	
+
 	/**
 	 * Add collection of arguments.
 	 * @param vars
@@ -92,7 +92,7 @@ public class Method extends ComplexKernelComponent
 			addArg(var);
 		}
 	}
-	
+
 	/**
 	 * @return number of arguments
 	 */
@@ -100,7 +100,7 @@ public class Method extends ComplexKernelComponent
 	{
 		return args.size();
 	}
-	
+
 	/**
 	 * @param name
 	 * @return argument with this name; null if it doesn't exist
@@ -192,7 +192,7 @@ public class Method extends ComplexKernelComponent
 			component.accept(v);
 		}
 	}
-	
+
 	/**
 	 * Add return statement with given variable.
 	 * Important: the method doesn't check the compatibility between variable and method type!
@@ -202,7 +202,7 @@ public class Method extends ComplexKernelComponent
 	{
 		body.add(new Expression(String.format("return %s;", var.varName)));
 	}
-	
+
 	/**
 	 * Add return statement with given expression.
 	 * Important: the method doesn't check the compatibility between variable and method type!
@@ -212,13 +212,13 @@ public class Method extends ComplexKernelComponent
 	{
 		body.add(new Expression(String.format("return %s;", expr)));
 	}
-	
+
 	@Deprecated
 	public boolean hasDefinedSVAccess()
 	{
 		return stateVectorAccess != null;
 	}
-	
+
 	@Deprecated
 	public CLVariable accessStateVector()
 	{

@@ -480,6 +480,7 @@ public abstract class KernelGenerator
 		varStateVector = new CLVariable(stateVectorType, "stateVector");
 		varStateVector.setInitValue(initStateVector());
 		currentMethod.addLocalVar(varStateVector);
+
 		currentMethod.registerStateVector(varStateVector);
 		//property results
 		ArrayType propertiesArrayType = new ArrayType(PROPERTY_STATE_STRUCTURE, properties.size());
@@ -1342,8 +1343,14 @@ public abstract class KernelGenerator
 				 */
 				//				current.addExpression(new Expression("if(get_global_id(0) < 10)printf(\"%d " + cmd.synchLabel
 				//						+ " %f %d %f %f\\n\",get_global_id(0),prop,guard,totalSize,totalSize * (*synState).moduleSize[" + i + "]);\n"));
-				Expression callUpdate = update.callMethod(stateVector, guardsTab, StdVariableType.initialize(i), guard, propability.convertToPointer(),
-						savedVarsInstance.convertToPointer());
+				Expression callUpdate = null;
+
+				if (savedVarsInstance != null) {
+					callUpdate = update.callMethod(stateVector, guardsTab, StdVariableType.initialize(i), guard, propability.convertToPointer(),
+							savedVarsInstance.convertToPointer());
+				} else {
+					callUpdate = update.callMethod(stateVector, guardsTab, StdVariableType.initialize(i), guard, propability.convertToPointer());
+				}
 				if (timingProperty) {
 					current.addExpression(callUpdate);
 				} else {
@@ -1488,7 +1495,6 @@ public abstract class KernelGenerator
 				internalSwitch.addCase(fromString(j));
 				//when update is in form prob:action + prob:action + ...
 				if (update.getActionsNumber() > 1) {
-					//TODO: null in convertPrismRate
 					IfElse ifElse = new IfElse(createBasicExpression(probability.getSource(), Operator.LT,
 							fromString(convertPrismRate(svPtrTranslations, rate))));
 					if (!update.isActionTrue(0)) {

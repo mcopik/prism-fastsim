@@ -225,7 +225,7 @@ public class ExpressionGenerator
 		StringBuilder builder = new StringBuilder();
 		for (Pair<PrismVariable, parser.ast.Expression> expr : action.expressions) {
 
-			builder.append(expr.first.name).append(" = ");
+			builder.append(translations.get(expr.first.name)).append(" = ");
 			builder.append(convertUpdate(stateVector, expr.second, translations, savedVariables));
 			builder.append(";\n");
 		}
@@ -275,16 +275,18 @@ public class ExpressionGenerator
 				if (func.getOperand(i) instanceof ExpressionFunc) {
 					convertFunc(builder, stateVector, translations, savedVariables, func.getOperand(i));
 				} else {
-					if (translations != null) {
+					//cast to float for overloading functions e.g. min to (float,float), not (float,int)
+					if (translations.size() != 0 || savedVariables.size() != 0) {
 						String newExpr = convertActionWithSV(stateVector, translations, savedVariables, func.getOperand(i).toString());
-						//no change? cast to float for overloading functions e.g. min to (float,float), not (float,int)l
-						if (newExpr.equals(func.getOperand(i).toString())) {
-							builder.append("((float)").append(newExpr).append(")");
-						} else {
-							builder.append(newExpr);
-						}
+						//no change? 
+						//if (newExpr.equals(func.getOperand(i).toString())) {
+						builder.append("((float)").append(newExpr).append(")");
+						//} else {
+						//	builder.append(newExpr);
+						//}
 					} else {
-						builder.append(func.getOperand(i).toString());
+						builder.append("((float)").append(func.getOperand(i).toString()).append(")");
+						//builder.append(func.getOperand(i).toString());
 					}
 					if (i != func.getNumOperands() - 1) {
 						builder.append(',');
@@ -341,9 +343,10 @@ public class ExpressionGenerator
 			//builder.replace(index, index + entry.getKey().length(), String.format("((float)%s)", entry.getValue()));
 			//index += entry.getValue().length() + 9;
 			//}
-			if (savedVariables != null && !savedVariables.containsKey(entry.getKey())) {
-				builderReplaceMostCommon(builder, entry.getKey(), entry.getValue());//stateVector.accessField(entry.getValue()).toString());
+			if (savedVariables != null && savedVariables.containsKey(entry.getKey())) {
+				continue;
 			}
+			builderReplaceMostCommon(builder, entry.getKey(), entry.getValue());//stateVector.accessField(entry.getValue()).toString());
 		}
 
 		if (savedVariables != null) {

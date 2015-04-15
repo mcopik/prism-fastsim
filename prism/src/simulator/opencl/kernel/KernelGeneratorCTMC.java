@@ -35,8 +35,10 @@ import static simulator.opencl.kernel.expression.ExpressionGenerator.createBasic
 import static simulator.opencl.kernel.expression.ExpressionGenerator.fromString;
 import static simulator.opencl.kernel.expression.ExpressionGenerator.postIncrement;
 
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 import parser.ast.ExpressionLiteral;
 import prism.Preconditions;
@@ -171,6 +173,18 @@ public class KernelGeneratorCTMC extends KernelGenerator
 	protected void mainMethodFirstUpdateProperties(ComplexKernelComponent parent)
 	{
 		/**
+		 * Special case - the translations are prepared for StateVector * sv,
+		 * but this one case works in main method - we have to use the StateVector instance directly.
+		 */
+		Map<String, String> oldTranslations = new HashMap<>(svPtrTranslations);
+		CLVariable stateVector = parent.getLocalVar("stateVector");
+		for (CLVariable var : stateVectorType.getFields()) {
+			String name = var.varName.substring(STATE_VECTOR_PREFIX.length());
+			CLVariable second = stateVector.accessField(var.varName);
+			svPtrTranslations.put(name, second.varName);
+		}
+
+		/**
 		 * For the case of bounded until in CTMC, we have to check initial state at time 0.
 		 */
 		for (int i = 0; i < properties.size(); ++i) {
@@ -190,6 +204,8 @@ public class KernelGeneratorCTMC extends KernelGenerator
 				}
 			}
 		}
+
+		svPtrTranslations = oldTranslations;
 	}
 
 	//
@@ -353,7 +369,8 @@ public class KernelGeneratorCTMC extends KernelGenerator
 		CLVariable tabPos = guardsTab.varType.accessElement(guardsTab, postIncrement(counter));
 		IfElse ifElse = new IfElse(new Expression(guard));
 		ifElse.addExpression(0, createAssignment(tabPos, fromString(position)));
-		Expression sumExpr = createBasicExpression(sum.getSource(), Operator.ADD_AUGM, fromString(commands[position].getRateSum()));
+		Expression sumExpr = createBasicExpression(sum.getSource(), Operator.ADD_AUGM,
+				fromString(convertPrismRate(svPtrTranslations, commands[position].getRateSum())));
 		ifElse.addExpression(0, sumExpr);
 		currentMethod.addExpression(ifElse);
 	}
@@ -382,7 +399,7 @@ public class KernelGeneratorCTMC extends KernelGenerator
 		for (int i = 0; i < commands.length; ++i) {
 			Rate rateSum = commands[i].getRateSum();
 			_switch.addCase(new Expression(Integer.toString(i)));
-			_switch.addExpression(i, ExpressionGenerator.createAssignment(newSum, fromString(rateSum)));
+			_switch.addExpression(i, ExpressionGenerator.createAssignment(newSum, fromString(convertPrismRate(svPtrTranslations, rateSum))));
 		}
 		loop.addExpression(_switch);
 		// if(sum + newSum > selectionSum)
@@ -542,7 +559,7 @@ public class KernelGeneratorCTMC extends KernelGenerator
 		IfElse ifElse = new IfElse(new Expression(convertPrismGuard(svPtrTranslations, cmd.getGuard().toString())));
 		ifElse.addExpression(createBasicExpression(size.getSource(), Operator.ADD_AUGM,
 		//converted rate
-				new Expression(convertPrismRate(null, cmd.getRateSum()))));
+				new Expression(convertPrismRate(svPtrTranslations, cmd.getRateSum()))));
 		ifElse.addExpression(createAssignment(guardArray, fromString(1)));
 		ifElse.addElse();
 		ifElse.addExpression(1, createAssignment(guardArray, fromString(0)));
