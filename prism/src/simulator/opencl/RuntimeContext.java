@@ -25,6 +25,8 @@
 //==============================================================================
 package simulator.opencl;
 
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -479,6 +481,7 @@ public class RuntimeContext
 	private ContextState state = null;
 	//private int localWorkSize = 0;
 	private CLKernel programKernel = null;
+	private CLProgram program = null;
 	double avgPathLength = 0.0f;
 	int minPathLength = Integer.MAX_VALUE;
 	int maxPathLength = 0;
@@ -507,7 +510,7 @@ public class RuntimeContext
 			mainLog.flush();
 			//System.out.println(kernel.getSource());
 			String str = kernel.getSource();
-			CLProgram program = context.createProgram(str);
+			program = context.createProgram(str);
 
 			//add include directories for PRNG
 			//has to work when applications is executed as Java class or as a jar
@@ -520,7 +523,10 @@ public class RuntimeContext
 			// TODO: check why this is necessary
 			program.addInclude("src/" + location + "/Random123/features");
 
+			//program.addBuildOption("-cl-nv-verbose");
+			program.addBuildOption("-w");
 			program.build();
+
 			programKernel = program.createKernel("main");
 			int localWorkSize = programKernel.getWorkGroupSize().get(currentDevice.getDevice()).intValue();
 
@@ -628,6 +634,49 @@ public class RuntimeContext
 			return globalSize;
 		} else {
 			return globalSize + groupSize - r;
+		}
+	}
+
+	/**
+	 * Acquire building info (warnings etc) from the compiler.
+	 * Requires access to private method getProgramBuildInfo in class CLProgram - use reflection for that.
+	 * Works with JavaCL 1.0 RC4
+	 * @param deviceNumber
+	 * @return compiler build info
+	 * @throws KernelException
+	 */
+	public String getBuildInfo(int deviceNumber) throws KernelException
+	{
+		//TODO: Extend this for future usage of multiple devices
+		Preconditions.checkIndex(deviceNumber, 1);
+		Preconditions.checkCondition(program != null);
+		try {
+			/**
+			 * private String CLProgram.getProgramBuildInfo(long programEntity, long deviceEntity)
+			 */
+			Method methodCLProgramBuildInfo = program.getClass().getDeclaredMethod("getProgramBuildInfo", new Class[] { Long.TYPE, Long.TYPE });
+			/**
+			 * protected long CLProgram.getEntity()
+			 */
+			Method methodCLProgramEntity = program.getClass().getDeclaredMethod("getEntity");
+			/**
+			 * protected long CLDevice.getEntity()
+			 */
+			Method methodCLDeviceEntity = program.getDevices()[deviceNumber].getClass().getSuperclass().getDeclaredMethod("getEntity");
+
+			// private & protected
+			methodCLProgramBuildInfo.setAccessible(true);
+			methodCLProgramEntity.setAccessible(true);
+			methodCLDeviceEntity.setAccessible(true);
+
+			Long programEntity = (Long) methodCLProgramEntity.invoke(program);
+			Long deviceEntity = (Long) methodCLDeviceEntity.invoke(program.getDevices()[deviceNumber]);
+			return (String) methodCLProgramBuildInfo.invoke(program, programEntity, deviceEntity);
+
+		} catch (NoSuchMethodException | SecurityException | IllegalAccessException | IllegalArgumentException | InvocationTargetException e) {
+
+			mainLog.print(e);
+			throw new KernelException("Unknown error when trying to obtain build info for CLProgram!");
 		}
 	}
 }
