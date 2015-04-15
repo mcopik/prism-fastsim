@@ -481,7 +481,6 @@ public abstract class KernelGenerator
 		varStateVector.setInitValue(initStateVector());
 		currentMethod.addLocalVar(varStateVector);
 
-		currentMethod.registerStateVector(varStateVector);
 		//property results
 		ArrayType propertiesArrayType = new ArrayType(PROPERTY_STATE_STRUCTURE, properties.size());
 		varPropertiesArray = new CLVariable(propertiesArrayType, "properties");
@@ -837,7 +836,6 @@ public abstract class KernelGenerator
 		//StateVector * sv
 		CLVariable sv = new CLVariable(varStateVector.getPointer(), "sv");
 		currentMethod.addArg(sv);
-		currentMethod.registerStateVector(sv);
 		//bool * guardsTab
 		CLVariable guards = new CLVariable(varGuardsTab.getPointer(), "guardsTab");
 		currentMethod.addArg(guards);
@@ -880,7 +878,6 @@ public abstract class KernelGenerator
 		//StateVector * sv
 		CLVariable sv = new CLVariable(varStateVector.getPointer(), "sv");
 		currentMethod.addArg(sv);
-		currentMethod.registerStateVector(sv);
 		//bool * guardsTab
 		CLVariable guards = new CLVariable(new PointerType(new StdVariableType(0, commands.length)), "guardsTab");
 		currentMethod.addArg(guards);
@@ -1029,7 +1026,6 @@ public abstract class KernelGenerator
 		//StateVector * sv
 		CLVariable sv = new CLVariable(varStateVector.getPointer(), "sv");
 		currentMethod.addArg(sv);
-		currentMethod.registerStateVector(sv);
 		//PropertyState * property
 		CLVariable propertyState = new CLVariable(new PointerType(PROPERTY_STATE_STRUCTURE), "propertyState");
 		currentMethod.addArg(propertyState);
@@ -1193,7 +1189,6 @@ public abstract class KernelGenerator
 			} catch (KernelException e) {
 				throw new RuntimeException(e);
 			}
-			current.registerStateVector(stateVector);
 			int guardCounter = 0;
 			//first module
 			for (int i = 0; i < cmd.getCommandNumber(0); ++i) {
@@ -1301,7 +1296,6 @@ public abstract class KernelGenerator
 				current.addArg(propability);
 				current.addLocalVar(guard);
 				current.addLocalVar(totalSize);
-				current.registerStateVector(stateVector);
 				if (!timingProperty) {
 					current.addLocalVar(changeFlag);
 				}
@@ -1314,7 +1308,6 @@ public abstract class KernelGenerator
 			} catch (KernelException e) {
 				throw new RuntimeException(e);
 			}
-			current.registerStateVector(stateVector);
 			//current.addExpression(new Expression("if(get_global_id(0)<5)printf(\"" + cmd.synchLabel + " %f\\n\",prop);"));
 			CLVariable moduleSize = null;
 			//			ForLoop loop = new ForLoop("loopCounter", 0, cmd.getModulesNum());

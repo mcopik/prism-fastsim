@@ -36,7 +36,6 @@ import simulator.opencl.automaton.AbstractAutomaton.AutomatonType;
 import simulator.opencl.automaton.PrismVariable;
 import simulator.opencl.kernel.expression.Include;
 import simulator.opencl.kernel.expression.KernelComponent;
-import simulator.opencl.kernel.expression.MemoryTranslatorVisitor;
 import simulator.opencl.kernel.expression.Method;
 import simulator.opencl.kernel.memory.StructureType;
 import simulator.sampler.Sampler;
@@ -153,32 +152,6 @@ public class Kernel
 			if (addIncludes != null) {
 				includes.addAll(addIncludes);
 			}
-		}
-	}
-
-	@Deprecated
-	private MemoryTranslatorVisitor createTranslatorVisitor()
-	{
-		MemoryTranslatorVisitor visitor = new MemoryTranslatorVisitor(stateVectorType);
-		for (PrismVariable var : model.getStateVector().getVars()) {
-			visitor.addTranslation(var.name, methodsGenerator.translateSVField(var.name));
-		}
-		return visitor;
-	}
-
-	@Deprecated
-	private void visitMethodsTranslator(MemoryTranslatorVisitor visitor) throws KernelException
-	{
-		visitor.setStateVector(mainMethod.accessStateVector());
-		mainMethod.accept(visitor);
-		for (Method method : helperMethods) {
-			if (method == null)
-				continue;
-			if (!method.hasDefinedSVAccess()) {
-				throw new KernelException("Method " + method.methodName + " has not StateVector access!");
-			}
-			visitor.setStateVector(method.accessStateVector());
-			method.accept(visitor);
 		}
 	}
 

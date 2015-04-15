@@ -49,11 +49,6 @@ public class Method extends ComplexKernelComponent
 	 * Arguments.
 	 */
 	protected Map<String, CLVariable> args = new LinkedHashMap<>();
-	/**
-	 * Current instance of state vector (if exists).
-	 */
-	@Deprecated
-	protected CLVariable stateVectorAccess = null;
 
 	/**
 	 * Default constructor from name and return type.
@@ -119,15 +114,6 @@ public class Method extends ComplexKernelComponent
 			throw new KernelException("Variable " + var.varName + " already exists!");
 		}
 		super.addLocalVar(var);
-	}
-
-	@Deprecated
-	public void registerStateVector(CLVariable var)
-	{
-		Preconditions.checkCondition(args.containsValue(var) || localVars.containsValue(var),
-		//global variables do not exist in OpenCL - it has to be arg/local var
-				"StateVector reference has to be a local variable or function argument!");
-		stateVectorAccess = var;
 	}
 
 	@Override
@@ -211,17 +197,5 @@ public class Method extends ComplexKernelComponent
 	public void addReturn(Expression expr)
 	{
 		body.add(new Expression(String.format("return %s;", expr)));
-	}
-
-	@Deprecated
-	public boolean hasDefinedSVAccess()
-	{
-		return stateVectorAccess != null;
-	}
-
-	@Deprecated
-	public CLVariable accessStateVector()
-	{
-		return stateVectorAccess;
 	}
 }

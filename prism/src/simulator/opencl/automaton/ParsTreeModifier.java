@@ -137,6 +137,7 @@ public class ParsTreeModifier extends ASTTraverseModify
 				if (type instanceof TypeInt) {
 					e.setOperand2(new ExpressionLiteral(TypeDouble.getInstance(), Double.valueOf((Integer) value)));
 				}
+				//nothing to do for Double
 			}
 			break;
 		}
