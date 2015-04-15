@@ -35,7 +35,6 @@ import static simulator.opencl.kernel.expression.ExpressionGenerator.fromString;
 import static simulator.opencl.kernel.expression.ExpressionGenerator.functionCall;
 import static simulator.opencl.kernel.expression.ExpressionGenerator.postIncrement;
 
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 
@@ -50,17 +49,17 @@ import simulator.opencl.automaton.update.Rate;
 import simulator.opencl.kernel.expression.ComplexKernelComponent;
 import simulator.opencl.kernel.expression.Expression;
 import simulator.opencl.kernel.expression.ExpressionGenerator;
+import simulator.opencl.kernel.expression.ExpressionGenerator.Operator;
 import simulator.opencl.kernel.expression.ForLoop;
 import simulator.opencl.kernel.expression.IfElse;
 import simulator.opencl.kernel.expression.Method;
-import simulator.opencl.kernel.expression.ExpressionGenerator.Operator;
 import simulator.opencl.kernel.memory.ArrayType;
 import simulator.opencl.kernel.memory.CLValue;
 import simulator.opencl.kernel.memory.CLVariable;
 import simulator.opencl.kernel.memory.RValue;
 import simulator.opencl.kernel.memory.StdVariableType;
-import simulator.opencl.kernel.memory.StructureType;
 import simulator.opencl.kernel.memory.StdVariableType.StdType;
+import simulator.opencl.kernel.memory.StructureType;
 import simulator.sampler.Sampler;
 import simulator.sampler.SamplerBoolean;
 import simulator.sampler.SamplerBoundedUntilDisc;
@@ -474,19 +473,19 @@ public class KernelGeneratorDTMC extends KernelGenerator
 	}
 
 	@Override
-	protected void propertiesMethodAddBoundedUntil(Method currentMethod, ComplexKernelComponent parent, SamplerBoolean property, CLVariable propertyVar) throws PrismLangException
+	protected void propertiesMethodAddBoundedUntil(Method currentMethod, ComplexKernelComponent parent, SamplerBoolean property, CLVariable propertyVar)
+			throws PrismLangException
 	{
 		//TODO: check if it will always work (e.g. CTMC case)
 		CLVariable time = currentMethod.getArg("time");
 		SamplerBoundedUntilDisc prop = (SamplerBoundedUntilDisc) property;
-		
-		String propertyStringRight = visitPropertyExpression( prop.getRightSide()).toString();
-		String propertyStringLeft = visitPropertyExpression( prop.getLeftSide()).toString();
+
+		String propertyStringRight = visitPropertyExpression(prop.getRightSide()).toString();
+		String propertyStringLeft = visitPropertyExpression(prop.getLeftSide()).toString();
 		/**
 		 * if(time > upper_bound)
 		 */
-		IfElse ifElse = new IfElse(createBasicExpression(time.getSource(), Operator.GE, 
-				fromString(prop.getUpperBound())));
+		IfElse ifElse = new IfElse(createBasicExpression(time.getSource(), Operator.GE, fromString(prop.getUpperBound())));
 		/**
 		 * if(right_side == true) -> true
 		 * else -> false
@@ -494,11 +493,9 @@ public class KernelGeneratorDTMC extends KernelGenerator
 		IfElse rhsCheck = null;
 		//TODO: always !prop?
 		if (prop.getRightSide().toString().charAt(0) == '!') {
-			rhsCheck = createPropertyCondition(propertyVar, true, 
-					propertyStringRight.substring(1), true);
+			rhsCheck = createPropertyCondition(propertyVar, true, propertyStringRight.substring(1), true);
 		} else {
-			rhsCheck = createPropertyCondition(propertyVar, 
-					false, propertyStringRight, true);
+			rhsCheck = createPropertyCondition(propertyVar, false, propertyStringRight, true);
 		}
 		createPropertyCondition(rhsCheck, propertyVar, false, null, false);
 		ifElse.addExpression(rhsCheck);
@@ -512,15 +509,12 @@ public class KernelGeneratorDTMC extends KernelGenerator
 		 */
 		IfElse betweenBounds = null;
 		if (prop.getRightSide().toString().charAt(0) == '!') {
-			betweenBounds = createPropertyCondition(propertyVar, true, 
-					propertyStringRight.substring(1), true);
+			betweenBounds = createPropertyCondition(propertyVar, true, propertyStringRight.substring(1), true);
 		} else {
-			betweenBounds = createPropertyCondition(propertyVar, false, 
-					propertyStringRight.toString(), true);
+			betweenBounds = createPropertyCondition(propertyVar, false, propertyStringRight.toString(), true);
 		}
 		if (!(prop.getLeftSide() instanceof ExpressionLiteral)) {
-			createPropertyCondition(betweenBounds, propertyVar, true, 
-					propertyStringLeft, false);
+			createPropertyCondition(betweenBounds, propertyVar, true, propertyStringLeft, false);
 		}
 		ifElse.addExpression(1, betweenBounds);
 		parent.addExpression(ifElse);
@@ -551,7 +545,7 @@ public class KernelGeneratorDTMC extends KernelGenerator
 	@Override
 	protected void guardsSynAddGuard(ComplexKernelComponent parent, CLVariable guardArray, Command cmd, CLVariable size)
 	{
-		Expression guard = new Expression(convertPrismGuard(svVars, cmd.getGuard().toString()));
+		Expression guard = new Expression(convertPrismGuard(svPtrTranslations, cmd.getGuard().toString()));
 		parent.addExpression(createAssignment(guardArray, guard));
 		parent.addExpression(createBasicExpression(size.getSource(), Operator.ADD_AUGM,
 		//converted guard
@@ -653,13 +647,13 @@ public class KernelGeneratorDTMC extends KernelGenerator
 		if (before != null) {
 			compute = createBasicExpression(probability.getSource(), Operator.SUB,
 			//probability - sum of rates before
-					fromString(convertPrismRate(svVars, before)));
+					fromString(convertPrismRate(null, before)));
 		} else {
 			compute = probability.getSource();
 		}
 		addParentheses(compute);
 		return createAssignment(probability, createBasicExpression(compute, Operator.DIV,
 		//divide by current interval
-				fromString(convertPrismRate(svVars, current))));
+				fromString(convertPrismRate(null, current))));
 	}
 }

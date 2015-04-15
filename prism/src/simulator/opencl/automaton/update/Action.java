@@ -26,7 +26,10 @@
 package simulator.opencl.automaton.update;
 
 import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Set;
 
 import parser.ast.Expression;
 import prism.Pair;
@@ -76,6 +79,46 @@ public class Action
 	{
 		Preconditions.checkIndex(updateNumber, expressions.size());
 		return expressions.get(updateNumber).second;
+	}
+
+	public Set<PrismVariable> variablesCopiedBeforeUpdate()
+	{
+		Set<PrismVariable> vars = new HashSet<>();
+		Set<PrismVariable> updatedVars = new HashSet<>();
+		for (Pair<PrismVariable, Expression> pair : expressions) {
+
+			//easier rather than walking through the tree
+			Iterator<PrismVariable> it = updatedVars.iterator();
+			while (it.hasNext()) {
+				PrismVariable var = it.next();
+				// The update contains variable which has been already updated
+				// We need to have a copy
+				String varName = pair.second.toString();
+				int index = varName.indexOf(var.name);
+				//check for existince, if it is a suffix or a prefix
+				if (index != -1) {
+
+					//check if it is a prefix (of longer variable)
+					if (varName.length() > index + var.name.length()) {
+						Character c = varName.charAt(index + var.name.length());
+						if (c == '_' || Character.isAlphabetic(c) || Character.isDigit(c))
+							continue;
+					}
+					//check if it is a suffix
+					if (index != 0) {
+						Character c = varName.charAt(index - 1);
+						if (c == '_' || Character.isAlphabetic(c) || Character.isDigit(c))
+							continue;
+					}
+
+					vars.add(var);
+					// no need to check it for other expressions, it's already saved
+					it.remove();
+				}
+			}
+			updatedVars.add(pair.first);
+		}
+		return vars;
 	}
 
 	@Override

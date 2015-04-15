@@ -204,7 +204,7 @@ public class Kernel
 		for (KernelComponent expr : globalDeclarations) {
 			builder.append(expr.getSource()).append("\n");
 		}
-		visitMethodsTranslator(createTranslatorVisitor());
+		//visitMethodsTranslator(createTranslatorVisitor());
 		declareMethods(builder);
 		defineMethods(builder);
 		kernelSource = builder.toString();

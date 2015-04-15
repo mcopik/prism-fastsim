@@ -32,7 +32,7 @@ import prism.Preconditions;
 import simulator.opencl.kernel.memory.CLVariable;
 
 public class Switch extends ComplexKernelComponent
-{	
+{
 	/**
 	 * Internal component.
 	 */
@@ -98,13 +98,17 @@ public class Switch extends ComplexKernelComponent
 			} else {
 				builder.append("default:\n ");
 			}
+			// Add brackets {}, so variable declarations will be allowed
+			builder.append("{\n");
 			for (KernelComponent command : commands) {
 				builder.append(command.getSource()).append("\n");
 			}
+			builder.append("}\n");
 			builder.append("break;");
 			return builder.toString();
 		}
 	}
+
 	/**
 	 * True when the switch contains a 'default' case at the end.
 	 */
@@ -126,7 +130,7 @@ public class Switch extends ComplexKernelComponent
 	{
 		this.switchCondition = switchCondition;
 	}
-	
+
 	/**
 	 * Create switch from a variable, used as switch expression.
 	 * @param var
@@ -148,7 +152,7 @@ public class Switch extends ComplexKernelComponent
 			body.add(new Case(condition));
 		}
 	}
-	
+
 	/**
 	 * Add the 'default' case.
 	 */
@@ -156,7 +160,7 @@ public class Switch extends ComplexKernelComponent
 	{
 		hasDefault = true;
 	}
-	
+
 	/**
 	 * Add another expression to case specified by first argument.
 	 * @param conditionNumber
@@ -168,7 +172,7 @@ public class Switch extends ComplexKernelComponent
 		correctExpression(command);
 		((Case) body.get(conditionNumber)).commands.add(command);
 	}
-	
+
 	@Override
 	public void addExpression(KernelComponent expr)
 	{
@@ -179,7 +183,7 @@ public class Switch extends ComplexKernelComponent
 			necessaryIncludes.addAll(expr.getIncludes());
 		}
 	}
-	
+
 	/**
 	 * Specify current condition, used by addExpression method
 	 * which doesn't use the condition number argument. 
