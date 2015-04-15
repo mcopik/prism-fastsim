@@ -104,7 +104,7 @@ public class Kernel
 	 * Not necessary right now, because Random123 provides these definition in include.
 	 * May be helpful later.
 	 */
-	public final static String KERNEL_TYPEDEFS = "typedef char int8_t;\n" + "typedef unsigned char uint8_t;\n" + "typedef unsigned short uint16_t;\n"
+	public final static String KERNEL_TYPEDEFS = "typedef unsigned char uchar" + "typedef char int8_t;\n" + "typedef unsigned char uint8_t;\n" + "typedef unsigned short uint16_t;\n"
 			+ "typedef short int16_t;\n" + "typedef unsigned int uint32_t;\n" + "typedef int int32_t;\n" + "typedef long int64_t;\n"
 			+ "typedef unsigned long uint64_t;\n";
 

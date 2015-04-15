@@ -73,6 +73,12 @@ public class KernelGeneratorCTMC extends KernelGenerator
 	 */
 	protected CLVariable varUpdatedTime = null;
 
+	/**
+	 * Constructor for CTMC kernel generator.
+	 * @param model
+	 * @param properties
+	 * @param config
+	 */
 	public KernelGeneratorCTMC(AbstractAutomaton model, List<Sampler> properties, RuntimeConfig config)
 	{
 		super(model, properties, config);
@@ -208,44 +214,6 @@ public class KernelGeneratorCTMC extends KernelGenerator
 		svPtrTranslations = oldTranslations;
 	}
 
-	//
-	//	protected void mainMethodCallBothUpdates(ComplexKernelComponent parent)
-	//	{
-	//		//selection
-	//		CLVariable selection = new CLVariable(new StdVariableType(StdType.FLOAT), "selection");
-	//		Expression sum = createBasicExpression(varSelectionSize.getSource(), Operator.ADD, varSynSelectionSize.getSource());
-	//		addParentheses(sum);
-	//		selection.setInitValue(config.prngType.getRandomFloat(fromString(0), sum));
-	//		parent.addExpression(selection.getDefinition());
-	//		Expression condition = createBasicExpression(selection.getSource(), Operator.LT,
-	//		//< nonSynchronizedRate
-	//				varSelectionSize.getSource());
-	//		IfElse ifElse = new IfElse(condition);
-	//		/**
-	//		 * if(selection < selectionSize/sum)
-	//		 * callNonsynUpdate(..)
-	//		 */
-	//		Method update = helperMethods.get(KernelMethods.PERFORM_UPDATE);
-	//		ifElse.addExpression(update.callMethod(
-	//		//stateVector
-	//				varStateVector.convertToPointer(),
-	//				//non-synchronized guards tab
-	//				varGuardsTab,
-	//				//select 
-	//				selection));
-	//		/**
-	//		 * else
-	//		 * callSynUpdate()
-	//		 */
-	//		//TODO: call synchronized update
-	//		parent.addExpression(ifElse);
-	//	}
-	//
-	//	protected void mainMethodCallSynUpdate(ComplexKernelComponent parent)
-	//	{
-	//		//TODO: call synchronized update
-	//	}
-
 	@Override
 	protected void mainMethodCallNonsynUpdate(ComplexKernelComponent parent)
 	{
@@ -287,7 +255,6 @@ public class KernelGeneratorCTMC extends KernelGenerator
 					addParentheses(createBasicExpression(varPathLength.getSource(), Operator.MUL,
 					// % numbersPerRandom
 							fromString(2))).toString(), config.prngType.numbersPerRandomize()));
-
 		}
 		selection.setInitValue(config.prngType.getRandomFloat(fromString(rndNumber), selectionSize));
 		return selection;
@@ -332,10 +299,6 @@ public class KernelGeneratorCTMC extends KernelGenerator
 			call = helperMethods.get(KernelMethods.UPDATE_PROPERTIES).callMethod(varStateVector.convertToPointer(), varPropertiesArray, varTime);
 		}
 		IfElse ifElse = new IfElse(call);
-		//		ifElse.addExpression(
-		//				0,
-		//				new Expression(
-		//						"if(get_global_id(0) < 10)printf(\"%f %f %f %d %d\\n\",time,updatedTime,selectionSize,stateVector.__STATE_VECTOR_q,properties[0].propertyState);\n"));
 		ifElse.addExpression(0, new Expression("break;\n"));
 		parent.addExpression(ifElse);
 	}

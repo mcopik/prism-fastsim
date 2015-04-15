@@ -208,23 +208,25 @@ public abstract class KernelGenerator
 	 * Pseudo-random number generator type.
 	 */
 	protected PRNGType prngType = null;
-	/**
-	 * Variables from state vector.
-	 */
-	protected PrismVariable[] svVars = null;
+	
 	/**
 	 * True when model contains synchronized commands.
 	 */
 	protected boolean hasSynchronized = false;
+	
 	/**
 	 * True when model contains 'normal' commands.
 	 */
 	protected boolean hasNonSynchronized = false;
+	
 	/**
 	 * True when one of processed properties has timing constraints.
 	 */
 	protected boolean timingProperty = false;
 
+	/**
+	 * TreeVisitor instance, used for parsing of properties (model parsing has been already done in Automaton class)
+	 */
 	protected ParsTreeModifier treeVisitor = new ParsTreeModifier();
 
 	/**
@@ -235,17 +237,8 @@ public abstract class KernelGenerator
 	 */
 	Map<String, String> svPtrTranslations = new HashMap<>();
 
-	//	/**
-	//	 * Contains names of variables that need to be copied before update.
-	//	 */
-	//	protected Set<String> nonSynchVarsToSave = new HashSet<>();
-	//	/**
-	//	 * Contains names of variables that need to be copied before update.
-	//	 */
-	//	protected Map<String, Set<String>> synchVarsToSave = new HashMap<>();
-
 	/**
-	 * 
+	 * Constructor.
 	 * @param model
 	 * @param properties
 	 * @param config
@@ -256,10 +249,11 @@ public abstract class KernelGenerator
 		this.properties = properties;
 		this.config = config;
 		this.prngType = config.prngType;
-		this.svVars = model.getStateVector().getVars();
 		importStateVector();
 		int synSize = model.synchCmdsNumber();
 		int size = model.commandsNumber();
+		
+		// import commands
 		if (synSize != 0) {
 			synCommands = new SynchronizedCommand[synSize];
 			hasSynchronized = true;
@@ -268,6 +262,7 @@ public abstract class KernelGenerator
 			commands = new Command[size - synSize];
 			hasNonSynchronized = true;
 		}
+		
 		int normalCounter = 0, synCounter = 0;
 		for (int i = 0; i < size; ++i) {
 			CommandInterface cmd = model.getCommand(i);
@@ -277,6 +272,8 @@ public abstract class KernelGenerator
 				synCommands[synCounter++] = (SynchronizedCommand) cmd;
 			}
 		}
+		
+		// check if at least one of properties has time constraint
 		for (Sampler sampler : properties) {
 			if (sampler instanceof SamplerBoundedUntilCont || sampler instanceof SamplerBoundedUntilDisc) {
 				timingProperty = true;
@@ -284,6 +281,7 @@ public abstract class KernelGenerator
 			}
 		}
 
+		// create translations from model variable to StateVector structure, accessed by a pointer
 		CLVariable sv = new CLVariable(new PointerType(stateVectorType), "sv");
 		for (CLVariable var : stateVectorType.getFields()) {
 			String name = var.varName.substring(STATE_VECTOR_PREFIX.length());
@@ -291,86 +289,36 @@ public abstract class KernelGenerator
 			svPtrTranslations.put(name, second.varName);
 		}
 
+		// property and synchronized structure definitions
 		if (hasSynchronized) {
 			createSynchronizedStructures();
 		}
 		additionalDeclarations.add(PROPERTY_STATE_STRUCTURE.getDefinition());
+		
+		// PRNG definitions
 		if (prngType.getAdditionalDefinitions() != null) {
 			additionalDeclarations.addAll(prngType.getAdditionalDefinitions());
 		}
-		//		/*
-		//		 * copying old values for multiple update - non-synchronized
-		//		 */
-		//		findVariablesToSave();
-		//		if (hasSynchronized) {
-		//			for (SynchronizedCommand cmd : synCommands) {
-		//				findVariablesToSaveSyn(cmd);
-		//			}
-		//		}
 	}
 
-	//	protected void findUpdatedVariables(Update upd, Set<String> updatedVars, Set<String> varsToSave)
-	//	{
-	//		for (int i = 0; i < upd.getActionsNumber(); ++i) {
-	//			for (Pair<PrismVariable, parser.ast.Expression> pair : upd.getAction(i).expressions) {
-	//				//for each action, check whether it contains old variable
-	//				for (String entry : updatedVars) {
-	//					String updExpr = pair.second.toString();
-	//					int index = updExpr.indexOf(entry);
-	//					if (index == -1) {
-	//						continue;
-	//					}
-	//					int len = index + entry.length();
-	//					//check whether it is not a prefix of longer variable
-	//					if ((index + len) != updExpr.length()
-	//							&& (Character.isAlphabetic(updExpr.charAt(index + len)) || Character.isDigit(updExpr.charAt(index + len)))) {
-	//						continue;
-	//					}
-	//					//check whether it is not a suffix of longer variable
-	//					if (index != 0 && (Character.isAlphabetic(updExpr.charAt(index - 1)) || Character.isDigit(updExpr.charAt(index - 1)))) {
-	//						continue;
-	//					}
-	//					varsToSave.add(entry);
-	//				}
-	//				updatedVars.add(pair.first.name);
-	//			}
-	//		}
-	//	}
-	//
-	//	protected void findVariablesToSave()
-	//	{
-	//		Set<String> updatedVars = new HashSet<>();
-	//		if (hasNonSynchronized) {
-	//			for (Command cmd : commands) {
-	//				Update upd = cmd.getUpdate();
-	//				findUpdatedVariables(upd, updatedVars, nonSynchVarsToSave);
-	//				updatedVars.clear();
-	//			}
-	//		}
-	//	}
-	//
-	//	protected void findVariablesToSaveSyn(SynchronizedCommand cmd)
-	//	{
-	//		Set<String> updatedVars = new HashSet<>();
-	//		Update upd = null;
-	//		Set<String> varsToSave = new HashSet<>();
-	//		for (int i = 0; i < cmd.getModulesNum(); ++i) {
-	//			//for each cmd in module
-	//			for (int j = 0; j < cmd.getCommandNumber(i); ++j) {
-	//				upd = cmd.getCommand(i, j).getUpdate();
-	//				findUpdatedVariables(upd, updatedVars, varsToSave);
-	//			}
-	//		}
-	//		synchVarsToSave.put(cmd.synchLabel, varsToSave);
-	//	}
-
+	/**
+	 * Create structures for synchronized commands.
+	 * Generated structure types are different for DTMC and CTMC.
+	 */
 	protected abstract void createSynchronizedStructures();
 
+	/**
+	 * @return state vector structure type
+	 */
 	public StructureType getSVType()
 	{
 		return stateVectorType;
 	}
 
+	/**
+	 * Return declarations manually specified earlier and synchronization structures definitions.
+	 * @return additional global declarations
+	 */
 	public List<KernelComponent> getAdditionalDeclarations()
 	{
 		if (synchronizedStates != null) {
@@ -381,6 +329,9 @@ public abstract class KernelGenerator
 		return additionalDeclarations;
 	}
 
+	/**
+	 * @return all helper methods used in kernel
+	 */
 	public Collection<Method> getHelperMethods()
 	{
 		List<Method> ret = new ArrayList<>();
@@ -397,6 +348,9 @@ public abstract class KernelGenerator
 		return ret;
 	}
 
+	/**
+	 * Create StateVector structure type from model's state vector.
+	 */
 	protected void importStateVector()
 	{
 		StateVector sv = model.getStateVector();
@@ -409,6 +363,10 @@ public abstract class KernelGenerator
 		additionalDeclarations.add(stateVectorType.getDefinition());
 	}
 
+	/**
+	 * Initialize state vector from initial state declared in model or provided by user.  
+	 * @return structure initialization value
+	 */
 	protected CLValue initStateVector()
 	{
 		StateVector sv = model.getStateVector();
@@ -433,15 +391,17 @@ public abstract class KernelGenerator
 
 	/*********************************
 	 * MAIN METHOD
-	 * @throws PrismLangException 
+	 * @throws PrismLangException, KernelException 
 	 ********************************/
 	public Method createMainMethod() throws KernelException, PrismLangException
 	{
 		Method currentMethod = new KernelMethod();
-
+		currentMethod.addInclude(prngType.getIncludes());
+		
 		/**
 		 * Main method arguments.
 		 */
+		
 		//ARG 0: prng input
 		currentMethod.addArg(prngType.getAdditionalInput());
 		//ARG 1: number of simulations in this iteration
@@ -469,13 +429,16 @@ public abstract class KernelGenerator
 			propertyResults[i].memLocation = Location.GLOBAL;
 			currentMethod.addArg(propertyResults[i]);
 		}
+		
 		/**
 		 * Local variables.
 		 */
+		
 		//global ID of thread
 		CLVariable globalID = new CLVariable(new StdVariableType(StdType.UINT32), "globalID");
 		globalID.setInitValue(ExpressionGenerator.assignGlobalID());
 		currentMethod.addLocalVar(globalID);
+		
 		//state vector for model
 		varStateVector = new CLVariable(stateVectorType, "stateVector");
 		varStateVector.setInitValue(initStateVector());
@@ -531,15 +494,28 @@ public abstract class KernelGenerator
 		helperMethods.put(KernelMethods.UPDATE_PROPERTIES, createPropertiesMethod());
 
 		/**
-		 * reject samples with globalID greater than numberOfSimulations
+		 * Reject samples with globalID greater than numberOfSimulations
+		 * Necessary in every kernel, because number of OpenCL kernel launches will be aligned
+		 * (and almost always greater than number of ordered samples, buffer sizes etc).
 		 */
-		currentMethod.addExpression(String.format("if(%s > %s) {\n return;\n}\n", globalID.varName, numberOfSimulations.varName));
+		IfElse sampleNumberCheck = new IfElse( createBasicExpression(globalID.getName(), Operator.GT, numberOfSimulations.getName()) );
+		sampleNumberCheck.addExpression("return;");
+	
 		/**
 		 * initialize generator
 		 */
 		currentMethod.addExpression(prngType.initializeGenerator());
+		
+		/**
+		 * Initial check of properties, before making any computations.
+		 */
 		mainMethodFirstUpdateProperties(currentMethod);
+	
+		/**
+		 * Main processing loop.
+		 */
 		ForLoop loop = new ForLoop(varPathLength, (long) 0, config.maxPathLength);
+		
 		/**
 		 * Check how much numbers are generated with each randomize().
 		 * If 1, then we do not need any earlier call - we will randomize variable when we need them.
@@ -558,6 +534,7 @@ public abstract class KernelGenerator
 				loop.addExpression(prngType.randomize());
 			}
 		}
+		
 		/**
 		 * check which guards are active
 		 */
@@ -578,6 +555,7 @@ public abstract class KernelGenerator
 				loop.addExpression(createBasicExpression(varSynSelectionSize.getSource(), Operator.ADD_AUGM, callMethod));
 			}
 		}
+		
 		/**
 		 * if(selectionSize + synSelectionSize == 0) -> deadlock, break
 		 */
@@ -589,13 +567,14 @@ public abstract class KernelGenerator
 		} else {
 			sum = varSelectionSize.getSource();
 		}
+		
+		/**
+		 * Deadlock when number of possible choices is 0.
+		 */
 		IfElse deadlockState = new IfElse(createBasicExpression(sum, Operator.EQ, fromString(0)));
 		deadlockState.addExpression(new Expression("break;\n"));
 		loop.addExpression(deadlockState);
-		//l//oop.addExpression(new Expression("if(globalID<5)printf(\"selection %d %d %d \\n\",globalID,pathLength,stateVector.__STATE_VECTOR_phase);"));
-
-		//		loop.addExpression(new Expression(
-		//				"if(globalID<5)printf(\"selection gID %d %d %d %d %d %d %d %d\\n\",globalID,stateVector.__STATE_VECTOR_x1,stateVector.__STATE_VECTOR_x2,stateVector.__STATE_VECTOR_x3,stateVector.__STATE_VECTOR_x4,stateVector.__STATE_VECTOR_x5,stateVector.__STATE_VECTOR_x6,stateVector.__STATE_VECTOR_x7);"));
+		
 		/**
 		 * update time -> in case of CTMC and bounded until we need two time values:
 		 * 1) entering state
@@ -604,13 +583,12 @@ public abstract class KernelGenerator
 		 * other cases: compute time in Before method() 
 		 */
 		mainMethodUpdateTimeBefore(currentMethod, loop);
+		
 		/**
 		 * if all properties are known, then we can end iterating
 		 */
 		mainMethodUpdateProperties(loop);
-		//loop.addExpression(new Expression("if(get_global_id(0) < 10)printf(\"%d %f %f \\n\",get_global_id(0),time,updatedTime);\n"));
-		//		loop.addExpression(new Expression(
-		//				"if(get_global_id(0) < 10 && stateVector.__STATE_VECTOR_u >= 4)printf(\"%d guards %d %d s %d c %d x %d y %d z %d zy %d\\n\",get_global_id(0),selectionSize,guardsTab[0],stateVector.__STATE_VECTOR_s,stateVector.__STATE_VECTOR_c,stateVector.__STATE_VECTOR_x,stateVector.__STATE_VECTOR_y,stateVector.__STATE_VECTOR_z,stateVector.__STATE_VECTOR_zy);\n"));
+		
 		/**
 		 * call update method; 
 		 * most complex case - both nonsyn and synchronized updates
@@ -630,13 +608,18 @@ public abstract class KernelGenerator
 		else {
 			mainMethodCallNonsynUpdate(loop);
 		}
+		
 		/**
 		 * For CTMC&bounded until -> update current time.
 		 */
 		mainMethodUpdateTimeAfter(currentMethod, loop);
+		
+		/**
+		 * Loop detection procedure - end computations in case of a loop.
+		 */
 		mainMethodLoopDetection(loop);
-		//loop.addExpression(new Expression("if(s==4)break;"));
 		currentMethod.addExpression(loop);
+		
 		/**
 		 * Write results.
 		 */
@@ -652,18 +635,31 @@ public abstract class KernelGenerator
 			CLVariable property = accessArrayElement(varPropertiesArray, fromString(i)).accessField("propertyState");
 			currentMethod.addExpression(createAssignment(result, property));
 		}
-		//TODO: remove
-		//currentMethod.addExpression("if(get_global_id(0) < 20)printf(\"%d %d\\n\",pathLength,stateVector.__STATE_VECTOR_s);");
+		
+		// deinitialize PRNG
 		currentMethod.addExpression(prngType.deinitializeGenerator());
-
-		currentMethod.addInclude(prngType.getIncludes());
+		
 		return currentMethod;
 	}
 
+	/**
+	 * @return two random numbers are required for CTMC (path and time selection) and one for DTMC (path)
+	 */
 	protected abstract int mainMethodRandomsPerIteration();
 
+	/**
+	 * Create additional local variables.
+	 * For DTMC, time and selectionSize is an integer.
+	 * For CTMC, time and selectionSize is a float. Also adds updatedTime and 
+	 * @param currentMethod
+	 * @throws KernelException
+	 */
 	protected abstract void mainMethodDefineLocalVars(Method currentMethod) throws KernelException;
 
+	/**
+	 * Create the call expression for both updates: non-synchronized and synchronized.
+	 * @param parent
+	 */
 	protected void mainMethodCallBothUpdates(ComplexKernelComponent parent)
 	{
 		//selection
@@ -671,9 +667,6 @@ public abstract class KernelGenerator
 		addParentheses(sum);
 		CLVariable selection = mainMethodSelectionVar(sum);
 		parent.addExpression(selection.getDefinition());
-		//		parent.addExpression(new Expression(
-		//				"if(get_global_id(0) < 5)printf(\"%d %f %d %d %d\\n\",get_global_id(0),selection,stateVector.__STATE_VECTOR_q,stateVector.__STATE_VECTOR_s,stateVector.__STATE_VECTOR_s2);\n"));
-
 		IfElse ifElse = mainMethodBothUpdatesCondition(selection);
 		/**
 		 * else
@@ -690,6 +683,10 @@ public abstract class KernelGenerator
 		parent.addExpression(ifElse);
 	}
 
+	/**
+	 * Create call to synchronized update - define necessary variables and call next method.
+	 * @param parent
+	 */
 	protected void mainMethodCallSynUpdate(ComplexKernelComponent parent)
 	{
 		CLVariable selection = mainMethodSelectionVar(varSynSelectionSize.getSource());
@@ -700,6 +697,13 @@ public abstract class KernelGenerator
 		mainMethodCallSynUpdate(parent, selection, synSum, varSynSelectionSize.getSource());
 	}
 
+	/**
+	 * Performs selection between synchronized commands and adds call to selected synchronized update.
+	 * @param parent
+	 * @param selection
+	 * @param synSum
+	 * @param sum
+	 */
 	protected void mainMethodCallSynUpdate(ComplexKernelComponent parent, CLVariable selection, CLVariable synSum, Expression sum)
 	{
 		if (synCommands.length > 1) {
@@ -709,8 +713,10 @@ public abstract class KernelGenerator
 			CLVariable counter = new CLVariable(new StdVariableType(0, synCommands.length), "synSelection");
 			counter.setInitValue(StdVariableType.initialize(0));
 			parent.addExpression(counter.getDefinition());
+			//loop over synchronized commands
 			ForLoop loop = new ForLoop(counter, 0, synCommands.length);
 			Switch _switch = new Switch(counter);
+			
 			for (int i = 0; i < synCommands.length; ++i) {
 				CLVariable currentSize = varSynchronizedStates[i].accessField("size");
 				_switch.addCase(fromString(i));
@@ -719,10 +725,12 @@ public abstract class KernelGenerator
 						currentSize.getSource()));
 			}
 			loop.addExpression(_switch);
+			
 			/**
 			 * Check whether we have found proper label.
 			 */
 			IfElse checkSelection = new IfElse(mainMethodSynUpdateCondition(selection, synSum, sum));
+			
 			/**
 			 * If yes, then counter shows us the label.
 			 * For each one, recompute probability/rate
@@ -747,6 +755,7 @@ public abstract class KernelGenerator
 			checkSelection.addExpression("break;\n");
 			loop.addExpression(checkSelection);
 			parent.addExpression(loop);
+			
 			/**
 			 * Counter shows selected label, so we can call the update.
 			 */
@@ -780,11 +789,19 @@ public abstract class KernelGenerator
 		}
 	}
 
+	/**
+	 * Create conditional which stops computation when there was no change in values and there was only on update
+	 * (so in the next iteration there will be only one update, which doesn't change anything etc)
+	 * @param parent
+	 */
 	protected void mainMethodLoopDetection(ComplexKernelComponent parent)
 	{
+		//TODO: loop detection right now implemented only for non-timed properties
 		if (!timingProperty) {
+			// no change?
 			Expression updateFlag = createBasicExpression(varLoopDetection.getSource(), Operator.EQ, fromString("true"));
 
+			// get update size from update call
 			Expression updateSize = null;
 			if (hasNonSynchronized && hasSynchronized) {
 				updateSize = createBasicExpression(varSelectionSize.getSource(), Operator.ADD, varSynSelectionSize.getSource());
@@ -794,6 +811,7 @@ public abstract class KernelGenerator
 				updateSize = varSynSelectionSize.getSource();
 			}
 
+			// update size == 1
 			updateSize = createBasicExpression(updateSize, Operator.EQ, fromString("1"));
 			IfElse loop = new IfElse(createBasicExpression(updateFlag, Operator.LAND, updateSize));
 			loop.setConditionNumber(0);
@@ -803,25 +821,81 @@ public abstract class KernelGenerator
 		}
 	}
 
+	/**
+	 * @return variable to sum update sizes - float for CTMC, integer for DTMC
+	 */
 	protected abstract CLVariable mainMethodBothUpdatesSumVar();
 
-	protected abstract IfElse mainMethodBothUpdatesCondition(CLVariable selection);
+	/**
+	 * Create conditional for selection between non-synchronized and synchronized condition.
+	 * Put call to non-synchronized update in first condition.
+	 * @param selection
+	 * @return if-else with completed 'if' case
+	 */
+	protected abstract IfElse  mainMethodBothUpdatesCondition(CLVariable selection);
 
+	/**
+	 * Create condition which evaluates to true for selected non-sychronized update.
+	 * For DTMC, involves floating-point division
+	 * @param selection
+	 * @param synSum
+	 * @param sum
+	 * @return boolean expression
+	 */
 	protected abstract Expression mainMethodSynUpdateCondition(CLVariable selection, CLVariable synSum, Expression sum);
 
+	/**
+	 * Modify current selection to fit in the interval beginning from 0 - values are not in [0, synSum) and
+	 * non-synchronized update has been selection.
+	 * @param parent
+	 * @param selection
+	 * @param synSum
+	 * @param sum
+	 * @param currentLabelSize size of current synchronized update; used only for DTMC
+	 */
 	protected abstract void mainMethodSynRecomputeSelection(ComplexKernelComponent parent, CLVariable selection, CLVariable synSum, Expression sum,
 			CLVariable currentLabelSize);
 
+	/**
+	 * Creates randomized selection. For DTMC it's a [0,1) float, for CTMC - float in range of selection size (sum of rates).
+	 * CTMC involves also different selection of random variable (two randoms per iteration, not one).
+	 * @param selectionSize
+	 * @return proper randomized variable containing selected update
+	 */
 	protected abstract CLVariable mainMethodSelectionVar(Expression selectionSize);
 
+	/**
+	 * Generate call to non-synchronized update. Different arguments for DTMC (additional variable - selectionSize).
+	 * @param parent
+	 */
 	protected abstract void mainMethodCallNonsynUpdate(ComplexKernelComponent parent);
 
+	/**
+	 * First property check, before even entering the loop - necessary only for CTMC.
+	 * @param parent
+	 */
 	protected abstract void mainMethodFirstUpdateProperties(ComplexKernelComponent parent);
 
+	/**
+	 * Create call to property update method.
+	 * @param currentMethod
+	 */
 	protected abstract void mainMethodUpdateProperties(ComplexKernelComponent currentMethod);
 
+	/**
+	 * DTMC: increment time (previous time is obvious)
+	 * CTMC: generate updatedTime, assign to time for non-timed properties
+	 * @param currentMethod
+	 * @param parent
+	 */
 	protected abstract void mainMethodUpdateTimeBefore(Method currentMethod, ComplexKernelComponent parent);
 
+	/**
+	 * DTMC: don't do anything
+	 * CTMC: for timing properties - write updateTimed value to time (after processing properties)
+	 * @param currentMethod
+	 * @param parent
+	 */
 	protected abstract void mainMethodUpdateTimeAfter(Method currentMethod, ComplexKernelComponent parent);
 
 	/*********************************
