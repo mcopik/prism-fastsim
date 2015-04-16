@@ -33,29 +33,13 @@ import prism.PrismLangException;
 import simulator.opencl.RuntimeConfig;
 import simulator.opencl.automaton.AbstractAutomaton;
 import simulator.opencl.automaton.AbstractAutomaton.AutomatonType;
-import simulator.opencl.automaton.PrismVariable;
 import simulator.opencl.kernel.expression.Include;
 import simulator.opencl.kernel.expression.KernelComponent;
 import simulator.opencl.kernel.expression.Method;
-import simulator.opencl.kernel.memory.StructureType;
 import simulator.sampler.Sampler;
 
 public class Kernel
 {
-	/**
-	 * Input - three objects which determine kernel's source.
-	 */
-	@SuppressWarnings("unused")
-	private RuntimeConfig config = null;
-
-	/**
-	 * PRISM automaton.
-	 */
-	private AbstractAutomaton model = null;
-	@SuppressWarnings("unused")
-	//TODO: why the hell this is unused?
-	private List<Sampler> properties = null;
-
 	/**
 	 * Source components.
 	 */
@@ -67,11 +51,6 @@ public class Kernel
 	private List<Include> includes = new ArrayList<>();
 
 	/**
-	 * State vector structure.
-	 */
-	private StructureType stateVectorType = null;
-
-	/**
 	 * Main kernel method.
 	 * INPUT:
 	 * RNG offset
@@ -80,10 +59,6 @@ public class Kernel
 	 * global array of properties values
 	 */
 	private Method mainMethod = null;
-
-	public enum ArgsTypes {
-
-	}
 
 	/**
 	 * Kernel generator.
@@ -118,15 +93,11 @@ public class Kernel
 	 */
 	public Kernel(RuntimeConfig config, AbstractAutomaton model, List<Sampler> properties) throws KernelException, PrismLangException
 	{
-		this.config = config;
-		this.model = model;
-		this.properties = properties;
 		if (model.getType() == AutomatonType.DTMC) {
 			this.methodsGenerator = new KernelGeneratorDTMC(model, properties, config);
 		} else {
 			this.methodsGenerator = new KernelGeneratorCTMC(model, properties, config);
 		}
-		stateVectorType = methodsGenerator.getSVType();
 		mainMethod = methodsGenerator.createMainMethod();
 		helperMethods = methodsGenerator.getHelperMethods();
 		globalDeclarations.addAll(methodsGenerator.getAdditionalDeclarations());
@@ -134,11 +105,8 @@ public class Kernel
 	}
 
 	/**
-		public Kernel(String source)
-		{
-			kernelSource = source;
-		}
-		*/
+	 * Gather includes from all methods.
+	 */
 	private void updateIncludes()
 	{
 		List<Include> addIncludes = mainMethod.getIncludes();
@@ -155,6 +123,10 @@ public class Kernel
 		}
 	}
 
+	/**
+	 * Generate source - gather code from all methods.
+	 * @throws KernelException
+	 */
 	private void generateSource() throws KernelException
 	{
 		StringBuilder builder = new StringBuilder();
@@ -171,18 +143,19 @@ public class Kernel
 			builder.append(include.getSource()).append("\n");
 		}
 
-		//builder.append(KERNEL_TYPEDEFS).append("\n");
-		//builder.append("typedef unsigned char uchar;\n");
-
 		for (KernelComponent expr : globalDeclarations) {
 			builder.append(expr.getSource()).append("\n");
 		}
-		//visitMethodsTranslator(createTranslatorVisitor());
 		declareMethods(builder);
 		defineMethods(builder);
+		
 		kernelSource = builder.toString();
 	}
 
+	/**
+	 * Add forward declarations of methods.
+	 * @param builder
+	 */
 	private void declareMethods(StringBuilder builder)
 	{
 		builder.append(mainMethod.getDeclaration()).append("\n");
@@ -193,6 +166,10 @@ public class Kernel
 		}
 	}
 
+	/**
+	 * Add definitions of methods.
+	 * @param builder
+	 */
 	private void defineMethods(StringBuilder builder)
 	{
 		builder.append(mainMethod.getSource()).append("\n");

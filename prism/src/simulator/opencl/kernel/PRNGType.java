@@ -69,6 +69,7 @@ public abstract class PRNGType
 		this.additionalArgs = additionalArgs;
 		random = new RandomNumberGenerator((int) seed);
 	}
+	
 	/**
 	 * 
 	 * Construct PRNG with defined name for generator instance, files to include, additional arguments
@@ -165,6 +166,7 @@ public abstract class PRNGType
 	 * @return a rvalue
 	 */
 	public abstract CLValue getRandomFloat(Expression randNumber, Expression max);
+	
 	/**
 	 * Configure OpenCL kernel call arguments.
 	 * @param kernel

@@ -40,6 +40,11 @@ import simulator.opencl.kernel.memory.StdVariableType.StdType;
 
 import com.nativelibs4java.opencl.CLKernel;
 
+/**
+ * Currently not used - much slower than Random123.
+ * Leave for future, for debugging purposes, in case of any problems.
+ */
+@Deprecated
 public class PRNGmwc64x extends PRNGType
 {
 	/**
@@ -60,6 +65,7 @@ public class PRNGmwc64x extends PRNGType
 	}
 	private static final String TYPE_NAME = "mwc64x_state_t";
 	private long seed = -1;
+	
 	/**
 	 * Equals to 2^40 - which gives interval for 2^23 samples.
 	 */
