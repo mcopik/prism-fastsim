@@ -221,6 +221,11 @@ public class KernelGeneratorCTMC extends KernelGenerator
 		parent.addExpression(mainMethodCallNonsynUpdate(random));
 	}
 
+	/**
+	 * Private helper method - generate call to non-synchronized update in CTMC. 
+	 * @param rnd
+	 * @return call expression
+	 */
 	private Expression mainMethodCallNonsynUpdate(CLValue rnd)
 	{
 		Method update = helperMethods.get(KernelMethods.PERFORM_UPDATE);
@@ -306,6 +311,7 @@ public class KernelGeneratorCTMC extends KernelGenerator
 	/*********************************
 	 * NON-SYNCHRONIZED GUARDS CHECK
 	 ********************************/
+	
 	@Override
 	protected void guardsMethodCreateLocalVars(Method currentMethod) throws KernelException
 	{
@@ -329,7 +335,8 @@ public class KernelGeneratorCTMC extends KernelGenerator
 		Preconditions.checkNotNull(counter, "");
 		CLVariable sum = currentMethod.getLocalVar("sum");
 		Preconditions.checkNotNull(sum, "");
-		CLVariable tabPos = guardsTab.varType.accessElement(guardsTab, postIncrement(counter));
+		CLVariable tabPos = guardsTab.accessElement(postIncrement(counter));
+		
 		IfElse ifElse = new IfElse(new Expression(guard));
 		ifElse.addExpression(0, createAssignment(tabPos, fromString(position)));
 		Expression sumExpr = createBasicExpression(sum.getSource(), Operator.ADD_AUGM,

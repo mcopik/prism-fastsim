@@ -264,6 +264,7 @@ public class KernelGeneratorDTMC extends KernelGenerator
 	/*********************************
 	 * NON-SYNCHRONIZED GUARDS CHECK
 	 ********************************/
+	
 	@Override
 	protected void guardsMethodCreateLocalVars(Method currentMethod) throws KernelException
 	{
@@ -283,7 +284,8 @@ public class KernelGeneratorDTMC extends KernelGenerator
 		Preconditions.checkNotNull(guardsTab, "");
 		CLVariable counter = currentMethod.getLocalVar("counter");
 		Preconditions.checkNotNull(counter, "");
-		CLVariable tabPos = guardsTab.varType.accessElement(guardsTab, ExpressionGenerator.postIncrement(counter));
+		
+		CLVariable tabPos = guardsTab.accessElement(ExpressionGenerator.postIncrement(counter));
 		IfElse ifElse = new IfElse(new Expression(guard));
 		ifElse.addExpression(0, createAssignment(tabPos, fromString(position)));
 		currentMethod.addExpression(ifElse);

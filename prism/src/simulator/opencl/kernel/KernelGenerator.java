@@ -902,11 +902,19 @@ public abstract class KernelGenerator
 	/*********************************
 	 * NON-SYNCHRONIZED GUARDS CHECK
 	 ********************************/
+	/**
+	 * Create method for guards verification in non-synchronized updates.
+	 * Method will just go through all guards and write numbers of successfully evaluated guards
+	 * at consecutive positions at guardsTab. 
+	 * @return number of active guards (DTMC) / rate sum (CTMC)
+	 * @throws KernelException
+	 */
 	protected Method createNonsynGuardsMethod() throws KernelException
 	{
 		if (!hasNonSynchronized) {
 			return null;
 		}
+		
 		Method currentMethod = guardsMethodCreateSignature();
 		//StateVector * sv
 		CLVariable sv = new CLVariable(varStateVector.getPointer(), "sv");
@@ -923,32 +931,58 @@ public abstract class KernelGenerator
 		for (int i = 0; i < commands.length; ++i) {
 			guardsMethodCreateCondition(currentMethod, i, convertPrismGuard(svPtrTranslations, commands[i].getGuard().toString()));
 		}
-		//TODO: do I need this?
+		
+		//TODO: disable writing last guard, should not change anything
 		//signature last guard
-		CLVariable position = guards.varType.accessElement(guards, new Expression(counter.varName));
-		IfElse ifElse = new IfElse(createBasicExpression(counter.getSource(), Operator.NE, fromString(commands.length)));
-		ifElse.addExpression(0, createAssignment(position, fromString(commands.length)));
-		currentMethod.addExpression(ifElse);
+		//CLVariable position = guards.varType.accessElement(guards, new Expression(counter.varName));
+		//IfElse ifElse = new IfElse(createBasicExpression(counter.getSource(), Operator.NE, fromString(commands.length)));
+		//ifElse.addExpression(0, createAssignment(position, fromString(commands.length)));
+		//currentMethod.addExpression(ifElse);
+		
 		guardsMethodReturnValue(currentMethod);
 		return currentMethod;
 	}
 
+	/**
+	 * @return method returning integer for DTMC, float for CTMC
+	 */
 	protected abstract Method guardsMethodCreateSignature();
 
+	/**
+	 * Additional float for rate sum at CTMC, none at DTMC (both use an integer for array counting)
+	 * @param currentMethod
+	 * @throws KernelException
+	 */
 	protected abstract void guardsMethodCreateLocalVars(Method currentMethod) throws KernelException;
 
+	/**
+	 * For both automata evaluate guard, for CTMC additionally add rate to returned sum.
+	 * @param currentMethod
+	 * @param position
+	 * @param guard
+	 */
 	protected abstract void guardsMethodCreateCondition(Method currentMethod, int position, String guard);
 
+	/**
+	 * Returns counter of evaluated guards (integer) for DTMC or sum of rates (float) for CTMC.
+	 * @param currentMethod
+	 */
 	protected abstract void guardsMethodReturnValue(Method currentMethod);
 
-	/*********************************
+	/*********************************	
 	 * NON-SYNCHRONIZED UPDATE
 	 ********************************/
+	
+	/**
+	 * @return method for non-synchronized update of state vector
+	 * @throws KernelException
+	 */
 	protected Method createNonsynUpdate() throws KernelException
 	{
 		if (!hasNonSynchronized) {
 			return null;
 		}
+		
 		Method currentMethod = new Method("updateNonsynGuards", new StdVariableType(timingProperty ? StdType.VOID : StdType.BOOL));
 		//StateVector * sv
 		CLVariable sv = new CLVariable(varStateVector.getPointer(), "sv");
@@ -960,6 +994,7 @@ public abstract class KernelGenerator
 		CLVariable selectionSum = new CLVariable(new StdVariableType(StdType.FLOAT), "selectionSum");
 		selectionSum.setInitValue(StdVariableType.initialize(0.0f));
 		currentMethod.addArg(selectionSum);
+		// selected command
 		CLVariable selection = new CLVariable(new StdVariableType(0, commands.length), "selection");
 		selection.setInitValue(StdVariableType.initialize(0));
 		currentMethod.addLocalVar(selection);
@@ -967,18 +1002,21 @@ public abstract class KernelGenerator
 		CLVariable changeFlag = new CLVariable(new StdVariableType(StdType.BOOL), "changeFlag");
 		changeFlag.setInitValue(StdVariableType.initialize(1));
 		currentMethod.addLocalVar(changeFlag);
-		//oldValue
+		//oldValue - used for loop detection
 		CLVariable oldValue = new CLVariable(new StdVariableType(StdType.INT32), "oldValue");
 		oldValue.setInitValue(StdVariableType.initialize(0));
 		currentMethod.addLocalVar(oldValue);
 
+		/**
+		 * Performs tasks depending on automata type
+		 */
 		updateMethodAdditionalArgs(currentMethod);
 		updateMethodLocalVars(currentMethod);
 		updateMethodPerformSelection(currentMethod);
+		
 		CLVariable guardsTabSelection = accessArrayElement(varGuardsTab, selection.getSource());
 		Switch _switch = new Switch(guardsTabSelection.getSource());
 		int switchCounter = 0;
-		PrismVariable[] vars = model.getStateVector().getVars();
 		for (int i = 0; i < commands.length; ++i) {
 			Update update = commands[i].getUpdate();
 			Rate rate = new Rate(update.getRate(0));
