@@ -1352,11 +1352,21 @@ public abstract class KernelGenerator
 	/*********************************
 	 * SYNCHRONIZED GUARDS CHECK
 	 ********************************/
+
+	/**
+	 * Create helper method - evaluation of synchronized guards.
+	 * Algorithm:
+	 * 1) For every synchronization label, create separate method
+	 * 2) For every module, evaluate guards and remember current rate/active guards count
+	 * 2a) If for some module all guards are marked zero, then skip all other commands
+	 * 2b) If not, then multiply sizes of all modules and set it as 'label size'
+	 */
 	protected void createSynGuardsMethod()
 	{
 		if (!hasSynchronized) {
 			return;
 		}
+	
 		synchronizedGuards = new ArrayList<>();
 		for (SynchronizedCommand cmd : synCommands) {
 			//synchronized state
@@ -1372,6 +1382,7 @@ public abstract class KernelGenerator
 			currentSize.setInitValue(StdVariableType.initialize(0));
 			CLVariable saveSize = synState.accessField("moduleSize");
 			CLVariable guardsTab = synState.accessField("guards");
+			
 			try {
 				current.addArg(stateVector);
 				current.addArg(synState);
@@ -1380,6 +1391,7 @@ public abstract class KernelGenerator
 			} catch (KernelException e) {
 				throw new RuntimeException(e);
 			}
+			
 			int guardCounter = 0;
 			//first module
 			for (int i = 0; i < cmd.getCommandNumber(0); ++i) {
@@ -1411,12 +1423,33 @@ public abstract class KernelGenerator
 		}
 	}
 
+	/**
+	 * @param label
+	 * @param maxCommandsNumber
+	 * @return method returning float(CTMC) or an integer(DTMC) - label size
+	 */
 	protected abstract Method guardsSynCreateMethod(String label, int maxCommandsNumber);
 
+	/**
+	 * @param maxCommandsNumber
+	 * @return helper variable for label size - float/integer
+	 */
 	protected abstract CLVariable guardsSynLabelVar(int maxCommandsNumber);
 
+	/**
+	 * @param maxCommandsNumber
+	 * @return helper variable for size of current module - float/integer
+	 */
 	protected abstract CLVariable guardsSynCurrentVar(int maxCommandsNumber);
 
+	/**
+	 * Mark command index in guardsArray and sum rates/counts (simpler implementation for DTMC - 
+	 * just add guard tab value, whether it is 0 or 1; in CTMC, rate is added only in one case).
+	 * @param parent
+	 * @param guardArray
+	 * @param cmd
+	 * @param size
+	 */
 	protected abstract void guardsSynAddGuard(ComplexKernelComponent parent, CLVariable guardArray, Command cmd, CLVariable size);
 
 	/*********************************

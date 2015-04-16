@@ -513,6 +513,7 @@ public class KernelGeneratorCTMC extends KernelGenerator
 	/*********************************
 	 * SYNCHRONIZED GUARDS CHECK
 	 ********************************/
+	
 	@Override
 	protected Method guardsSynCreateMethod(String label, int maxCommandsNumber)
 	{
@@ -535,6 +536,8 @@ public class KernelGeneratorCTMC extends KernelGenerator
 	@Override
 	protected void guardsSynAddGuard(ComplexKernelComponent parent, CLVariable guardArray, Command cmd, CLVariable size)
 	{
+		//TODO: optimize this by removing if and setting rate add:
+		// rateSum += rate*guards
 		IfElse ifElse = new IfElse(new Expression(convertPrismGuard(svPtrTranslations, cmd.getGuard().toString())));
 		ifElse.addExpression(createBasicExpression(size.getSource(), Operator.ADD_AUGM,
 		//converted rate
