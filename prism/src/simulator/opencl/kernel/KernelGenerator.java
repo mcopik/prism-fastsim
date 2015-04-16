@@ -1014,16 +1014,23 @@ public abstract class KernelGenerator
 		updateMethodLocalVars(currentMethod);
 		updateMethodPerformSelection(currentMethod);
 		
-		CLVariable guardsTabSelection = accessArrayElement(varGuardsTab, selection.getSource());
+		CLVariable guardsTabSelection = varGuardsTab.accessElement(selection.getSource());
 		Switch _switch = new Switch(guardsTabSelection.getSource());
 		int switchCounter = 0;
+		
 		for (int i = 0; i < commands.length; ++i) {
 			Update update = commands[i].getUpdate();
 			Rate rate = new Rate(update.getRate(0));
 			Action action;
+			// variables saved in this action 
 			Map<String, String> savedVariables = new HashMap<>();
+			
+
+			// if there is more than one action possible, then create a conditional to choose between them
+			// for one action, it's unnecessary
 			if (update.getActionsNumber() > 1) {
 				IfElse ifElse = new IfElse(createBasicExpression(selectionSum.getSource(), Operator.LT, fromString(convertPrismRate(svPtrTranslations, rate))));
+				//first one goes to 'if'
 				if (!update.isActionTrue(0)) {
 					action = update.getAction(0);
 					updateMethodAddSavedVariables(sv, ifElse, 0, action, savedVariables);
@@ -1033,9 +1040,12 @@ public abstract class KernelGenerator
 						ifElse.addExpression(0, convertPrismAction(sv, action, svPtrTranslations, savedVariables));
 					}
 				}
+				// next actions go to 'else if'
 				for (int j = 1; j < update.getActionsNumber(); ++j) {
+					// else if (selection <= sum)
 					rate.addRate(update.getRate(j));
 					ifElse.addElif(createBasicExpression(selectionSum.getSource(), Operator.LT, fromString(convertPrismRate(svPtrTranslations, rate))));
+					
 					if (!update.isActionTrue(j)) {
 						action = update.getAction(j);
 						updateMethodAddSavedVariables(sv, ifElse, 0, action, savedVariables);
@@ -1049,6 +1059,7 @@ public abstract class KernelGenerator
 				_switch.addCase(new Expression(Integer.toString(i)));
 				_switch.addExpression(switchCounter++, ifElse);
 			} else {
+				// only one action, directly add the code to switch
 				if (!update.isActionTrue(0)) {
 					_switch.addCase(new Expression(Integer.toString(i)));
 					action = update.getAction(0);
@@ -1062,9 +1073,12 @@ public abstract class KernelGenerator
 			}
 		}
 		currentMethod.addExpression(_switch);
+		
+		// return change flag, indicating if the performed update changed the state vector
 		if (!timingProperty) {
 			currentMethod.addReturn(changeFlag);
 		}
+		
 		return currentMethod;
 	}
 
@@ -1082,6 +1096,7 @@ public abstract class KernelGenerator
 		savedVariables.clear();
 		Set<PrismVariable> varsToSave = action.variablesCopiedBeforeUpdate();
 
+		//for every saved variable, create a local variable in C
 		for (PrismVariable var : varsToSave) {
 			CLVariable savedVar = new CLVariable(new StdVariableType(var), translateSavedVariable(var.name));
 			savedVar.setInitValue(stateVector.accessField(translateSVField(var.name)));
@@ -1106,6 +1121,7 @@ public abstract class KernelGenerator
 		savedVariables.clear();
 		Set<PrismVariable> varsToSave = action.variablesCopiedBeforeUpdate();
 
+		//for every saved variable, create a local variable in C
 		for (PrismVariable var : varsToSave) {
 			CLVariable savedVar = new CLVariable(new StdVariableType(var), translateSavedVariable(var.name));
 			savedVar.setInitValue(stateVector.accessField(translateSVField(var.name)));
@@ -1115,18 +1131,39 @@ public abstract class KernelGenerator
 		}
 	}
 
+	/**
+	 * Add code choosing a action
+	 * DTMC: all updates are chosen with the same probability - one need to subtract probability of previous updates
+	 *  and scale it to [0,1)
+	 * CTMC: updates have different probability, one need to walk through all actions and sum rates,
+	 * until the selection is reached
+	 * @param currentMethod
+	 * @throws KernelException
+	 */
 	protected abstract void updateMethodPerformSelection(Method currentMethod) throws KernelException;
 
+	/**
+	 * DTMC: number of commands
+	 * CTMC: no additional arg
+	 * @param currentMethod
+	 * @throws KernelException
+	 */
 	protected abstract void updateMethodAdditionalArgs(Method currentMethod) throws KernelException;
 
+	/**
+	 * CTMC: float sum, float newSum and initialize selection with zero
+	 * DTMC: no additional variable, initialize selection with selectionSum * number of commands
+	 * @param currentMethod
+	 * @throws KernelException
+	 */
 	protected abstract void updateMethodLocalVars(Method currentMethod) throws KernelException;
 
 	/*********************************
 	 * PROPERTY METHODS
 	 ********************************/
+	
 	/**
-	 * 
-	 * @return
+	 * @return helper method checking all properties and returning true when all of them are verified
 	 * @throws KernelException
 	 * @throws PrismLangException 
 	 */
@@ -1147,7 +1184,7 @@ public abstract class KernelGenerator
 		CLVariable counter = new CLVariable(new StdVariableType(0, properties.size()), "counter");
 		counter.setInitValue(StdVariableType.initialize(0));
 		currentMethod.addLocalVar(counter);
-		//bool allKnown
+		//bool allKnown - will be returned 
 		CLVariable allKnown = new CLVariable(new StdVariableType(StdType.BOOL), "allKnown");
 		allKnown.setInitValue(StdVariableType.initialize(1));
 		currentMethod.addLocalVar(allKnown);
@@ -1194,11 +1231,23 @@ public abstract class KernelGenerator
 		return currentMethod;
 	}
 
+	/**
+	 * Time argument, used when one have to verify timed property.
+	 * DTMC: only current time (integer)
+	 * CTMC: two floats - time and updated time
+	 * @param currentMethod
+	 * @throws KernelException
+	 */
 	protected abstract void propertiesMethodTimeArg(Method currentMethod) throws KernelException;
 
 	protected abstract void propertiesMethodAddBoundedUntil(Method currentMethod, ComplexKernelComponent parent, SamplerBoolean property, CLVariable propertyVar)
 			throws PrismLangException;
 
+	/**
+	 * @param prop
+	 * @return translate property: add parentheses, cast to float in division etc
+	 * @throws PrismLangException
+	 */
 	protected parser.ast.Expression visitPropertyExpression(parser.ast.Expression prop) throws PrismLangException
 	{
 		return (parser.ast.Expression) prop.accept(treeVisitor);

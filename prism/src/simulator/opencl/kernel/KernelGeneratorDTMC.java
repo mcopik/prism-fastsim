@@ -302,6 +302,7 @@ public class KernelGeneratorDTMC extends KernelGenerator
 	/*********************************
 	 * NON-SYNCHRONIZED UPDATE
 	 ********************************/
+	
 	@Override
 	protected void updateMethodPerformSelection(Method currentMethod) throws KernelException
 	{
@@ -310,11 +311,7 @@ public class KernelGeneratorDTMC extends KernelGenerator
 		CLVariable number = currentMethod.getArg("numberOfCommands");
 		CLVariable selection = currentMethod.getLocalVar("selection");
 		CLVariable guardsTab = currentMethod.getArg("guardsTab");
-		guardsTab = guardsTab.varType.accessElement(guardsTab, selection.getName());
-		//currentMethod.addExpression(new Expression(
-		//	"if(get_global_id(0)<10)printf(\"before %f %d %d %f\\n\",selectionSum,selection,numberOfCommands,((float)selection) / numberOfCommands);"));
-		// selection = floor(selectionSum)
-		//currentMethod.addExpression(ExpressionGenerator.createAssignment(selection, ExpressionGenerator.functionCall("floor", sum.getName())));
+		guardsTab = guardsTab.accessElement(selection.getName());
 
 		// selectionSum = numberOfCommands * ( selectionSum - selection/numberOfCommands);
 		Expression divideSelection = createBasicExpression(selection.cast("float"), Operator.DIV, number.getSource());
@@ -346,6 +343,7 @@ public class KernelGeneratorDTMC extends KernelGenerator
 	/*********************************
 	 * PROPERTY METHODS
 	 ********************************/
+	
 	@Override
 	protected void propertiesMethodTimeArg(Method currentMethod) throws KernelException
 	{

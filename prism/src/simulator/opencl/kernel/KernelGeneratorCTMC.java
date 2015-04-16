@@ -356,6 +356,7 @@ public class KernelGeneratorCTMC extends KernelGenerator
 	/*********************************
 	 * NON-SYNCHRONIZED UPDATE
 	 ********************************/
+
 	@Override
 	protected void updateMethodPerformSelection(Method currentMethod) throws KernelException
 	{
@@ -364,8 +365,13 @@ public class KernelGeneratorCTMC extends KernelGenerator
 		CLVariable newSum = currentMethod.getLocalVar("newSum");
 		CLVariable selectionSum = currentMethod.getArg("selectionSum");
 		CLVariable sum = currentMethod.getLocalVar("sum");
+		
+		//loop over all selected guards
 		ForLoop loop = new ForLoop(selection, false);
-		Switch _switch = new Switch(guardsTab.varType.accessElement(guardsTab, selection.getName()));
+		//switch with all possible guards - in i-th iteration go to guardsTab[i] guard
+		Switch _switch = new Switch(guardsTab.accessElement(selection.getName()));
+		
+		//sum rates and check if we reached the probability of update
 		for (int i = 0; i < commands.length; ++i) {
 			Rate rateSum = commands[i].getRateSum();
 			_switch.addCase(new Expression(Integer.toString(i)));
@@ -386,6 +392,7 @@ public class KernelGeneratorCTMC extends KernelGenerator
 		ifElse.addExpression(0, new Expression("break;"));
 		loop.addExpression(ifElse);
 		loop.addExpression(createBasicExpression(sum.getSource(), Operator.ADD_AUGM, newSum.getSource()).add(";"));
+
 		currentMethod.addExpression(loop);
 	}
 
@@ -401,9 +408,11 @@ public class KernelGeneratorCTMC extends KernelGenerator
 		CLVariable newSum = new CLVariable(new StdVariableType(StdType.FLOAT), "newSum");
 		newSum.setInitValue(StdVariableType.initialize(0.0f));
 		currentMethod.addLocalVar(newSum);
+		//float sum
 		CLVariable sum = new CLVariable(new StdVariableType(StdType.FLOAT), "sum");
 		sum.setInitValue(StdVariableType.initialize(0.0f));
 		currentMethod.addLocalVar(sum);
+		
 		//selection
 		CLVariable selection = currentMethod.getLocalVar("selection");
 		selection.setInitValue(StdVariableType.initialize(0));
@@ -416,6 +425,7 @@ public class KernelGeneratorCTMC extends KernelGenerator
 	@Override
 	protected void propertiesMethodTimeArg(Method currentMethod) throws KernelException
 	{
+		// TODO: is time really necessary for non timed properties?
 		CLVariable varTime = new CLVariable(new StdVariableType(StdType.FLOAT), "time");
 		currentMethod.addArg(varTime);
 		if (timingProperty) {
