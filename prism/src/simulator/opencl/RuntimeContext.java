@@ -75,17 +75,46 @@ public class RuntimeContext
 	 */
 	private abstract class ContextState
 	{
+		/**
+		 * Properties.
+		 */
 		public List<Sampler> properties;
+		
+		/**
+		 * Status of each property - verified or not?
+		 */
 		public Boolean[] propertiesStatus;
+		
+		/**
+		 * Global number of samples to enqueue.
+		 */
 		protected int globalWorkSize;
+		
+		/**
+		 * Size of a local work group.
+		 */
 		protected int localWorkSize;
+		
+		/**
+		 * True when properties has been computed.
+		 */
 		protected boolean finished = false;
+		
+		/**
+		 * OpenCL queue.
+		 */
 		protected CLQueue queue = null;
+		
 		/**
 		 * Number of samples that has been processed or allocated on the device.
 		 */
 		protected int samplesProcessed = 0;
 
+		/**
+		 * @param properties
+		 * @param gwSize
+		 * @param lwSize
+		 */
 		protected ContextState(List<Sampler> properties, int gwSize, int lwSize)
 		{
 			this.properties = properties;
@@ -95,24 +124,51 @@ public class RuntimeContext
 			this.localWorkSize = lwSize;
 		}
 
+		/**
+		 * Create OpenCL buffers - different sizes for subclasses.
+		 */
 		protected abstract void createBuffers();
 
+		/**
+		 * @return true when all properties has been evaluated
+		 */
 		public boolean hasFinished()
 		{
 			return finished;
 		}
 
+		/**
+		 * Change used OpenCL queue.
+		 * @param queue
+		 */
 		public void setQueue(CLQueue queue)
 		{
 			this.queue = queue;
 		}
 
+		/**
+		 * Enqueue more samples, if needed.
+		 */
 		protected abstract void updateSampling();
 
+		/**
+		 * @return true when all enqueued samples have finished
+		 * @throws PrismException
+		 */
 		protected abstract boolean processResults() throws PrismException;
 
+		/**
+		 * Clear internal structures.
+		 */
 		protected abstract void reset();
 
+		/**
+		 * Enqueue N samples at given offsets to result and path buffers.
+		 * @param samplesToProcess
+		 * @param resultsOffset
+		 * @param pathsOffset
+		 * @return event of kernel ND-range enqueue
+		 */
 		protected CLEvent enqueueKernel(int samplesToProcess, int resultsOffset, int pathsOffset)
 		{
 			int currentGWSize = samplesToProcess;
@@ -136,15 +192,29 @@ public class RuntimeContext
 			for (int i = 0; i < properties.size(); ++i) {
 				programKernel.setObjectArg(5 + argOffset + i, resultBuffers.get(i));
 			}
-			//samplesProcessed += samplesToProcess;
 			return programKernel.enqueueNDRange(queue, new int[] { currentGWSize }, new int[] { localWorkSize });
 		}
 
+		/**
+		 * Read 'samples' results, starting at 'start' position.
+		 * @param start
+		 * @param samples
+		 * @throws PrismException
+		 */
 		protected void readResults(int start, int samples) throws PrismException
 		{
 			readResults(start, samples, -1);
 		}
 
+		/**
+		 * Read 'samples' results, starting at 'start' position.
+		 * Last argument specifies how often the sampler should be called, to check if the property
+		 * is finished.
+		 * @param start
+		 * @param samples
+		 * @param periodityOfSamplerCheck
+		 * @throws PrismException
+		 */
 		protected void readResults(int start, int samples, int periodityOfSamplerCheck) throws PrismException
 		{
 			List<Pair<SamplerBoolean, Pointer<Byte>>> bytes = new ArrayList<>();
@@ -204,6 +274,11 @@ public class RuntimeContext
 			}
 		}
 
+		/**
+		 * Read 'samples' path lengths, starting at 'start' position.
+		 * @param start
+		 * @param samples
+		 */
 		protected void readPathLength(int start, int samples)
 		{
 			NativeList<Integer> lengths = pathLengths.read(queue, start, samples).asList();
@@ -216,14 +291,29 @@ public class RuntimeContext
 			avgPathLength = sum / lengths.size();
 		}
 
+		/**
+		 * @return time of running a kernel
+		 */
 		public abstract long getKernelTime();
 	}
 
 	private class KnownIterationsState extends ContextState
 	{
+		/**
+		 * Number of samples known a priori.
+		 */
 		private int numberOfSamples;
+		
+		/**
+		 * List of kernel enqueue events.
+		 */
 		protected List<CLEvent> events = new ArrayList<>();
 
+		/**
+		 * @param properties
+		 * @param lwSize
+		 * @param numberOfSamples
+		 */
 		public KnownIterationsState(List<Sampler> properties, int lwSize, int numberOfSamples)
 		{
 			super(properties, currentDevice.isGPU() ? config.directMethodGWSizeGPU : config.directMethodGWSizeCPU, lwSize);
@@ -248,6 +338,7 @@ public class RuntimeContext
 				return true;
 			}
 			queue.finish();
+			// just read all results
 			readResults(0, numberOfSamples);
 			readPathLength(0, numberOfSamples);
 			samplesProcessed += numberOfSamples;
@@ -290,25 +381,54 @@ public class RuntimeContext
 
 	private class NotKnownIterationsState extends ContextState
 	{
+		/**
+		 * Check sampler every 50'th sample.
+		 */
 		public static final int PERIODITY_OF_SAMPLER_STOP_CHECK = 50;
+		
+		/**
+		 * Period of reading results buffer from device.
+		 */
 		public int resultCheckPeriod;
+		
+		/**
+		 * Period of reading paths buffer from device.
+		 */
 		public int pathCheckPeriod;
-		private int samplesFinished = 0;
+		
+		/**
+		 * Indices of result buffers to read.
+		 */
 		private List<Integer> resultsCheckIndices = new LinkedList<>();
+		
+		/**
+		 * Indices of path buffers to read.
+		 */
 		private List<Integer> pathCheckIndices = new LinkedList<>();
+		
+		/**
+		 * Indices of results buffers which are free to use.
+		 */
 		private SortedSet<Integer> freeResultIndices = new TreeSet<>();
+		
+		/**
+		 * Indice of path buffers which are free to use.
+		 */
 		private SortedSet<Integer> freePathIndices = new TreeSet<>();
+		
 		/**
 		 * Key: Integers in pair denote indices of buffers: result and path.
 		 * Value: CLEvent connected to this NDRange.
 		 */
 		private Map<Pair<Integer, Integer>, CLEvent> events = new HashMap<>();
 
+		/**
+		 * @param properties
+		 * @param lwSize
+		 */
 		public NotKnownIterationsState(List<Sampler> properties, int lwSize)
 		{
 			super(properties, currentDevice.isGPU() ? config.inDirectMethodGWSizeGPU : config.inDirectMethodGWSizeCPU, lwSize);
-			//todo: remove, test!
-			//globalWorkSize = 40960;
 			resultCheckPeriod = config.inDirectResultCheckPeriod;
 			pathCheckPeriod = config.inDirectPathCheckPeriod;
 			createBuffers();
@@ -323,7 +443,6 @@ public class RuntimeContext
 		@Override
 		protected void createBuffers()
 		{
-			mainLog.println("Path Lengths " + globalWorkSize * pathCheckPeriod);
 			pathLengths = context.createIntBuffer(CLMem.Usage.Output, globalWorkSize * pathCheckPeriod);
 			for (int i = 0; i < properties.size(); ++i) {
 				resultBuffers.add(context.createByteBuffer(CLMem.Usage.Output, globalWorkSize * resultCheckPeriod));
@@ -338,13 +457,11 @@ public class RuntimeContext
 				return true;
 			}
 
-			//List<Integer> finishedEvents = new ArrayList<>();
 			boolean kernelFinished = false;
 			for (Map.Entry<Pair<Integer, Integer>, CLEvent> entry : events.entrySet()) {
 				CLEvent event = entry.getValue();
 				if (event.getCommandExecutionStatus() == CLEvent.CommandExecutionStatus.Complete) {
 					//task completed, we can read the results and times
-					//					finishedEvents.add();
 					kernelTime += (event.getProfilingCommandEnd() - event.getProfilingCommandStart()) / 1000000;
 					resultsCheckIndices.add(entry.getKey().first);
 					pathCheckIndices.add(entry.getKey().second);
@@ -386,24 +503,32 @@ public class RuntimeContext
 			return kernelFinished;
 		}
 
+		/**
+		 * Read part of results buffer.
+		 * @param resultBuffers
+		 * @throws PrismException
+		 */
 		protected void readPartialResults(int resultBuffers) throws PrismException
 		{
 			//result buffers
 			for (int i = 0; i < resultBuffers; ++i) {
-				mainLog.println(String.format("Read results start %d count %d", resultsCheckIndices.get(i) * globalWorkSize, globalWorkSize));
 				readResults(resultsCheckIndices.get(i) * globalWorkSize, globalWorkSize, PERIODITY_OF_SAMPLER_STOP_CHECK);
 			}
-			samplesFinished += resultBuffers * globalWorkSize;
+			samplesProcessed += resultBuffers * globalWorkSize;
 			List<Integer> freedIndices = resultsCheckIndices.subList(0, resultBuffers);
 			freeResultIndices.addAll(freedIndices);
 			freedIndices.clear();
 		}
-
+		
+		/**
+		 * Read part of path buffer.
+		 * @param pathBuffers
+		 * @throws PrismException
+		 */
 		protected void readPartialPaths(int pathBuffers) throws PrismException
 		{
 			//path buffers
 			for (int i = 0; i < pathBuffers; ++i) {
-				mainLog.println(String.format("Read paths start %d count %d", pathCheckIndices.get(i) * globalWorkSize, globalWorkSize));
 				readPathLength(pathCheckIndices.get(i) * globalWorkSize, globalWorkSize);
 			}
 			List<Integer> freedIndices = pathCheckIndices.subList(0, pathBuffers);
@@ -469,28 +594,87 @@ public class RuntimeContext
 		}
 	}
 
-	CLDeviceWrapper currentDevice = null;
-	CLContext context = null;
-	Kernel kernel = null;
-	RuntimeConfig config = null;
-	List<Sampler> properties = null;
-	int numberOfSamples = 0;
-	private PrismLog mainLog = null;
-	private List<CLBuffer<Byte>> resultBuffers = new ArrayList<>();
-	private CLBuffer<Integer> pathLengths = null;
-	private ContextState state = null;
-	//private int localWorkSize = 0;
-	private CLKernel programKernel = null;
-	private CLProgram program = null;
-	double avgPathLength = 0.0f;
-	int minPathLength = Integer.MAX_VALUE;
-	int maxPathLength = 0;
 	/**
-	 * Updated by Strategy object.
+	 * Device used for sampling.
+	 */
+	CLDeviceWrapper currentDevice = null;
+	
+	/**
+	 * OpenCL context.
+	 */
+	CLContext context = null;
+	
+	/**
+	 * Created kernel.
+	 */
+	Kernel kernel = null;
+	
+	/**
+	 * Sampling configuration.
+	 */
+	RuntimeConfig config = null;
+	
+	/**
+	 * PRISM log.
+	 */
+	private PrismLog mainLog = null;
+	
+	/**
+	 * OpenCL buffers to store results.
+	 * One for each property.
+	 */
+	private List<CLBuffer<Byte>> resultBuffers = new ArrayList<>();
+	
+	/**
+	 * OpenCL buffer for path lengths.
+	 */
+	private CLBuffer<Integer> pathLengths = null;
+	
+	/**
+	 * Internal implementation of sampling - different approaches when number of samples is known
+	 * or not known a priori.
+	 */
+	private ContextState state = null;
+	
+	/**
+	 * OpenCL kernel.
+	 */
+	private CLKernel programKernel = null;
+	
+	/**
+	 * OpenCL built and compiled program.
+	 */
+	private CLProgram program = null;	
+	
+	/**
+	 * Average path length in a sample.
+	 */
+	double avgPathLength = 0.0f;
+	
+	/**
+	 * Minimal path length in a sample.
+	 */
+	int minPathLength = Integer.MAX_VALUE;
+	
+	/**
+	 * Maximal path length in a sample.
+	 */
+	int maxPathLength = 0;
+	
+	/**
+	 * Time of running kernel.
 	 */
 	long kernelTime = 0;
+	
+	/**
+	 * Number of processed samples.
+	 */
 	int samplesProcessed = 0;
 
+	/**
+	 * @param device
+	 * @param mainLog
+	 */
 	public RuntimeContext(CLDeviceWrapper device, PrismLog mainLog)
 	{
 		this.mainLog = mainLog;
@@ -498,32 +682,30 @@ public class RuntimeContext
 		context = currentDevice.createDeviceContext();
 	}
 
+	/**
+	 * Create kernel and configure for simulation (allocate OpenCL buffers).
+	 * @param automaton
+	 * @param properties
+	 * @param config
+	 * @throws PrismException
+	 */
 	public void createKernel(AbstractAutomaton automaton, List<Sampler> properties, RuntimeConfig config) throws PrismException
 	{
 		try {
 			this.config = config;
+			//TODO : extend for multiple devices
 			this.config.configDevice(currentDevice);
-			this.properties = properties;
 			kernel = new Kernel(this.config, automaton, properties);
-			mainLog.println(kernel.getSource());
-
-			mainLog.flush();
-			//System.out.println(kernel.getSource());
+			
 			String str = kernel.getSource();
 			program = context.createProgram(str);
 
 			//add include directories for PRNG
-			//has to work when applications is executed as Java class or as a jar
-			String location = this.getClass().getPackage().getName().replace(".", "/") + "/includes";
-			mainLog.flush();
-			//when running a Java class
-			program.addInclude("src/" + location);
-			//when running a *.jar
-			program.addInclude("src/" + location + "/Random123");
-			// TODO: check why this is necessary
-			program.addInclude("src/" + location + "/Random123/features");
+			for(String header : config.prngType.getHeaderDirectories()) {
+				program.addInclude(header);
+			}
 
-			//program.addBuildOption("-cl-nv-verbose");
+			// Display all warnings
 			program.addBuildOption("-w");
 			program.build();
 
@@ -544,6 +726,7 @@ public class RuntimeContext
 					numberOfSamples = Math.max(numberOfSamples, ((CIMethod) method).getNumberOfSamples());
 				}
 			}
+			
 			//compute the minimal, but reasonable number of samples
 			if (numberOfSamplesNotKnown) {
 				state = new NotKnownIterationsState(properties, localWorkSize);
@@ -552,6 +735,7 @@ public class RuntimeContext
 			else {
 				state = new KnownIterationsState(properties, localWorkSize, numberOfSamples);
 			}
+			
 		} catch (CLBuildException exc) {
 			mainLog.println("Program build error: " + exc.getMessage());
 			throw new PrismException("Program build error!");
@@ -561,6 +745,10 @@ public class RuntimeContext
 		}
 	}
 
+	/**
+	 * Run simulation configured in createKernel() method
+	 * @throws PrismException
+	 */
 	public void runSimulation() throws PrismException
 	{
 		CLQueue queue = null;
@@ -569,6 +757,7 @@ public class RuntimeContext
 			state.setQueue(queue);
 			do {
 				state.updateSampling();
+				// for sampling, when we have to wait for results
 				while (!state.processResults()) {
 					Thread.sleep(1);
 				}
@@ -591,31 +780,49 @@ public class RuntimeContext
 		samplesProcessed = state.samplesProcessed;
 	}
 
+	/**
+	 * @return avg achieved length of path
+	 */
 	public double getAvgPathLength()
 	{
 		return avgPathLength;
 	}
 
+	/**
+	 * @return min achieved length of path
+	 */
 	public int getMinPathLength()
 	{
 		return minPathLength;
 	}
 
+	/**
+	 * @return max achieved length of path
+	 */
 	public int getMaxPathLength()
 	{
 		return maxPathLength;
 	}
 
+	/**
+	 * @return time of kernel running (from OpenCL profiling queue)
+	 */
 	public long getTime()
 	{
 		return kernelTime;
 	}
 
+	/**
+	 * @return number of generated and processed samples
+	 */
 	public int getSamplesProcessed()
 	{
 		return samplesProcessed;
 	}
 
+	/**
+	 * Release all allocated resources.
+	 */
 	public void release()
 	{
 		for (CLBuffer<Byte> buffer : resultBuffers) {
@@ -625,7 +832,12 @@ public class RuntimeContext
 		context.release();
 		state = null;
 	}
-
+	
+	/**
+	 * @param groupSize
+	 * @param globalSize
+	 * @return globalSize rounded up to groupSize, i.e. x > globalSize && x %% globalSize == 0
+	 */
 	private int roundUp(int groupSize, int globalSize)
 	{
 		Preconditions.checkCondition(groupSize != 0, "Division by zero!");

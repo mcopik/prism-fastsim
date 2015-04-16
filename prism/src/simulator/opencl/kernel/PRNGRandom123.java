@@ -237,5 +237,23 @@ public class PRNGRandom123 extends PRNGType
 	public List<KernelComponent> getAdditionalDefinitions()
 	{
 		return ADDITIONAL_DEFINITIONS;
+	}	
+	
+	@Override
+	public String[] getHeaderDirectories()
+	{
+		String includes[] = new String[3];
+		String location = this.getClass().getPackage().getName().replace(".", "/");
+		// the includes directory is one lever upper
+		location = location.substring(0, location.indexOf("/kernel") ) + "/includes";
+		//has to work when applications is executed as Java class or as a jar
+		//when running a Java class
+		includes[0] = "src/" + location;
+		//when running a *.jar
+		includes[1] = "src/" + location + "/Random123";
+		// TODO: check why this is necessary
+		includes[2] = "src/" + location + "/Random123/features";
+		
+		return includes;
 	}
 }

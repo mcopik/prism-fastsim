@@ -176,4 +176,9 @@ public abstract class PRNGType
 	 * @param localWorkSize
 	 */
 	public abstract void setKernelArg(CLKernel kernel, int argNumber, int sampleOffset, int globalWorkSize, int localWorkSize);
+
+	/**
+	 * @return array with directories which are necessary to include for compilation
+	 */
+	public abstract String[] getHeaderDirectories();
 }

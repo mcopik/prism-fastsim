@@ -44,7 +44,6 @@ import com.nativelibs4java.opencl.CLKernel;
  * Currently not used - much slower than Random123.
  * Leave for future, for debugging purposes, in case of any problems.
  */
-@Deprecated
 public class PRNGmwc64x extends PRNGType
 {
 	/**
@@ -140,5 +139,17 @@ public class PRNGmwc64x extends PRNGType
 			seed = (long) Math.floor(random.randomUnifDouble() * Long.MAX_VALUE);
 		}
 		kernel.setArg(argNumber, seed + sampleOffset);
+	}
+	
+	@Override
+	public String[] getHeaderDirectories()
+	{
+		String includes[] = new String[1];
+		String location = this.getClass().getPackage().getName().replace(".", "/") + "/includes";
+		location = location.substring(0, location.indexOf("/kernel") ) + "/includes";
+		//when running a Java class
+		includes[0] = "src/" + location;
+		
+		return includes;
 	}
 }

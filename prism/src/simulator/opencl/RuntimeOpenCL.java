@@ -56,23 +56,30 @@ import com.nativelibs4java.opencl.JavaCL;
 
 public class RuntimeOpenCL extends PrismComponent implements SMCRuntimeInterface
 {
-
 	/**
-	 * Represents Prism's object of current automaton.
+	 * OpenCL platforms found in system.
 	 */
-	private ModulesFile modulesFile;
 	private final CLPlatform[] platforms;
+	
+	/**
+	 * All OpenCL devices existing in system.
+	 */
 	private final CLDeviceWrapper[] devices;
-	private CLPlatform currentPlatform = null;
+	
+	/**
+	 * List of device selected for sampling.
+	 */
 	private List<CLDeviceWrapper> currentDevices = new ArrayList<>();
-	List<RuntimeContext> currentContexts = null;
-	private long maxPathLength = 0;
-	private State initialState = null;
+	
+	/**
+	 * PRISM main log.
+	 */
 	private PrismLog mainLog = null;
+	
+	/**
+	 * PRISM settings.
+	 */
 	private PrismSettings prismSettings = null;
-	private int minPathFound = 0;
-	private int maxPathFound = 0;
-	private float avgPathFound = 0;
 
 	/**
 	 * Constructor. Throws an exception when OpenCL initialization failed.
@@ -83,6 +90,7 @@ public class RuntimeOpenCL extends PrismComponent implements SMCRuntimeInterface
 		super(prism);
 		platforms = init();
 		List<CLDeviceWrapper> devs = new ArrayList<>();
+		
 		//detect the same device in different platforms
 		Map<String, CLDeviceWrapper> devices = new HashMap<>();
 		for (CLPlatform platform : platforms) {
@@ -90,6 +98,7 @@ public class RuntimeOpenCL extends PrismComponent implements SMCRuntimeInterface
 			for (CLDevice device : dev) {
 				CLDeviceWrapper wrapper = new CLDeviceWrapper(device);
 				devs.add(wrapper);
+				// if we already found this device, then for all instances use extended name
 				if (devices.containsKey(wrapper.getName())) {
 					devices.get(wrapper.getName()).extendUniqueName();
 					wrapper.extendUniqueName();
@@ -100,10 +109,15 @@ public class RuntimeOpenCL extends PrismComponent implements SMCRuntimeInterface
 		}
 		this.devices = devs.toArray(new CLDeviceWrapper[devs.size()]);
 
-		mainLog = prism.getLog();
-		prismSettings = prism.getSettings();
+		this.mainLog = prism.getLog();
+		this.prismSettings = prism.getSettings();
 	}
 
+	/**
+	 * In case of problem (and, of course, no OpenCL platform in system) an exception will be thrown.
+	 * @return array with OpenCL platforms
+	 * @throws PrismException 
+	 */
 	private CLPlatform[] init() throws PrismException
 	{
 		CLPlatform[] platforms;
@@ -145,12 +159,13 @@ public class RuntimeOpenCL extends PrismComponent implements SMCRuntimeInterface
 	public String getPlatformInfo(int platformNumber)
 	{
 		Preconditions.checkIndex(platformNumber, platforms.length, String.format("%d is not valid platform number", platformNumber));
-		return currentPlatform.getName() + " " + currentPlatform.getVendor();
+		return platforms[platformNumber].getName() + " " + platforms[platformNumber].getVendor();
 	}
 
 	/* (non-Javadoc)
 	 * @see simulator.gpu.RuntimeFrameworkInterface#getPlatformNames()
 	 */
+	@Override
 	public String[] getPlatformNames()
 	{
 		String[] names = new String[platforms.length];
@@ -244,7 +259,6 @@ public class RuntimeOpenCL extends PrismComponent implements SMCRuntimeInterface
 	private AbstractAutomaton loadModel(ModulesFile modulesFile) throws PrismException
 	{
 		checkModelForAMC(modulesFile);
-		this.modulesFile = modulesFile;
 		if (modulesFile.getModelType() == ModelType.DTMC) {
 			return new DTMC(modulesFile);
 		} else {
@@ -269,8 +283,8 @@ public class RuntimeOpenCL extends PrismComponent implements SMCRuntimeInterface
 		}
 		config.maxPathLength = maxPathLength;
 		int samplesProcessed = 0;
+		List<RuntimeContext> currentContexts = new ArrayList<>();
 		try {
-			currentContexts = new ArrayList<>();
 			mainLog.println("Using " + currentDevices.size() + " OpenCL device(s):");
 			int counter = 1;
 			long startTime = System.nanoTime();
@@ -307,7 +321,6 @@ public class RuntimeOpenCL extends PrismComponent implements SMCRuntimeInterface
 		} finally {
 			for (RuntimeContext context : currentContexts) {
 				context.release();
-				//context.currentDevice.getDevice().release();
 			}
 		}
 		return samplesProcessed;

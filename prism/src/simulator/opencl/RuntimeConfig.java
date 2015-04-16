@@ -135,6 +135,7 @@ public class RuntimeConfig
 				throw new PrismException("PRNG seed provided in settings is malformed! Description of the problem: " + e.getMessage());
 			}
 		}
+		
 		// configure PRNG
 		int choice = settings.getChoice(PrismSettings.OPENCL_SIMULATOR_PRNG);
 		if (choice == PrismSettings.OPENCL_SIMULATOR_PRNG_CHOICES.RANDOM123.id) {
@@ -142,6 +143,7 @@ public class RuntimeConfig
 		} else {
 			prngType = new PRNGmwc64x("prng", prngSeed);
 		}
+		
 		//load other parameters
 		directMethodGWSizeCPU = settings.getInteger(PrismSettings.OPENCL_SIMULATOR_DEFAULT_NUM_SAMPLES_CPU);
 		directMethodGWSizeGPU = settings.getInteger(PrismSettings.OPENCL_SIMULATOR_DEFAULT_NUM_SAMPLES_GPU);
@@ -149,20 +151,6 @@ public class RuntimeConfig
 		inDirectMethodGWSizeGPU = settings.getInteger(PrismSettings.OPENCL_SIMULATOR_DEFAULT_NUM_SAMPLES_GPU_INDIRECT);
 		inDirectPathCheckPeriod = settings.getInteger(PrismSettings.OPENCL_SIMULATOR_PATH_PERIOD);
 		inDirectResultCheckPeriod = settings.getInteger(PrismSettings.OPENCL_SIMULATOR_RESULT_PERIOD);
-	}
-
-	/**
-	 * Copy constructor.
-	 * TODO: check if it is necessary
-	 * @param config
-	 */
-	public RuntimeConfig(RuntimeConfig config)
-	{
-		this.maxPathLength = config.maxPathLength;
-		this.initialState = config.initialState;
-		this.deviceType = config.deviceType;
-		this.prngType = config.prngType;
-		this.prngSeed = config.prngSeed;
 	}
 	
 	/**
