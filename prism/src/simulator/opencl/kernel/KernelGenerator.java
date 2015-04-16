@@ -500,6 +500,7 @@ public abstract class KernelGenerator
 		 */
 		IfElse sampleNumberCheck = new IfElse( createBasicExpression(globalID.getName(), Operator.GT, numberOfSimulations.getName()) );
 		sampleNumberCheck.addExpression("return;");
+		currentMethod.addExpression(sampleNumberCheck);
 	
 		/**
 		 * initialize generator
