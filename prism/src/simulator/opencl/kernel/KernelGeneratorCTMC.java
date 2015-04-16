@@ -30,7 +30,7 @@ import static simulator.opencl.kernel.expression.ExpressionGenerator.addParenthe
 import static simulator.opencl.kernel.expression.ExpressionGenerator.convertPrismGuard;
 import static simulator.opencl.kernel.expression.ExpressionGenerator.convertPrismRate;
 import static simulator.opencl.kernel.expression.ExpressionGenerator.createAssignment;
-import static simulator.opencl.kernel.expression.ExpressionGenerator.createBasicExpression;
+import static simulator.opencl.kernel.expression.ExpressionGenerator.createBinaryExpression;
 import static simulator.opencl.kernel.expression.ExpressionGenerator.fromString;
 import static simulator.opencl.kernel.expression.ExpressionGenerator.postIncrement;
 
@@ -133,28 +133,28 @@ public class KernelGeneratorCTMC extends KernelGenerator
 	protected void mainMethodUpdateTimeBefore(Method currentMethod, ComplexKernelComponent parent)
 	{
 		CLValue random = config.prngType.getRandomUnifFloat(fromString(1));
-		Expression substrRng = createBasicExpression(fromString(1),
+		Expression substrRng = createBinaryExpression(fromString(1),
 		//1 - random()
 				Operator.SUB, random.getSource());
 		substrRng = new Expression(String.format("log(%s)", substrRng.getSource()));
 		Expression sum = null;
 		//for synchronized commands - selection_size + selection_syn
 		if (hasSynchronized && hasNonSynchronized) {
-			sum = createBasicExpression(varSelectionSize.getSource(), Operator.ADD, varSynSelectionSize.getSource());
+			sum = createBinaryExpression(varSelectionSize.getSource(), Operator.ADD, varSynSelectionSize.getSource());
 			addParentheses(sum);
 		} else if (hasNonSynchronized) {
 			sum = varSelectionSize.getSource();
 		} else {
 			sum = varSynSelectionSize.getSource();
 		}
-		substrRng = createBasicExpression(substrRng, Operator.DIV, sum);
+		substrRng = createBinaryExpression(substrRng, Operator.DIV, sum);
 		// updated = time - new value
 		// OR time -= new value
 		if (timingProperty) {
-			substrRng = createBasicExpression(varTime.getSource(), Operator.SUB, substrRng);
+			substrRng = createBinaryExpression(varTime.getSource(), Operator.SUB, substrRng);
 			parent.addExpression(createAssignment(varUpdatedTime, substrRng));
 		} else {
-			parent.addExpression(addComma(createBasicExpression(varTime.getSource(), Operator.SUB_AUGM, substrRng)));
+			parent.addExpression(addComma(createBinaryExpression(varTime.getSource(), Operator.SUB_AUGM, substrRng)));
 		}
 	}
 
@@ -256,7 +256,7 @@ public class KernelGeneratorCTMC extends KernelGenerator
 		else {
 			rndNumber = new Expression(String.format("%s%%%d",
 			//pathLength*2
-					addParentheses(createBasicExpression(varPathLength.getSource(), Operator.MUL,
+					addParentheses(createBinaryExpression(varPathLength.getSource(), Operator.MUL,
 					// % numbersPerRandom
 							fromString(2))).toString(), config.prngType.numbersPerRandomize()));
 		}
@@ -267,7 +267,7 @@ public class KernelGeneratorCTMC extends KernelGenerator
 	@Override
 	protected IfElse mainMethodBothUpdatesCondition(CLVariable selection)
 	{
-		Expression condition = createBasicExpression(selection.getSource(), Operator.LT,
+		Expression condition = createBinaryExpression(selection.getSource(), Operator.LT,
 		//random < selectionSize
 				varSelectionSize.getSource());
 		IfElse ifElse = new IfElse(condition);
@@ -282,14 +282,14 @@ public class KernelGeneratorCTMC extends KernelGenerator
 	@Override
 	protected Expression mainMethodSynUpdateCondition(CLVariable selection, CLVariable synSum, Expression sum)
 	{
-		return createBasicExpression(selection.getSource(), Operator.LT, synSum.getSource());
+		return createBinaryExpression(selection.getSource(), Operator.LT, synSum.getSource());
 	}
 
 	@Override
 	protected void mainMethodSynRecomputeSelection(ComplexKernelComponent parent, CLVariable selection, CLVariable synSum, Expression sum,
 			CLVariable currentLabelSize)
 	{
-		parent.addExpression(createBasicExpression(selection.getSource(), Operator.SUB_AUGM, synSum.getSource()));
+		parent.addExpression(createBinaryExpression(selection.getSource(), Operator.SUB_AUGM, synSum.getSource()));
 	}
 
 	@Override
@@ -338,7 +338,7 @@ public class KernelGeneratorCTMC extends KernelGenerator
 		
 		IfElse ifElse = new IfElse(new Expression(guard));
 		ifElse.addExpression(0, createAssignment(tabPos, fromString(position)));
-		Expression sumExpr = createBasicExpression(sum.getSource(), Operator.ADD_AUGM,
+		Expression sumExpr = createBinaryExpression(sum.getSource(), Operator.ADD_AUGM,
 				fromString(convertPrismRate(svPtrTranslations, commands[position].getRateSum())));
 		ifElse.addExpression(0, sumExpr);
 		currentMethod.addExpression(ifElse);
@@ -378,19 +378,19 @@ public class KernelGeneratorCTMC extends KernelGenerator
 		}
 		loop.addExpression(_switch);
 		// if(sum + newSum > selectionSum)
-		Expression condition = createBasicExpression(
+		Expression condition = createBinaryExpression(
 		//selectionSum
 				selectionSum.getSource(),
 				// <
 				Operator.LT,
 				//sum + newSum
-				createBasicExpression(sum.getSource(), Operator.ADD, newSum.getSource()));
+				createBinaryExpression(sum.getSource(), Operator.ADD, newSum.getSource()));
 		IfElse ifElse = new IfElse(condition);
-		Expression reduction = createBasicExpression(selectionSum.getSource(), Operator.SUB_AUGM, sum.getSource());
+		Expression reduction = createBinaryExpression(selectionSum.getSource(), Operator.SUB_AUGM, sum.getSource());
 		ifElse.addExpression(0, reduction.add(";"));
 		ifElse.addExpression(0, new Expression("break;"));
 		loop.addExpression(ifElse);
-		loop.addExpression(createBasicExpression(sum.getSource(), Operator.ADD_AUGM, newSum.getSource()).add(";"));
+		loop.addExpression(createBinaryExpression(sum.getSource(), Operator.ADD_AUGM, newSum.getSource()).add(";"));
 
 		currentMethod.addExpression(loop);
 	}
@@ -447,7 +447,7 @@ public class KernelGeneratorCTMC extends KernelGenerator
 		 */
 		IfElse ifElse = null;
 		if (!Double.isInfinite(prop.getUpperBound())) {
-			ifElse = new IfElse(createBasicExpression(updTime.getSource(), Operator.GT, fromString(prop.getUpperBound())));
+			ifElse = new IfElse(createBinaryExpression(updTime.getSource(), Operator.GT, fromString(prop.getUpperBound())));
 			/**
 			 * if(right_side == true) -> true
 			 * else -> false
@@ -462,7 +462,7 @@ public class KernelGeneratorCTMC extends KernelGenerator
 		 */
 		if (prop.getLowBound() != 0.0) {
 			int position = 0;
-			Expression condition = createBasicExpression(updTime.getSource(), Operator.LE,
+			Expression condition = createBinaryExpression(updTime.getSource(), Operator.LE,
 			// updated_time < lb
 					fromString(prop.getLowBound()));
 			if (ifElse != null) {
@@ -539,7 +539,7 @@ public class KernelGeneratorCTMC extends KernelGenerator
 		//TODO: optimize this by removing if and setting rate add:
 		// rateSum += rate*guards
 		IfElse ifElse = new IfElse(new Expression(convertPrismGuard(svPtrTranslations, cmd.getGuard().toString())));
-		ifElse.addExpression(createBasicExpression(size.getSource(), Operator.ADD_AUGM,
+		ifElse.addExpression(createBinaryExpression(size.getSource(), Operator.ADD_AUGM,
 		//converted rate
 				new Expression(convertPrismRate(svPtrTranslations, cmd.getRateSum()))));
 		ifElse.addExpression(createAssignment(guardArray, fromString(1)));
@@ -583,12 +583,12 @@ public class KernelGeneratorCTMC extends KernelGenerator
 		/**
 		 * Divide total size and compute the size of rest of modules.
 		 */
-		parent.addExpression(createBasicExpression(totalSize.getSource(), Operator.DIV_AUGM, moduleSize.getSource()));
+		parent.addExpression(createBinaryExpression(totalSize.getSource(), Operator.DIV_AUGM, moduleSize.getSource()));
 		/**
 		 * FROM prob in [0,moduleLength]
 		 * TO prob in [0,moduleLength]
 		 */
-		parent.addExpression(createBasicExpression(probability.getSource(), Operator.DIV_AUGM, totalSize.getSource()));
+		parent.addExpression(createBinaryExpression(probability.getSource(), Operator.DIV_AUGM, totalSize.getSource()));
 		/**
 		 * float sum = 0.0f;
 		 * for(;;guard++) {
@@ -606,7 +606,7 @@ public class KernelGeneratorCTMC extends KernelGenerator
 		for (int i = 0; i < moduleNumber; ++i) {
 			cmdSum += cmd.getCommandNumber(i);
 		}
-		CLVariable guardFlag = guardsTab.accessElement(createBasicExpression(guard.getSource(), Operator.ADD, fromString(cmdSum)));
+		CLVariable guardFlag = guardsTab.accessElement(createBinaryExpression(guard.getSource(), Operator.ADD, fromString(cmdSum)));
 		if (cmd.getCommandNumber(moduleNumber) > 1) {
 			parent.addExpression(createAssignment(guard, fromString(0)));
 			parent.addExpression(createAssignment(sum, fromString(0.0f)));
@@ -625,25 +625,25 @@ public class KernelGeneratorCTMC extends KernelGenerator
 			/**
 			 * Multiply newSum by guardFlag -> if guard is inactive, then it is 0.
 			 */
-			guardSelectionLoop.addExpression(createBasicExpression(newSum.getSource(), Operator.MUL_AUGM, guardFlag.getSource()));
+			guardSelectionLoop.addExpression(createBinaryExpression(newSum.getSource(), Operator.MUL_AUGM, guardFlag.getSource()));
 
 			/**
 			 * Check whether sum + newSum is greater than rate.
 			 */
 			// if(sum + newSum > selectionSum)
-			Expression condition = createBasicExpression(
+			Expression condition = createBinaryExpression(
 			//selectionSum
 					probability.getSource(),
 					// <
 					Operator.LT,
 					//sum + newSum
-					createBasicExpression(sum.getSource(), Operator.ADD, newSum.getSource()));
+					createBinaryExpression(sum.getSource(), Operator.ADD, newSum.getSource()));
 			IfElse ifElse = new IfElse(condition);
-			Expression reduction = createBasicExpression(probability.getSource(), Operator.SUB_AUGM, sum.getSource());
+			Expression reduction = createBinaryExpression(probability.getSource(), Operator.SUB_AUGM, sum.getSource());
 			ifElse.addExpression(0, reduction.add(";"));
 			ifElse.addExpression(0, new Expression("break;"));
 			guardSelectionLoop.addExpression(ifElse);
-			guardSelectionLoop.addExpression(createBasicExpression(sum.getSource(), Operator.ADD_AUGM, newSum.getSource()).add(";"));
+			guardSelectionLoop.addExpression(createBinaryExpression(sum.getSource(), Operator.ADD_AUGM, newSum.getSource()).add(";"));
 			parent.addExpression(guardSelectionLoop);
 		}
 	}
@@ -655,7 +655,7 @@ public class KernelGeneratorCTMC extends KernelGenerator
 		 * FROM prob in [0,moduleLength]
 		 * TO prob in [0,moduleLength]
 		 */
-		parent.addExpression(createBasicExpression(probability.getSource(), Operator.MUL_AUGM, totalSize.getSource()));
+		parent.addExpression(createBinaryExpression(probability.getSource(), Operator.MUL_AUGM, totalSize.getSource()));
 	}
 
 	@Override

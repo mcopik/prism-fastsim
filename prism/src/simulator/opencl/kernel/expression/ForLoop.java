@@ -150,9 +150,9 @@ public class ForLoop extends ComplexKernelComponent
 		if (endValue != null) {
 			builder.append(definition);
 			if (decreasing) {
-				builder.append(ExpressionGenerator.createBasicExpression(counter.getSource(), Operator.GT, endValue));
+				builder.append(ExpressionGenerator.createBinaryExpression(counter.getSource(), Operator.GT, endValue));
 			} else {
-				builder.append(ExpressionGenerator.createBasicExpression(counter.getSource(), Operator.LT, endValue));
+				builder.append(ExpressionGenerator.createBinaryExpression(counter.getSource(), Operator.LT, endValue));
 			}
 		} else {
 			builder.append(";");

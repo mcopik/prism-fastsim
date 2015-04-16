@@ -34,37 +34,54 @@ import prism.Preconditions;
 import simulator.opencl.automaton.PrismVariable;
 import simulator.opencl.automaton.update.Action;
 import simulator.opencl.automaton.update.Rate;
-import simulator.opencl.kernel.memory.ArrayType;
 import simulator.opencl.kernel.memory.CLValue;
 import simulator.opencl.kernel.memory.CLVariable;
 import simulator.opencl.kernel.memory.ExpressionValue;
-import simulator.opencl.kernel.memory.PointerType;
-import simulator.opencl.kernel.memory.StructureType;
 
 public class ExpressionGenerator
 {
+	/**
+	 * @param object
+	 * @return expression instance created directly from the string representation of an object
+	 */
 	static public <T> Expression fromString(T object)
 	{
 		Preconditions.checkNotNull(object, "ExpressionGenerator.fromString() called on null reference!");
 		return new Expression(object.toString());
 	}
-
+	
+	/**
+	 * @param dest
+	 * @param expr
+	 * @return a = b, where a is a variable and b the expression
+	 */
 	static public Expression createAssignment(CLVariable dest, Expression expr)
 	{
-		Expression ret = createBasicExpression(dest.getSource(), Operator.AS, expr);
-		//ret.exprString += ";";
+		Expression ret = createBinaryExpression(dest.getSource(), Operator.AS, expr);
 		return ret;
 	}
 
+	/**
+	 * @param dest
+	 * @param source
+	 * @return a = b, where a is a variable and b another variable
+	 */
 	static public Expression createAssignment(CLVariable dest, CLVariable source)
 	{
 		return createAssignment(dest, source.getName());
 	}
 
+	/**
+	 * Operators for binary expressions.
+	 * Includes typical arithmetical and logical operators, including augmented assignment operators.
+	 */
 	public enum Operator {
 		GT, LT, GE, LE, EQ, NE, LAND, LOR, AS, ADD, SUB, MUL, DIV, ADD_AUGM, SUB_AUGM, MUL_AUGM, DIV_AUGM, LAND_AUGM
 	};
 
+	/**
+	 * Representation of all operators in OpenCL.
+	 */
 	private static final Map<Operator, String> operatorsSource;
 	static {
 		operatorsSource = new HashMap<>();
@@ -88,44 +105,81 @@ public class ExpressionGenerator
 		operatorsSource.put(Operator.LAND_AUGM, "&=");
 	}
 
-	static public Expression createBasicExpression(Expression expr1, Operator operator, Expression expr2)
+	/**
+	 * @param expr1
+	 * @param operator
+	 * @param expr2
+	 * @return expr1 operator expr2
+	 */
+	static public Expression createBinaryExpression(Expression expr1, Operator operator, Expression expr2)
 	{
 		return new Expression(String.format("%s %s %s", expr1, operatorsSource.get(operator), expr2));
 	}
 
-	static public Expression createNegation(Expression var)
+	/**
+	 * @param expr
+	 * @return !(expr)
+	 */
+	static public Expression createNegation(Expression expr)
 	{
-		var.exprString = "!(" + var.exprString + ")";
-		return var;
+		expr.exprString = "!(" + expr.exprString + ")";
+		return expr;
 	}
 
+	/**
+	 * @param condition
+	 * @param first
+	 * @param second
+	 * @return condition ? first : second
+	 */
 	static public Expression createConditionalAssignment(Expression condition, String first, String second)
 	{
 		return new Expression(String.format("%s ? %s : %s", condition.getSource(), first, second));
 	}
 
+	/**
+	 * @param expr
+	 * @return (expr)
+	 */
 	static public Expression addParentheses(Expression expr)
 	{
 		expr.exprString = String.format("(%s)", expr.exprString);
 		return expr;
 	}
 
+	/**
+	 * @param expr
+	 * @return expr;
+	 */
 	static public Expression addComma(Expression expr)
 	{
 		expr.exprString = expr.exprString + ";";
 		return expr;
 	}
 
+	/**
+	 * @param var
+	 * @return var++
+	 */
 	static public Expression postIncrement(CLVariable var)
 	{
 		return new Expression(var.varName + "++");
 	}
 
+	/**
+	 * @return OpenCL's value of global ID - for first dimension
+	 */
 	static public CLValue assignGlobalID()
 	{
 		return new ExpressionValue(new Expression("get_global_id(0)"));
 	}
 
+	/**
+	 * Call one of embedded functions - e.g. floor from cmath
+	 * @param functionName
+	 * @param args
+	 * @return functionName(args)
+	 */
 	static public Expression functionCall(String functionName, Expression... args)
 	{
 		StringBuilder builder = new StringBuilder(functionName);
@@ -138,41 +192,14 @@ public class ExpressionGenerator
 		return new Expression(builder.toString());
 	}
 
-	//	static public Expression convertPrismAction(Action action)
-	//	{
-	//		StringBuilder builder = new StringBuilder();
-	//		for (Pair<PrismVariable, parser.ast.Expression> expr : action.expressions) {
-	//			//			builder.append(expr.first.name).append(" = ").append(expr.second.toString()).append(";");
-	//			//			builder.append("\n");
-	//			builder.append(expr.first.name).append(" = ");
-	//			builder.append(convertUpdate(expr.second, null));
-	//			builder.append(";\n");
-	//		}
-	//		return new Expression(builder.toString());
-	//	}
-
-	//	static public KernelComponent convertPrismAction(Action action, CLVariable changeFlag, CLVariable oldValue)
-	//	{
-	//		ExpressionList list = new ExpressionList();
-	//		for (Pair<PrismVariable, parser.ast.Expression> expr : action.expressions) {
-	//			list.addExpression(createAssignment(oldValue, new Expression(expr.first.name)));
-	//			Expression mainAssignment = new Expression(String.format("%s = %s", expr.first.name, convertUpdate(expr.second, null)));
-	//			addParentheses(mainAssignment);
-	//			list.addExpression(createBasicExpression(changeFlag.getSource(), Operator.LAND_AUGM, createConditionalAssignment(
-	//			//destination == new_value
-	//					createBasicExpression(mainAssignment, Operator.EQ, oldValue.getSource()), "true", "false")));
-	//
-	//			//			builder.append(expr.first.name).append(" = ");
-	//			//			builder.append(createAssignment(oldValue, new Expression(convertUpdate(expr.second, null)))).append("\n");
-	//			//			builder.append(createAssignment(changeFlag, createConditionalAssignment(
-	//			//			//destination == new_value
-	//			//					createBasicExpression(new Expression(expr.first.name), Operator.EQ, oldValue.getSource()), "true", "false"))).append("\n");
-	//			//			builder.append(expr.first.name).append(" = ").append(oldValue.getSource()).append(";").append("\n");
-	//			//			builder.append("\n");
-	//		}
-	//		return list;
-	//	}
-
+	/**
+	 * Convert action from PRISM parsers to OpenCL. 
+	 * @param stateVector
+	 * @param action
+	 * @param translations contains translations of model variables to proper references at state vector structure
+	 * @param savedVariables if not null, then references to 'save' place - will be used instead of translation in previous map
+	 * @return action converted from PRISM model to OpenCL
+	 */
 	static public Expression convertPrismAction(CLVariable stateVector, Action action, Map<String, String> translations, Map<String, String> savedVariables)
 	{
 		StringBuilder builder = new StringBuilder();
@@ -185,6 +212,15 @@ public class ExpressionGenerator
 		return new Expression(builder.toString());
 	}
 
+	/**
+	 * @param stateVector
+	 * @param action
+	 * @param translations contains translations of model variables to proper references at state vector structure
+	 * @param savedVariables if not null, then references to 'save' place - will be used instead of translation in previous map
+	 * @param changeFlag write checking: new value == old value? 
+	 * @param oldValue old value variable to use
+	 * @return action converted from PRISM model to OpenCL
+	 */
 	static public KernelComponent convertPrismAction(CLVariable stateVector, Action action, Map<String, String> translations,
 			Map<String, String> savedVariables, CLVariable changeFlag, CLVariable oldValue)
 	{
@@ -199,15 +235,20 @@ public class ExpressionGenerator
 			Expression mainAssignment = new Expression(String.format("%s = %s", translations.get(expr.first.name),
 					convertUpdate(stateVector, expr.second, translations, savedVariables)));
 			addParentheses(mainAssignment);
-			list.addExpression(createBasicExpression(changeFlag.getSource(), Operator.LAND_AUGM, createConditionalAssignment(
+			list.addExpression(createBinaryExpression(changeFlag.getSource(), Operator.LAND_AUGM, createConditionalAssignment(
 			//destination == new_value
-					createBasicExpression(mainAssignment, Operator.EQ, oldValue.getSource()), "true", "false")));
-			//builder.append(expr.first.name).append(" = ").append(oldValue.getSource()).append(";").append("\n");
-			//builder.append("\n");
+					createBinaryExpression(mainAssignment, Operator.EQ, oldValue.getSource()), "true", "false")));
 		}
 		return list;
 	}
 
+	/**
+	 * @param stateVector
+	 * @param expr
+	 * @param translations contains translations of model variables to proper references at state vector structure
+	 * @param savedVariables if not null, then references to 'save' place - will be used instead of translation in previous map
+	 * @return convert variable update from PRISM model to OpenCL
+	 */
 	static private String convertUpdate(CLVariable stateVector, parser.ast.Expression expr, Map<String, String> translations, Map<String, String> savedVariables)
 	{
 		StringBuilder assignment = new StringBuilder();
@@ -218,6 +259,14 @@ public class ExpressionGenerator
 		return assignment.toString();
 	}
 
+	/**
+	 * Convert expression containing new value for a variable - if function, then apply conversion to every argument
+	 * @param builder
+	 * @param stateVector
+	 * @param translations contains translations of model variables to proper references at state vector structure
+	 * @param savedVariables if not null, then references to 'save' place - will be used instead of translation in previous map
+	 * @param expr
+	 */
 	static private void convertFunc(StringBuilder builder, CLVariable stateVector, Map<String, String> translations, Map<String, String> savedVariables,
 			parser.ast.Expression expr)
 	{
@@ -232,14 +281,9 @@ public class ExpressionGenerator
 					if (translations.size() != 0 || savedVariables.size() != 0) {
 						String newExpr = convertActionWithSV(stateVector, translations, savedVariables, func.getOperand(i).toString());
 						//no change? 
-						//if (newExpr.equals(func.getOperand(i).toString())) {
 						builder.append("((float)").append(newExpr).append(")");
-						//} else {
-						//	builder.append(newExpr);
-						//}
 					} else {
 						builder.append("((float)").append(func.getOperand(i).toString()).append(")");
-						//builder.append(func.getOperand(i).toString());
 					}
 					if (i != func.getNumOperands() - 1) {
 						builder.append(',');
@@ -248,29 +292,14 @@ public class ExpressionGenerator
 			}
 			builder.append(")");
 		} else {
-			//if (translations.size() != 0 || savedVariables.size() != 0) {
 			builder.append(convertActionWithSV(stateVector, translations, savedVariables, expr.toString()));
-			//} else {
-			//builder.append(expr.toString());
-			//}
 		}
 	}
 
-	//	static private String convertEquality(String expr)
-	//	{
-	//		StringBuilder builder = new StringBuilder(expr);
-	//		int index = 0;
-	//		while ((index = builder.indexOf("=", index)) != -1) {
-	//			if (index == 0 || (builder.charAt(index - 1) != '!' && builder.charAt(index - 1) != '>' && builder.charAt(index - 1) != '<')) {
-	//				builder.replace(index, index + 1, "==");
-	//				index += 2;
-	//			} else {
-	//				index += 1;
-	//			}
-	//		}
-	//		return builder.toString();
-	//	}
-
+	/**
+	 * Convert PRISM's equality '=' check to '==' in OpenCL C.
+	 * @param builder
+	 */
 	static private void convertEquality(StringBuilder builder)
 	{
 		int index = 0;
@@ -284,95 +313,87 @@ public class ExpressionGenerator
 		}
 	}
 
+	/**
+	 * @param stateVector
+	 * @param translations contains translations of model variables to proper references at state vector structure
+	 * @param savedVariables if not null, then references to 'save' place - will be used instead of translation in previous map
+	 * @param action
+	 * @return action with replaced all references to PRISM model variables
+	 */
 	static private String convertActionWithSV(CLVariable stateVector, Map<String, String> translations, Map<String, String> savedVariables, String action)
 	{
 		StringBuilder builder = new StringBuilder(action);
 		for (Map.Entry<String, String> entry : translations.entrySet()) {
-			//while ((index = builder.indexOf(entry.getKey(), index)) != -1) {
-			//if(entry.getKey().contains("i") ||entry.getKey().contains("nrtr") || entry.getKey().contains("ab") )
-			//if(entry.getKey().contains("nrtr"))
-			//continue;
 
-			//builder.replace(index, index + entry.getKey().length(), String.format("((float)%s)", entry.getValue()));
-			//index += entry.getValue().length() + 9;
-			//}
 			if (savedVariables != null && savedVariables.containsKey(entry.getKey())) {
 				continue;
 			}
-			builderReplaceMostCommon(builder, entry.getKey(), entry.getValue());//stateVector.accessField(entry.getValue()).toString());
+			builderReplaceMostCommon(builder, entry.getKey(), entry.getValue());
 		}
 
 		if (savedVariables != null) {
 			for (Map.Entry<String, String> entry : savedVariables.entrySet()) {
-				//while ((index = builder.indexOf(entry.getKey(), index)) != -1) {
-				//if(entry.getKey().contains("i") ||entry.getKey().contains("nrtr") || entry.getKey().contains("ab") )
-				//if(entry.getKey().contains("nrtr"))
-				//continue;
-
-				//builder.replace(index, index + entry.getKey().length(), String.format("((float)%s)", entry.getValue()));
-				//index += entry.getValue().length() + 9;
-				//}
 				builderReplaceMostCommon(builder, entry.getKey(), entry.getValue());
-
 			}
 		}
 
 		return builder.toString();
 	}
 
+	/**
+	 * @param translations contains translations of model variables to proper references at state vector structure
+	 * @param rate
+	 * @return rate of update with replaced all references to model variable
+	 */
 	static public String convertPrismRate(Map<String, String> translations, Rate rate)
 	{
 		StringBuilder builder = new StringBuilder(rate.toString());
 		for (Map.Entry<String, String> entry : translations.entrySet()) {
-			//			while ((index = builder.indexOf(stateVector[i].name, index)) != -1) {
-			//				builder.replace(index, index + stateVector[i].name.length(), String.format("((float)%s)", stateVector[i].name));
-			//				index += stateVector[i].name.length() + 9;
-			//			}
-			//builderReplaceMostCommon(builder, stateVector[i].name, String.format("((float)%s)", stateVector[i].name));
 			builderReplaceMostCommon(builder, entry.getKey(), entry.getValue());
 		}
 		return builder.toString();
 	}
 
+	/**
+	 * @param translations contains translations of model variables to proper references at state vector structure
+	 * @param expr
+	 * @return PRISM property with replaced all references to model variable and fixed logical operators
+	 */
 	static public Expression convertPrismProperty(Map<String, String> translations, String expr)
 	{
 		StringBuilder builder = new StringBuilder(expr);
 		for (Map.Entry<String, String> entry : translations.entrySet()) {
-			//builderReplaceMostCommon(builder, vars[i].name, String.format("((float)%s)", vars[i].name));
 			builderReplaceMostCommon(builder, entry.getKey(), entry.getValue());
 		}
 		convertEquality(builder);
 		builderReplace(builder, "|", "||");
 		builderReplace(builder, "&", "&&");
-		//String newExpr = expr.replace("=", "==").replace("&", "&&").replace("|", "||");
-		//		if (expr.charAt(0) == ('!')) {
-		//			return new Expression(String.format("!(%s)", newExpr.substring(1)));
-		//		} else {
-		//			return new Expression(newExpr);
-		//		}
-		//return new Expression(newExpr);
 		return new Expression(builder.toString());
 	}
 
+	/**
+	 * @param translations contains translations of model variables to proper references at state vector structure
+	 * @param expr
+	 * @return PRISM guard with replaced all references to model variable and fixed logical operators
+	 */
 	static public String convertPrismGuard(Map<String, String> translations, String expr)
 	{
 		StringBuilder builder = new StringBuilder(expr);
 		for (Map.Entry<String, String> entry : translations.entrySet()) {
-			//builderReplaceMostCommon(builder, vars[i].name, String.format("((float)%s)", vars[i].name));
 			builderReplaceMostCommon(builder, entry.getKey(), entry.getValue());
 		}
 		convertEquality(builder);
 		builderReplace(builder, "|", "||");
 		builderReplace(builder, "&", "&&");
-		// TODO: check if it doesn't break anything
-		//		if (builder.charAt(0) == ('!')) {
-		//			return String.format("!(%s)", builder.substring(1));
-		//		} else {
-		//			return builder.toString();
-		//		}
 		return builder.toString();
 	}
 
+	/**
+	 * Replace all references of 'first' with 'second' in builder.
+	 * @param builder
+	 * @param first
+	 * @param second
+	 */
 	static private void builderReplace(StringBuilder builder, String first, String second)
 	{
 		int index = 0;
@@ -382,20 +403,24 @@ public class ExpressionGenerator
 		}
 	}
 
+	/**
+	 * Replace the longest instance of 'first' with 'second', i.e. only when it's surrounded with
+	 * non-identifier characters, so variable xy won't be replaced with a reference to variable x.
+	 * @param builder
+	 * @param first
+	 * @param second
+	 */
 	static private void builderReplaceMostCommon(StringBuilder builder, String first, String second)
 	{
 		int index = 0;
 		while ((index = builder.indexOf(first, index)) != -1) {
 			//check whether it is a prefix
 			if (builder.length() > index + first.length()
-			//&& (Character.isAlphabetic(builder.charAt(index + first.length())) || Character.isDigit(builder.charAt(index + first.length())))) {
-			//&& !Character.isWhitespace(builder.charAt(index + first.length()))) {
 					&& isIdentifierCharacter(builder.charAt(index + first.length()))) {
 				index += first.length();
 			}
 			//check if it is a suffix
 			else if (index != 0 && isIdentifierCharacter(builder.charAt(index - 1))) {
-				/*!Character.isWhitespace(builder.charAt(index -1))) && (Character.isAlphabetic(builder.charAt(index - 1)) || Character.isDigit(builder.charAt(index - 1)))) {*/
 				index += first.length();
 			} else {
 				builder.replace(index, index + first.length(), second);

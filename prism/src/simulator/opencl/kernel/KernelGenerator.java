@@ -31,7 +31,7 @@ import static simulator.opencl.kernel.expression.ExpressionGenerator.convertPris
 import static simulator.opencl.kernel.expression.ExpressionGenerator.convertPrismProperty;
 import static simulator.opencl.kernel.expression.ExpressionGenerator.convertPrismRate;
 import static simulator.opencl.kernel.expression.ExpressionGenerator.createAssignment;
-import static simulator.opencl.kernel.expression.ExpressionGenerator.createBasicExpression;
+import static simulator.opencl.kernel.expression.ExpressionGenerator.createBinaryExpression;
 import static simulator.opencl.kernel.expression.ExpressionGenerator.createNegation;
 import static simulator.opencl.kernel.expression.ExpressionGenerator.fromString;
 
@@ -496,7 +496,7 @@ public abstract class KernelGenerator
 		 * Necessary in every kernel, because number of OpenCL kernel launches will be aligned
 		 * (and almost always greater than number of ordered samples, buffer sizes etc).
 		 */
-		IfElse sampleNumberCheck = new IfElse( createBasicExpression(globalID.getName(), Operator.GT, numberOfSimulations.getName()) );
+		IfElse sampleNumberCheck = new IfElse( createBinaryExpression(globalID.getName(), Operator.GT, numberOfSimulations.getName()) );
 		sampleNumberCheck.addExpression("return;");
 		currentMethod.addExpression(sampleNumberCheck);
 	
@@ -524,7 +524,7 @@ public abstract class KernelGenerator
 			if (prngType.numbersPerRandomize() != mainMethodRandomsPerIteration()) {
 				int iterationsPerRandomize = prngType.numbersPerRandomize() / mainMethodRandomsPerIteration();
 				Expression condition = new Expression(String.format("%s %% %d", varPathLength.varName, iterationsPerRandomize));
-				IfElse ifElse = new IfElse(createBasicExpression(condition, Operator.EQ, fromString(0)));
+				IfElse ifElse = new IfElse(createBinaryExpression(condition, Operator.EQ, fromString(0)));
 				ifElse.addExpression(prngType.randomize());
 				loop.addExpression(ifElse);
 			}
@@ -551,7 +551,7 @@ public abstract class KernelGenerator
 						varStateVector.convertToPointer(),
 						//synchState
 						varSynchronizedStates[i].convertToPointer());
-				loop.addExpression(createBasicExpression(varSynSelectionSize.getSource(), Operator.ADD_AUGM, callMethod));
+				loop.addExpression(createBinaryExpression(varSynSelectionSize.getSource(), Operator.ADD_AUGM, callMethod));
 			}
 		}
 		
@@ -560,7 +560,7 @@ public abstract class KernelGenerator
 		 */
 		Expression sum = null;
 		if (varSynSelectionSize != null && varSelectionSize != null) {
-			sum = createBasicExpression(varSelectionSize.getSource(), Operator.ADD, varSynSelectionSize.getSource());
+			sum = createBinaryExpression(varSelectionSize.getSource(), Operator.ADD, varSynSelectionSize.getSource());
 		} else if (varSynSelectionSize != null) {
 			sum = varSynSelectionSize.getSource();
 		} else {
@@ -570,7 +570,7 @@ public abstract class KernelGenerator
 		/**
 		 * Deadlock when number of possible choices is 0.
 		 */
-		IfElse deadlockState = new IfElse(createBasicExpression(sum, Operator.EQ, fromString(0)));
+		IfElse deadlockState = new IfElse(createBinaryExpression(sum, Operator.EQ, fromString(0)));
 		deadlockState.addExpression(new Expression("break;\n"));
 		loop.addExpression(deadlockState);
 		
@@ -623,11 +623,11 @@ public abstract class KernelGenerator
 		 * Write results.
 		 */
 		//sampleNumber + globalID
-		Expression position = createBasicExpression(globalID.getSource(), Operator.ADD, pathOffset.getSource());
+		Expression position = createBinaryExpression(globalID.getSource(), Operator.ADD, pathOffset.getSource());
 		//path length
 		CLVariable pathLength = pathLengths.accessElement(position);
 		currentMethod.addExpression(createAssignment(pathLength, varPathLength));
-		position = createBasicExpression(globalID.getSource(), Operator.ADD, resultsOffset.getSource());
+		position = createBinaryExpression(globalID.getSource(), Operator.ADD, resultsOffset.getSource());
 		//each property result
 		for (int i = 0; i < properties.size(); ++i) {
 			CLVariable result = propertyResults[i].accessElement(position);
@@ -662,7 +662,7 @@ public abstract class KernelGenerator
 	protected void mainMethodCallBothUpdates(ComplexKernelComponent parent)
 	{
 		//selection
-		Expression sum = createBasicExpression(varSelectionSize.getSource(), Operator.ADD, varSynSelectionSize.getSource());
+		Expression sum = createBinaryExpression(varSelectionSize.getSource(), Operator.ADD, varSynSelectionSize.getSource());
 		addParentheses(sum);
 		CLVariable selection = mainMethodSelectionVar(sum);
 		parent.addExpression(selection.getDefinition());
@@ -719,7 +719,7 @@ public abstract class KernelGenerator
 			for (int i = 0; i < synCommands.length; ++i) {
 				CLVariable currentSize = varSynchronizedStates[i].accessField("size");
 				_switch.addCase(fromString(i));
-				_switch.addExpression(i, createBasicExpression(synSum.getSource(), Operator.ADD_AUGM,
+				_switch.addExpression(i, createBinaryExpression(synSum.getSource(), Operator.ADD_AUGM,
 				// synSum += synchState__label.size;
 						currentSize.getSource()));
 			}
@@ -742,7 +742,7 @@ public abstract class KernelGenerator
 				 * Remove current size, added in loop.
 				 */
 				CLVariable currentSize = varSynchronizedStates[i].accessField("size");
-				_switch.addExpression(i, createBasicExpression(synSum.getSource(), Operator.SUB_AUGM,
+				_switch.addExpression(i, createBinaryExpression(synSum.getSource(), Operator.SUB_AUGM,
 				// synSum -= synchState__label.size;
 						currentSize.getSource()));
 				/**
@@ -798,12 +798,12 @@ public abstract class KernelGenerator
 		//TODO: loop detection right now implemented only for non-timed properties
 		if (!timingProperty) {
 			// no change?
-			Expression updateFlag = createBasicExpression(varLoopDetection.getSource(), Operator.EQ, fromString("true"));
+			Expression updateFlag = createBinaryExpression(varLoopDetection.getSource(), Operator.EQ, fromString("true"));
 
 			// get update size from update call
 			Expression updateSize = null;
 			if (hasNonSynchronized && hasSynchronized) {
-				updateSize = createBasicExpression(varSelectionSize.getSource(), Operator.ADD, varSynSelectionSize.getSource());
+				updateSize = createBinaryExpression(varSelectionSize.getSource(), Operator.ADD, varSynSelectionSize.getSource());
 			} else if (hasNonSynchronized) {
 				updateSize = varSelectionSize.getSource();
 			} else {
@@ -811,8 +811,8 @@ public abstract class KernelGenerator
 			}
 
 			// update size == 1
-			updateSize = createBasicExpression(updateSize, Operator.EQ, fromString("1"));
-			IfElse loop = new IfElse(createBasicExpression(updateFlag, Operator.LAND, updateSize));
+			updateSize = createBinaryExpression(updateSize, Operator.EQ, fromString("1"));
+			IfElse loop = new IfElse(createBinaryExpression(updateFlag, Operator.LAND, updateSize));
 			loop.setConditionNumber(0);
 			mainMethodUpdateProperties(loop);
 			loop.addExpression(new Expression("break;\n"));
@@ -1027,7 +1027,7 @@ public abstract class KernelGenerator
 			// if there is more than one action possible, then create a conditional to choose between them
 			// for one action, it's unnecessary
 			if (update.getActionsNumber() > 1) {
-				IfElse ifElse = new IfElse(createBasicExpression(selectionSum.getSource(), Operator.LT, fromString(convertPrismRate(svPtrTranslations, rate))));
+				IfElse ifElse = new IfElse(createBinaryExpression(selectionSum.getSource(), Operator.LT, fromString(convertPrismRate(svPtrTranslations, rate))));
 				//first one goes to 'if'
 				if (!update.isActionTrue(0)) {
 					action = update.getAction(0);
@@ -1042,7 +1042,7 @@ public abstract class KernelGenerator
 				for (int j = 1; j < update.getActionsNumber(); ++j) {
 					// else if (selection <= sum)
 					rate.addRate(update.getRate(j));
-					ifElse.addElif(createBasicExpression(selectionSum.getSource(), Operator.LT, fromString(convertPrismRate(svPtrTranslations, rate))));
+					ifElse.addElif(createBinaryExpression(selectionSum.getSource(), Operator.LT, fromString(convertPrismRate(svPtrTranslations, rate))));
 					
 					if (!update.isActionTrue(j)) {
 						action = update.getAction(j);
@@ -1403,14 +1403,14 @@ public abstract class KernelGenerator
 			current.addExpression(createAssignment(labelSize, currentSize));
 			//rest
 			for (int i = 1; i < cmd.getModulesNum(); ++i) {
-				IfElse ifElse = new IfElse(createBasicExpression(labelSize.getSource(), Operator.NE, fromString(0)));
+				IfElse ifElse = new IfElse(createBinaryExpression(labelSize.getSource(), Operator.NE, fromString(0)));
 				ifElse.addExpression(createAssignment(currentSize, fromString(0)));
 				for (int j = 0; j < cmd.getCommandNumber(i); ++j) {
 					guardsSynAddGuard(ifElse, guardsTab.accessElement(fromString(guardCounter++)),
 					//guardsTab[counter] = evaluate(guard)
 							cmd.getCommand(i, j), currentSize);
 				}
-				ifElse.addExpression(createBasicExpression(labelSize.getSource(),
+				ifElse.addExpression(createBinaryExpression(labelSize.getSource(),
 				// cmds_for_label *= cmds_for_module;
 						Operator.MUL_AUGM, currentSize.getSource()));
 				ifElse.addExpression(createAssignment(saveSize.accessElement(fromString(i)), currentSize));
@@ -1570,7 +1570,7 @@ public abstract class KernelGenerator
 				if (timingProperty) {
 					current.addExpression(callUpdate);
 				} else {
-					current.addExpression(createAssignment(changeFlag, createBasicExpression(callUpdate, Operator.LAND, changeFlag.getSource())));
+					current.addExpression(createAssignment(changeFlag, createBinaryExpression(callUpdate, Operator.LAND, changeFlag.getSource())));
 				}
 
 				updateSynAfterUpdateLabel(current, guard, moduleSize, totalSize, propability);
@@ -1713,7 +1713,7 @@ public abstract class KernelGenerator
 				internalSwitch.addCase(fromString(j));
 				//when update is in form prob:action + prob:action + ...
 				if (update.getActionsNumber() > 1) {
-					IfElse ifElse = new IfElse(createBasicExpression(probability.getSource(), Operator.LT,
+					IfElse ifElse = new IfElse(createBinaryExpression(probability.getSource(), Operator.LT,
 							fromString(convertPrismRate(svPtrTranslations, rate))));
 					if (!update.isActionTrue(0)) {
 						ifElse.addExpression(0, updateSynLabelMethodProbabilityRecompute(probability, null, rate));
@@ -1727,7 +1727,7 @@ public abstract class KernelGenerator
 					for (int k = 1; k < update.getActionsNumber(); ++k) {
 						Rate previous = new Rate(rate);
 						rate.addRate(update.getRate(k));
-						ifElse.addElif(createBasicExpression(probability.getSource(), Operator.LT, fromString(convertPrismRate(svPtrTranslations, rate))));
+						ifElse.addElif(createBinaryExpression(probability.getSource(), Operator.LT, fromString(convertPrismRate(svPtrTranslations, rate))));
 						ifElse.addExpression(k, updateSynLabelMethodProbabilityRecompute(probability, previous, update.getRate(k)));
 						if (!update.isActionTrue(k)) {
 							if (!timingProperty) {
@@ -1796,14 +1796,14 @@ public abstract class KernelGenerator
 	{
 		Expression compute = null;
 		if (before != null) {
-			compute = createBasicExpression(probability.getSource(), Operator.SUB,
+			compute = createBinaryExpression(probability.getSource(), Operator.SUB,
 			//probability - sum of rates before
 					fromString(convertPrismRate(svPtrTranslations, before)));
 		} else {
 			compute = probability.getSource();
 		}
 		addParentheses(compute);
-		return createAssignment(probability, createBasicExpression(compute, Operator.DIV,
+		return createAssignment(probability, createBinaryExpression(compute, Operator.DIV,
 		//divide by current interval
 				fromString(convertPrismRate(svPtrTranslations, current))));
 	}

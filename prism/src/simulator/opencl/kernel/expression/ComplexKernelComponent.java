@@ -109,6 +109,10 @@ public abstract class ComplexKernelComponent implements KernelComponent
 		}
 	}
 
+	/**
+	 * Calls correctExpression for every expression.
+	 * @param expr
+	 */
 	protected void correctExpression(KernelComponent expr)
 	{
 		if (expr instanceof ExpressionList) {
