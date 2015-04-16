@@ -11,7 +11,7 @@
 
 THIS_DIR = simulator/opencl
 PRISM_DIR_REL = ../../..
-SUBDIRS = kernel
+SUBDIRS = kernel automaton
 JAVA_FILES_ALL = $(wildcard *.java)
 JAVA_FILES = $(patsubst %package-info.java,,$(JAVA_FILES_ALL))
 CLASS_FILES = $(JAVA_FILES:%.java=$(PRISM_DIR_REL)/$(CLASSES_DIR)/$(THIS_DIR)/%.class)
