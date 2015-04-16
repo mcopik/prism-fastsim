@@ -42,9 +42,6 @@ public class RValue implements CLValue
 		rValue = expr;
 	}
 
-	/* (non-Javadoc)
-	 * @see simulator.gpu.opencl.kernel.memory.CLValue#validateAssignmentTo(simulator.gpu.opencl.kernel.memory.VariableInterface)
-	 */
 	@Override
 	public boolean validateAssignmentTo(VariableTypeInterface type)
 	{
