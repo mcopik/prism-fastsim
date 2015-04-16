@@ -368,11 +368,13 @@ public class KernelGeneratorDTMC extends KernelGenerator
 		 * if(time > upper_bound)
 		 */
 		IfElse ifElse = new IfElse(createBasicExpression(time.getSource(), Operator.GE, fromString(prop.getUpperBound())));
+		
 		/**
 		 * if(right_side == true) -> true
 		 * else -> false
 		 */
 		IfElse rhsCheck = null;
+		
 		//TODO: always !prop?
 		if (prop.getRightSide().toString().charAt(0) == '!') {
 			rhsCheck = createPropertyCondition(propertyVar, true, propertyStringRight.substring(1), true);
@@ -390,6 +392,7 @@ public class KernelGeneratorDTMC extends KernelGenerator
 		 * else if(left_side == false) -> false
 		 */
 		IfElse betweenBounds = null;
+		//TODO: same as above
 		if (prop.getRightSide().toString().charAt(0) == '!') {
 			betweenBounds = createPropertyCondition(propertyVar, true, propertyStringRight.substring(1), true);
 		} else {
@@ -405,6 +408,7 @@ public class KernelGeneratorDTMC extends KernelGenerator
 	/*********************************
 	 * SYNCHRONIZED GUARDS CHECK
 	 ********************************/
+	
 	@Override
 	protected Method guardsSynCreateMethod(String label, int maxCommandsNumber)
 	{

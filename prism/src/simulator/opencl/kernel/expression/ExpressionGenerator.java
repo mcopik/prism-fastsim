@@ -43,23 +43,9 @@ import simulator.opencl.kernel.memory.StructureType;
 
 public class ExpressionGenerator
 {
-	static public CLVariable accessStructureField(CLVariable structure, String fieldName)
-	{
-		Preconditions.checkCondition(structure.varType instanceof StructureType, "Can access field only in structure variable");
-		StructureType type = (StructureType) structure.varType;
-		CLVariable field = null;
-		for (CLVariable var : type.getFields()) {
-			if (var.varName.equals(fieldName)) {
-				field = var;
-				break;
-			}
-		}
-		return field != null ? new CLVariable(field.varType, structure.varName + "." + field.varName) : null;
-	}
-
 	static public <T> Expression fromString(T object)
 	{
-		Preconditions.checkNotNull(object, "fromString() called on null reference!");
+		Preconditions.checkNotNull(object, "ExpressionGenerator.fromString() called on null reference!");
 		return new Expression(object.toString());
 	}
 
@@ -102,25 +88,6 @@ public class ExpressionGenerator
 		operatorsSource.put(Operator.LAND_AUGM, "&=");
 	}
 
-	//	static public Expression createBasicExpression(CLValue var, Operator operator, CLValue var2)
-	//	{
-	//		return ExpressionGenerator.createBasicExpression(var, operator, var2.getSource());
-	//	}
-	//
-	//	static public Expression createBasicExpression(Expression var, Operator operator, CLValue expr)
-	//	{
-	//		return new Expression(String.format("%s %s %s", var, operatorsSource.get(operator), expr.getSource()));
-	//	}
-	//
-	//	static public Expression createBasicExpression(CLValue var, Operator operator, String expr)
-	//	{
-	//		return new Expression(String.format("%s %s %s", var.getSource(), operatorsSource.get(operator), expr));
-	//	}
-	//
-	//	static public Expression createBasicExpression(CLValue var, Operator operator, Expression expr)
-	//	{
-	//		return ExpressionGenerator.createBasicExpression(var, operator, expr.getSource());
-	//	}
 	static public Expression createBasicExpression(Expression expr1, Operator operator, Expression expr2)
 	{
 		return new Expression(String.format("%s %s %s", expr1, operatorsSource.get(operator), expr2));
@@ -135,20 +102,6 @@ public class ExpressionGenerator
 	static public Expression createConditionalAssignment(Expression condition, String first, String second)
 	{
 		return new Expression(String.format("%s ? %s : %s", condition.getSource(), first, second));
-	}
-
-	static public CLVariable accessArrayElement(CLVariable var, Expression indice)
-	{
-		Preconditions.checkCondition(var.varType.isArray(), String.format("Var %s is not an array!", var.varName));
-		if (var.varType instanceof ArrayType) {
-			return new CLVariable(((ArrayType) var.varType).getInternalType(),
-			//varName[indice]
-					String.format("%s[%s]", var.varName, indice));
-		} else {
-			return new CLVariable(((PointerType) var.varType).getInternalType(),
-			//varName[indice]
-					String.format("%s[%s]", var.varName, indice));
-		}
 	}
 
 	static public Expression addParentheses(Expression expr)

@@ -25,7 +25,6 @@
 //==============================================================================
 package simulator.opencl.kernel;
 
-import static simulator.opencl.kernel.expression.ExpressionGenerator.accessArrayElement;
 import static simulator.opencl.kernel.expression.ExpressionGenerator.addComma;
 import static simulator.opencl.kernel.expression.ExpressionGenerator.addParentheses;
 import static simulator.opencl.kernel.expression.ExpressionGenerator.convertPrismGuard;
@@ -196,7 +195,7 @@ public class KernelGeneratorCTMC extends KernelGenerator
 		for (int i = 0; i < properties.size(); ++i) {
 			if (properties.get(i) instanceof SamplerBoundedUntilCont) {
 				SamplerBoundedUntilCont prop = (SamplerBoundedUntilCont) properties.get(i);
-				CLVariable propertyVar = accessArrayElement(varPropertiesArray, fromString(i));
+				CLVariable propertyVar = varPropertiesArray.accessElement(fromString(i));
 				if (prop.getLowBound() == 0.0) {
 					IfElse ifElse = createPropertyCondition(propertyVar, false, prop.getRightSide().toString(), true);
 					parent.addExpression(ifElse);

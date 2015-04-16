@@ -25,8 +25,6 @@
 //==============================================================================
 package simulator.opencl.kernel;
 
-import static simulator.opencl.kernel.expression.ExpressionGenerator.accessArrayElement;
-import static simulator.opencl.kernel.expression.ExpressionGenerator.accessStructureField;
 import static simulator.opencl.kernel.expression.ExpressionGenerator.addParentheses;
 import static simulator.opencl.kernel.expression.ExpressionGenerator.convertPrismAction;
 import static simulator.opencl.kernel.expression.ExpressionGenerator.convertPrismGuard;
@@ -627,13 +625,13 @@ public abstract class KernelGenerator
 		//sampleNumber + globalID
 		Expression position = createBasicExpression(globalID.getSource(), Operator.ADD, pathOffset.getSource());
 		//path length
-		CLVariable pathLength = pathLengths.varType.accessElement(pathLengths, position);
+		CLVariable pathLength = pathLengths.accessElement(position);
 		currentMethod.addExpression(createAssignment(pathLength, varPathLength));
 		position = createBasicExpression(globalID.getSource(), Operator.ADD, resultsOffset.getSource());
 		//each property result
 		for (int i = 0; i < properties.size(); ++i) {
-			CLVariable result = accessArrayElement(propertyResults[i], position);
-			CLVariable property = accessArrayElement(varPropertiesArray, fromString(i)).accessField("propertyState");
+			CLVariable result = propertyResults[i].accessElement(position);
+			CLVariable property = varPropertiesArray.accessElement(fromString(i)).accessField("propertyState");
 			currentMethod.addExpression(createAssignment(result, property));
 		}
 		
@@ -1194,14 +1192,9 @@ public abstract class KernelGenerator
 		 */
 		for (int i = 0; i < properties.size(); ++i) {
 			Sampler property = properties.get(i);
-			CLVariable currentProperty = accessArrayElement(propertyState, counter.getSource());
+			CLVariable currentProperty = propertyState.accessElement(counter.getSource());
 			CLVariable valueKnown = currentProperty.accessField("valueKnown");
-			/**
-			 * It should have been done earlier.
-			 */
-			//			if (!(property instanceof SamplerBoolean)) {
-			//				throw new KernelException("Currently rewards are not supported!");
-			//			}
+
 			IfElse ifElse = new IfElse(createNegation(valueKnown.getSource()));
 			ifElse.addExpression(0, createAssignment(allKnown, fromString("false")));
 			/**
@@ -1240,6 +1233,16 @@ public abstract class KernelGenerator
 	 */
 	protected abstract void propertiesMethodTimeArg(Method currentMethod) throws KernelException;
 
+	/**
+	 * Handle the timed 'until' operator - different implementations for automata.
+	 * CTMC requires an additional check for the situation, when current time is between lower
+	 * and upper bound.
+	 * @param currentMethod
+	 * @param parent
+	 * @param property
+	 * @param propertyVar
+	 * @throws PrismLangException
+	 */
 	protected abstract void propertiesMethodAddBoundedUntil(Method currentMethod, ComplexKernelComponent parent, SamplerBoolean property, CLVariable propertyVar)
 			throws PrismLangException;
 
@@ -1253,26 +1256,36 @@ public abstract class KernelGenerator
 		return (parser.ast.Expression) prop.accept(treeVisitor);
 	}
 
+	/**
+	 * Handle the 'next' operator - same for both CTMC/DTMC
+	 * @param parent
+	 * @param property
+	 * @param propertyVar
+	 * @throws PrismLangException
+	 */
 	protected void propertiesMethodAddNext(ComplexKernelComponent parent, SamplerNext property, CLVariable propertyVar) throws PrismLangException
 	{
-		//IfElse ifElse = createPropertyCondition(propertyVar, false, property.getExpression().toString(), true);
 		String propertyString = visitPropertyExpression(property.getExpression()).toString();
 		IfElse ifElse = createPropertyCondition(propertyVar, false, propertyString, true);
 		createPropertyCondition(ifElse, propertyVar, false, null, false);
 		parent.addExpression(ifElse);
 	}
 
+	/**
+	 * Handle the 'until' non-timed operator - same for both DTMC and CTMC. 
+	 * @param parent
+	 * @param property
+	 * @param propertyVar
+	 * @throws PrismLangException
+	 */
 	protected void propertiesMethodAddUntil(ComplexKernelComponent parent, SamplerUntil property, CLVariable propertyVar) throws PrismLangException
 	{
-		//IfElse ifElse = createPropertyCondition(propertyVar, false, property.getRightSide().toString(), true);
 		String propertyStringRight = visitPropertyExpression(property.getRightSide()).toString();
 		String propertyStringLeft = visitPropertyExpression(property.getLeftSide()).toString();
 		IfElse ifElse = createPropertyCondition(propertyVar, false, propertyStringRight, true);
-		//String propertyStringRight = visitPropertyExpression( property.getRightSide()).toString();
-		//String propertyStringLeft = visitPropertyExpression( property.getLeftSide()).toString();
-		//IfElse ifElse = createPropertyCondition(propertyVar, false, propertyStringRight, true);
+		
 		/**
-		 * in F/G it is true
+		 * in F/G it is true, no need to check
 		 */
 		if (!(property.getLeftSide() instanceof ExpressionLiteral)) {
 			createPropertyCondition(ifElse, propertyVar, true, propertyStringLeft, false);
@@ -1280,6 +1293,14 @@ public abstract class KernelGenerator
 		parent.addExpression(ifElse);
 	}
 
+	/**
+	 * Creates IfElse for property.
+	 * @param propertyVar
+	 * @param negation
+	 * @param condition
+	 * @param propertyValue
+	 * @return property verification in conditional - write results to property structure
+	 */
 	protected IfElse createPropertyCondition(CLVariable propertyVar, boolean negation, String condition, boolean propertyValue)
 	{
 		IfElse ifElse = null;
@@ -1288,8 +1309,8 @@ public abstract class KernelGenerator
 		} else {
 			ifElse = new IfElse(createNegation(convertPrismProperty(svPtrTranslations, condition)));
 		}
-		CLVariable valueKnown = accessStructureField(propertyVar, "valueKnown");
-		CLVariable propertyState = accessStructureField(propertyVar, "propertyState");
+		CLVariable valueKnown = propertyVar.accessField("valueKnown");
+		CLVariable propertyState = propertyVar.accessField("propertyState");
 		if (propertyValue) {
 			ifElse.addExpression(0, createAssignment(propertyState, fromString("true")));
 		} else {
@@ -1299,6 +1320,14 @@ public abstract class KernelGenerator
 		return ifElse;
 	}
 
+	/**
+	 * Private helper method - update ifElse
+	 * @param ifElse
+	 * @param propertyVar
+	 * @param negation
+	 * @param condition
+	 * @param propertyValue
+	 */
 	protected void createPropertyCondition(IfElse ifElse, CLVariable propertyVar, boolean negation, String condition, boolean propertyValue)
 	{
 		if (condition != null) {
@@ -1310,8 +1339,8 @@ public abstract class KernelGenerator
 		} else {
 			ifElse.addElse();
 		}
-		CLVariable valueKnown = accessStructureField(propertyVar, "valueKnown");
-		CLVariable propertyState = accessStructureField(propertyVar, "propertyState");
+		CLVariable valueKnown = propertyVar.accessField("valueKnown");
+		CLVariable propertyState = propertyVar.accessField("propertyState");
 		if (propertyValue) {
 			ifElse.addExpression(ifElse.size() - 1, createAssignment(propertyState, fromString("true")));
 		} else {
