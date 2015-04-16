@@ -441,12 +441,14 @@ public class KernelGeneratorDTMC extends KernelGenerator
 	/*********************************
 	 * SYNCHRONIZED UPDATE
 	 ********************************/
+	
 	@Override
 	protected void updateSynAdditionalVars(Method parent, SynchronizedCommand cmd)
 	{
 
 	}
 
+	@Override
 	protected void updateSynBeforeUpdateLabel(Method parent, SynchronizedCommand cmd, int moduleNumber, CLVariable guardsTab, CLVariable guard,
 			CLVariable moduleSize, CLVariable totalSize, CLVariable probability)
 	{
@@ -466,10 +468,9 @@ public class KernelGeneratorDTMC extends KernelGenerator
 				//guard
 				guard.getSource());
 		parent.addExpression(createAssignment(probability, probUpdate));
-		//current.addExpression(new Expression("if(get_global_id(0)<5)printf(\"" + cmd.synchLabel + " %f %d %d\\n\",prop,guard,(*sv).__STATE_VECTOR_q);"));
-
 	}
 
+	@Override
 	protected void updateSynAfterUpdateLabel(ComplexKernelComponent parent, CLVariable guard, CLVariable moduleSize, CLVariable totalSize,
 			CLVariable probability)
 	{
@@ -479,6 +480,7 @@ public class KernelGeneratorDTMC extends KernelGenerator
 		parent.addExpression(createBasicExpression(totalSize.getSource(), Operator.DIV_AUGM, moduleSize.getSource()));
 	}
 
+	@Override
 	protected CLVariable updateSynLabelMethodGuardCounter(SynchronizedCommand cmd)
 	{
 		CLVariable guardCounter = new CLVariable(new StdVariableType(-1, cmd.getCmdsNum()), "guardCounter");
@@ -486,6 +488,7 @@ public class KernelGeneratorDTMC extends KernelGenerator
 		return guardCounter;
 	}
 
+	@Override
 	protected CLVariable updateSynLabelMethodGuardSelection(SynchronizedCommand cmd, CLVariable guard)
 	{
 		CLVariable guardCounter = new CLVariable(new StdVariableType(0, cmd.getCmdsNum()), "guardSelection");
@@ -493,6 +496,7 @@ public class KernelGeneratorDTMC extends KernelGenerator
 		return guardCounter;
 	}
 
+	@Override
 	protected void updateSynLabelMethodSelectGuard(Method currentMethod, ComplexKernelComponent parent, CLVariable guardSelection, CLVariable guardCounter,
 			int moduleOffset)
 	{
@@ -521,25 +525,5 @@ public class KernelGeneratorDTMC extends KernelGenerator
 		ifElseGuardLoop.addExpression("break\n");
 		guardSelectionLoop.addExpression(ifElseGuardLoop);
 		parent.addExpression(guardSelectionLoop);
-		//		parent.addExpression(new Expression("if(get_global_id(0)<5)printf(\"" + synCmd.synchLabel + " %d %d \\n\"," + guardCounter.varName + ","
-		//				+ guardSelection.varName + ");"));
-
-	}
-
-	@Override
-	protected Expression updateSynProbabilityRecompute(CLVariable probability, Rate before, Rate current)
-	{
-		Expression compute = null;
-		if (before != null) {
-			compute = createBasicExpression(probability.getSource(), Operator.SUB,
-			//probability - sum of rates before
-					fromString(convertPrismRate(svPtrTranslations, before)));
-		} else {
-			compute = probability.getSource();
-		}
-		addParentheses(compute);
-		return createAssignment(probability, createBasicExpression(compute, Operator.DIV,
-		//divide by current interval
-				fromString(convertPrismRate(svPtrTranslations, current))));
 	}
 }

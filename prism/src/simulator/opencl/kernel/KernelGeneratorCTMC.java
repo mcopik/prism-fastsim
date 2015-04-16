@@ -551,6 +551,7 @@ public class KernelGeneratorCTMC extends KernelGenerator
 	/*********************************
 	 * SYNCHRONIZED UPDATE
 	 ********************************/
+	
 	@Override
 	protected void updateSynAdditionalVars(Method parent, SynchronizedCommand cmd) throws KernelException
 	{
@@ -575,6 +576,7 @@ public class KernelGeneratorCTMC extends KernelGenerator
 
 	}
 
+	@Override
 	protected void updateSynBeforeUpdateLabel(Method parent, SynchronizedCommand cmd, int moduleNumber, CLVariable guardsTab, CLVariable guard,
 			CLVariable moduleSize, CLVariable totalSize, CLVariable probability)
 	{
@@ -600,13 +602,13 @@ public class KernelGeneratorCTMC extends KernelGenerator
 		 */
 		CLVariable sum = parent.getLocalVar("sum");
 		CLVariable newSum = parent.getLocalVar("newSum");
-		parent.addExpression(createAssignment(guard, fromString(0)));
 		int cmdSum = 0;
 		for (int i = 0; i < moduleNumber; ++i) {
 			cmdSum += cmd.getCommandNumber(i);
 		}
 		CLVariable guardFlag = guardsTab.accessElement(createBasicExpression(guard.getSource(), Operator.ADD, fromString(cmdSum)));
 		if (cmd.getCommandNumber(moduleNumber) > 1) {
+			parent.addExpression(createAssignment(guard, fromString(0)));
 			parent.addExpression(createAssignment(sum, fromString(0.0f)));
 			parent.addExpression(createAssignment(newSum, fromString(0.0f)));
 			/**
@@ -662,6 +664,7 @@ public class KernelGeneratorCTMC extends KernelGenerator
 		return null;
 	}
 
+	@Override
 	protected CLVariable updateSynLabelMethodGuardSelection(SynchronizedCommand cmd, CLVariable guard)
 	{
 		CLVariable guardCounter = new CLVariable(new StdVariableType(0, cmd.getCmdsNum()), "guardSelection");
@@ -674,23 +677,6 @@ public class KernelGeneratorCTMC extends KernelGenerator
 			int moduleOffset)
 	{
 
-	}
-
-	@Override
-	protected Expression updateSynProbabilityRecompute(CLVariable probability, Rate before, Rate current)
-	{
-		Expression compute = null;
-		if (before != null) {
-			compute = createBasicExpression(probability.getSource(), Operator.SUB,
-			//probability - sum of rates before
-					fromString(convertPrismRate(svPtrTranslations, before)));
-		} else {
-			compute = probability.getSource();
-		}
-		addParentheses(compute);
-		return createAssignment(probability, createBasicExpression(compute, Operator.DIV,
-		//divide by current interval
-				fromString(convertPrismRate(svPtrTranslations, current))));
 	}
 
 }

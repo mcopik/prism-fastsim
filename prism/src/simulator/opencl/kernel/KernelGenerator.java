@@ -1456,12 +1456,13 @@ public abstract class KernelGenerator
 	 * SYNCHRONIZED UPDATE
 	 ********************************/
 
+	/**
+	 * Create helper method - update of the state vector with a synchronized command. 
+	 * Main method recomputes probabilities, selects guards and calls additional update function
+	 * for each module.
+	 */
 	protected void createUpdateMethodSyn()
 	{
-		//		for (Map.Entry<String, Set<String>> entry : synchVarsToSave.entrySet()) {
-		//			for (String var : entry.getValue())
-		//				System.out.println(entry.getKey() + " " + var);
-		//		}
 		synchronizedUpdates = new ArrayList<>();
 		additionalMethods = new ArrayList<>();
 		for (SynchronizedCommand cmd : synCommands) {
@@ -1532,7 +1533,7 @@ public abstract class KernelGenerator
 			} catch (KernelException e) {
 				throw new RuntimeException(e);
 			}
-			//current.addExpression(new Expression("if(get_global_id(0)<5)printf(\"" + cmd.synchLabel + " %f\\n\",prop);"));
+			
 			CLVariable moduleSize = null;
 			//			ForLoop loop = new ForLoop("loopCounter", 0, cmd.getModulesNum());
 			//			CLVariable loopCounter = loop.getLoopCounter();
@@ -1558,8 +1559,6 @@ public abstract class KernelGenerator
 				/**
 				 * call selected update
 				 */
-				//				current.addExpression(new Expression("if(get_global_id(0) < 10)printf(\"%d " + cmd.synchLabel
-				//						+ " %f %d %f %f\\n\",get_global_id(0),prop,guard,totalSize,totalSize * (*synState).moduleSize[" + i + "]);\n"));
 				Expression callUpdate = null;
 
 				if (savedVarsInstance != null) {
@@ -1576,40 +1575,7 @@ public abstract class KernelGenerator
 
 				updateSynAfterUpdateLabel(current, guard, moduleSize, totalSize, propability);
 			}
-			//current.addExpression(new Expression("if(get_global_id(0)<5)printf(\"" + cmd.synchLabel + " %f %d %d\\n\",prop,guard,(*sv).__STATE_VECTOR_q);"));
 
-			//			//for-each module
-			//			for (int i = 0; i < cmd.getModulesNum(); ++i) {
-			//				//moduleSize = fromString(cmd.getCommandNumber(i));
-			//				/**
-			//				 * compute current guard in update
-			//				 */
-			//				guardUpdate = functionCall("floor",
-			//				//probability * module_size
-			//						createBasicExpression(propability.getSource(), Operator.MUL, moduleSize.getSource()));
-			//				current.addExpression(createAssignment(guard, guardUpdate));
-			//				/**
-			//				 * recompute probability to an [0,1) in selected guard
-			//				 */
-			//				probUpdate = createBasicExpression(
-			//				//probability * module_size
-			//						createBasicExpression(propability.getSource(), Operator.MUL, moduleSize.getSource()), Operator.SUB,
-			//						//guard
-			//						guard.getSource());
-			//				current.addExpression(createAssignment(propability, probUpdate));
-			//				//current.addExpression(new Expression("if(get_global_id(0)<5)printf(\"" + cmd.synchLabel + " %f %d %d\\n\",prop,guard,(*sv).__STATE_VECTOR_q);"));
-			//				/**
-			//				 * call selected update
-			//				 */
-			//				current.addExpression(update.callMethod(stateVector, oldSV.convertToPointer(), guardsTab, StdVariableType.initialize(i), guard,
-			//						propability.convertToPointer()));
-			//
-			//				//current.addExpression(new Expression("if(get_global_id(0)<5)printf(\"" + cmd.synchLabel + " %f %d %d\\n\",prop,guard,(*sv).__STATE_VECTOR_q);"));
-			//				/**
-			//				 * totalSize /= 1 is useless
-			//				 */
-			//				current.addExpression(createBasicExpression(totalSize.getSource(), Operator.DIV_AUGM, moduleSize.getSource()));
-			//			}
 			if (!timingProperty) {
 				current.addReturn(changeFlag);
 			}
@@ -1617,14 +1583,52 @@ public abstract class KernelGenerator
 		}
 	}
 
+	/**
+	 * Only CTMC uses additional variables for sum (when there are two or more guards in one of modules).
+	 * @param parent
+	 * @param cmd
+	 * @throws KernelException
+	 */
 	protected abstract void updateSynAdditionalVars(Method parent, SynchronizedCommand cmd) throws KernelException;
 
+	/**
+	 * Computations and scaling before calling direct update method for i-th module.
+	 * For CTMC, includes dividing total size by module size and computation of probability.
+	 * Moreover, if there are more commands for this module, then one need to loop through them, sum
+	 * rates and select guard.
+	 * 
+	 * DTMC: one need just to directly compute guard and scale probability.
+	 * @param parent
+	 * @param cmd
+	 * @param moduleNumber
+	 * @param guardsTab
+	 * @param guard
+	 * @param moduleSize
+	 * @param totalSize
+	 * @param probability
+	 */
 	protected abstract void updateSynBeforeUpdateLabel(Method parent, SynchronizedCommand cmd, int moduleNumber, CLVariable guardsTab, CLVariable guard,
 			CLVariable moduleSize, CLVariable totalSize, CLVariable probability);
 
+	/**
+	 * Computations after calling direct update method for i-th module.
+	 * DTMC: divide total size by module size (number of commands in next modules).
+	 * CTMC: multiply probability, to scale it back to total size
+	 * @param parent
+	 * @param guard
+	 * @param moduleSize
+	 * @param totalSize
+	 * @param probability
+	 */
 	protected abstract void updateSynAfterUpdateLabel(ComplexKernelComponent parent, CLVariable guard, CLVariable moduleSize, CLVariable totalSize,
 			CLVariable probability);
 
+	/**
+	 * Method takes as an argument SV, module number, guard selection and probability, performs direct update of stateVector
+	 * @param synCmd
+	 * @param savedVariables
+	 * @return 'direct' update method
+	 */
 	protected Method updateSynLabelMethod(SynchronizedCommand synCmd, StructureType savedVariables)
 	{
 		Method current = new Method(String.format("updateSynchronized__%s", synCmd.synchLabel),
@@ -1660,7 +1664,6 @@ public abstract class KernelGenerator
 			if (oldSV != null) {
 				current.addArg(oldSV);
 			}
-			//current.registerStateVector(stateVector);
 			if (!timingProperty) {
 				current.addLocalVar(newValue);
 				current.addLocalVar(changeFlag);
@@ -1668,6 +1671,7 @@ public abstract class KernelGenerator
 		} catch (KernelException e) {
 			throw new RuntimeException(e);
 		}
+		
 		Switch _switch = new Switch(module);
 		Update update = null;
 		Rate rate = null;
@@ -1675,6 +1679,7 @@ public abstract class KernelGenerator
 		int moduleOffset = 0;
 		CLVariable guardSelection = updateSynLabelMethodGuardSelection(synCmd, guard);
 		CLVariable guardCounter = updateSynLabelMethodGuardCounter(synCmd);
+		//no variable for DTMC
 		if (guardCounter != null) {
 			current.addExpression(guardCounter.getDefinition());
 		}
@@ -1695,10 +1700,6 @@ public abstract class KernelGenerator
 		//for-each module
 		for (int i = 0; i < synCmd.getModulesNum(); ++i) {
 			_switch.addCase(fromString(i));
-			//_switch.addExpression(i, new Expression("if(get_global_id(0)<5)printf(\"" + synCmd.synchLabel + " %d %d %f\\n\",module,guard,*prob);"));
-			//_switch.addCommand(i, new Expression("if(get_global_id(0)<5)printf(\"" + synCmd.synchLabel
-			//		+ " %d %d %d %d\\n\",(*sv).__STATE_VECTOR_x1 ? 1 : 0 ,(*sv).__STATE_VECTOR_x2,(*sv).__STATE_VECTOR_x3,(*sv).__STATE_VECTOR_x4);"));
-
 			_switch.setConditionNumber(i);
 			updateSynLabelMethodSelectGuard(current, _switch, guardSelection, guardCounter, moduleOffset);
 
@@ -1715,8 +1716,7 @@ public abstract class KernelGenerator
 					IfElse ifElse = new IfElse(createBasicExpression(probability.getSource(), Operator.LT,
 							fromString(convertPrismRate(svPtrTranslations, rate))));
 					if (!update.isActionTrue(0)) {
-						ifElse.addExpression(0, updateSynProbabilityRecompute(probability, null, rate));
-						//ifElse.addExpression(0, convertPrismAction(update.getAction(0)));
+						ifElse.addExpression(0, updateSynLabelMethodProbabilityRecompute(probability, null, rate));
 						if (!timingProperty) {
 							ifElse.addExpression(0,
 									convertPrismAction(stateVector, update.getAction(0), svPtrTranslations, savedTranslations, changeFlag, newValue));
@@ -1728,9 +1728,8 @@ public abstract class KernelGenerator
 						Rate previous = new Rate(rate);
 						rate.addRate(update.getRate(k));
 						ifElse.addElif(createBasicExpression(probability.getSource(), Operator.LT, fromString(convertPrismRate(svPtrTranslations, rate))));
-						ifElse.addExpression(k, updateSynProbabilityRecompute(probability, previous, update.getRate(k)));
+						ifElse.addExpression(k, updateSynLabelMethodProbabilityRecompute(probability, previous, update.getRate(k)));
 						if (!update.isActionTrue(k)) {
-							//ifElse.addExpression(k, convertPrismAction(update.getAction(k)));
 							if (!timingProperty) {
 								ifElse.addExpression(k,
 										convertPrismAction(stateVector, update.getAction(k), svPtrTranslations, savedTranslations, changeFlag, newValue));
@@ -1742,7 +1741,6 @@ public abstract class KernelGenerator
 					internalSwitch.addExpression(j, ifElse);
 				} else {
 					if (!update.isActionTrue(0)) {
-						//internalSwitch.addExpression(j, convertPrismAction(update.getAction(0)));
 						if (!timingProperty) {
 							internalSwitch.addExpression(j,
 									convertPrismAction(stateVector, update.getAction(0), svPtrTranslations, savedTranslations, changeFlag, newValue));
@@ -1763,15 +1761,52 @@ public abstract class KernelGenerator
 		return current;
 	}
 
+	/**
+	 * @param cmd
+	 * @param guard
+	 * @return DTMC: increased (later) integer for guard selection, decreased for CTMC
+	 */
 	protected abstract CLVariable updateSynLabelMethodGuardSelection(SynchronizedCommand cmd, CLVariable guard);
 
+	/**
+	 * @param cmd
+	 * @return an integer for DTMC, none for CTMC
+	 */
 	protected abstract CLVariable updateSynLabelMethodGuardCounter(SynchronizedCommand cmd);
 
+	/**
+	 * CTMC: nothing to do
+	 * DTMC: go through the whole guardsTab to find n-th active guard
+	 * @param currentMethod
+	 * @param parent
+	 * @param guardSelection
+	 * @param guardCounter
+	 * @param moduleOffset
+	 */
 	protected abstract void updateSynLabelMethodSelectGuard(Method currentMethod, ComplexKernelComponent parent, CLVariable guardSelection,
 			CLVariable guardCounter, int moduleOffset);
 
-	protected abstract Expression updateSynProbabilityRecompute(CLVariable probability, Rate before, Rate current);
-
+	/**
+	 * @param probability
+	 * @param before
+	 * @param current
+	 * @return expression recomputing probability before going to an action
+	 */
+	protected Expression updateSynLabelMethodProbabilityRecompute(CLVariable probability, Rate before, Rate current)
+	{
+		Expression compute = null;
+		if (before != null) {
+			compute = createBasicExpression(probability.getSource(), Operator.SUB,
+			//probability - sum of rates before
+					fromString(convertPrismRate(svPtrTranslations, before)));
+		} else {
+			compute = probability.getSource();
+		}
+		addParentheses(compute);
+		return createAssignment(probability, createBasicExpression(compute, Operator.DIV,
+		//divide by current interval
+				fromString(convertPrismRate(svPtrTranslations, current))));
+	}
 	/*********************************
 	 * OTHER METHODS
 	 ********************************/
