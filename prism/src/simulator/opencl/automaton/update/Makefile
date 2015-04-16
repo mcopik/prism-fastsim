@@ -9,7 +9,7 @@
 .PHONY:	subdirs
 # Reminder: $@ = target, $* = target without extension, $< = dependency
 
-THIS_DIR = simulator/gpu/automaton/update
+THIS_DIR = simulator/opencl/automaton/update
 PRISM_DIR_REL = ../../../../..
 SUBDIRS =
 JAVA_FILES_ALL = $(wildcard *.java command/*.java update/*.java)
