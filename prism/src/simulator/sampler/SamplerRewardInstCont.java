@@ -90,4 +90,20 @@ public class SamplerRewardInstCont extends SamplerDouble
 		// Always bounded (although we don't know the exact num steps, just the time bound)
 		return true;
 	}
+	
+	/**
+	 * @return time describing the 'moment' of catching reward
+	 */
+	public double getTime()
+	{
+		return time;
+	}
+	
+	/**
+	 * @return index of reward structure 
+	 */
+	public int getRewardIndex()
+	{
+		return rewardStructIndex;
+	}
 }

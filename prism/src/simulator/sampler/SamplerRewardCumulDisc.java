@@ -76,5 +76,21 @@ public class SamplerRewardCumulDisc extends SamplerDouble
 	{
 		// Always bounded
 		return true;
+	}	
+	
+	/**
+	 * @return time bound to reach
+	 */
+	public int getTime()
+	{
+		return timeBound;
+	}
+	
+	/**
+	 * @return index of reward structure 
+	 */
+	public int getRewardIndex()
+	{
+		return rewardStructIndex;
 	}
 }

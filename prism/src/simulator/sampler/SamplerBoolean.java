@@ -62,7 +62,9 @@ public abstract class SamplerBoolean extends Sampler
 	public abstract boolean update(Path path, TransitionList transList) throws PrismLangException;
 
 	/**
-	 * TODO: comment!
+	 * Directly add sample - used by OpenCL simulator.
+	 * Enables update of sampler without using update() method.
+	 * @param value evaluation of property in the sample 
 	 */
 	public void addSample(boolean value)
 	{

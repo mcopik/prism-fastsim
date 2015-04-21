@@ -81,5 +81,21 @@ public class SamplerRewardInstDisc extends SamplerDouble
 	{
 		// Always bounded
 		return true;
+	}	
+	
+	/**
+	 * @return time describing the 'moment' of catching reward
+	 */
+	public int getTime()
+	{
+		return time;
+	}
+	
+	/**
+	 * @return index of reward structure 
+	 */
+	public int getRewardIndex()
+	{
+		return rewardStructIndex;
 	}
 }

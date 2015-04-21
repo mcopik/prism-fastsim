@@ -57,7 +57,18 @@ public abstract class SamplerDouble extends Sampler
 		valueSumSq = 0.0;
 		numSamples = 0;
 	}
-
+	
+	/**
+	 * Directly add sample - used by OpenCL simulator.
+	 * Enables update of sampler without using update() method.
+	 * @param value evaluation of reward in the sample 
+	 */
+	public void addSample(double value)
+	{
+		this.value = value;
+		updateStats();
+	}
+	
 	@Override
 	public abstract boolean update(Path path, TransitionList transList) throws PrismLangException;
 

@@ -72,4 +72,20 @@ public class SamplerRewardReach extends SamplerDouble
 		
 		return valueKnown;
 	}
+	
+	/**
+	 * @return expression describing state to reach
+	 */
+	public Expression getTarget()
+	{
+		return target.deepCopy();
+	}
+	
+	/**
+	 * @return index of reward structure 
+	 */
+	public int getRewardIndex()
+	{
+		return rewardStructIndex;
+	}
 }

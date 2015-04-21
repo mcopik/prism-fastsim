@@ -97,4 +97,20 @@ public class SamplerRewardCumulCont extends SamplerDouble
 		// Always bounded (although we don't know the exact num steps, just the time bound)
 		return true;
 	}
+	
+	/**
+	 * @return time bound to reach
+	 */
+	public double getTime()
+	{
+		return timeBound;
+	}
+	
+	/**
+	 * @return index of reward structure 
+	 */
+	public int getRewardIndex()
+	{
+		return rewardStructIndex;
+	}
 }
