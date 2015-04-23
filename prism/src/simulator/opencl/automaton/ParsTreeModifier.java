@@ -146,14 +146,16 @@ public class ParsTreeModifier extends ASTTraverseModify
 			// use the logical evaluation:
 			// a <=> b TO (a & b) | (!a & !b)
 			Expression newLeftOperand = Expression.And(leftOperand, rightOperand);
-			Expression newRightOperand = Expression.And(Expression.Not(leftOperand), 
-										Expression.Not(rightOperand));
-			return Expression.Or(Expression.Parenth(newLeftOperand), 
-					Expression.Parenth(newRightOperand));
+			Expression newRightOperand = Expression.And( 
+					Expression.Not( Expression.Parenth(leftOperand) ), 
+					Expression.Not( Expression.Parenth(rightOperand) ));
+			return Expression.Or( Expression.Parenth(newLeftOperand), 
+					Expression.Parenth(newRightOperand) );
 		case ExpressionBinaryOp.IMPLIES:
 			// use logical equivalence:
 			// p => q TO !(p & !q)
-			Expression middleOperand = Expression.And(leftOperand, Expression.Not(rightOperand));
+			Expression middleOperand = Expression.And(leftOperand, 
+					Expression.Not( Expression.Parenth(rightOperand)) );
 			return Expression.Not(Expression.Parenth(middleOperand));
 		}
 		return e;

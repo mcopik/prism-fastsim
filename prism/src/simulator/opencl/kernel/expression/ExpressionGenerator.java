@@ -272,25 +272,72 @@ public class ExpressionGenerator
 	{
 		if (expr instanceof ExpressionFunc) {
 			ExpressionFunc func = (ExpressionFunc) expr;
-			builder.append(func.getName()).append('(');
-			for (int i = 0; i < func.getNumOperands(); ++i) {
-				if (func.getOperand(i) instanceof ExpressionFunc) {
-					convertFunc(builder, stateVector, translations, savedVariables, func.getOperand(i));
+			
+			/**
+			 * It would be cleaner to apply this change directly on parser tree,
+			 * but PRISM may not allow this change (usually an exception is thrown for an ill-formed
+			 * code).
+			 * 
+			 * PRISM's logarithm is defined as: log(value, base).
+			 * OpenCL offers several logarithms, based on Euler constant, 2, 10.
+			 * The safest and cleanest way to do it is to use the well-known property of log function:
+			 * log_b(x) = log_a(x)/log_a(b)
+			 * 
+			 * In our case, we use the natural logarithm log(x)
+			 */
+			if( func.getName().equals( ExpressionFunc.names[ExpressionFunc.LOG] )) {
+				// Protect from changes in PRISM language
+				Preconditions.checkCondition(func.getNumOperands() == 2);
+				builder.append("log(");
+				// the main argument of logarithm function
+				if (func.getOperand(0) instanceof ExpressionFunc) {
+					convertFunc(builder, stateVector, translations, savedVariables, func.getOperand(0));
 				} else {
 					//cast to float for overloading functions e.g. min to (float,float), not (float,int)
 					if (translations.size() != 0 || savedVariables.size() != 0) {
-						String newExpr = convertActionWithSV(stateVector, translations, savedVariables, func.getOperand(i).toString());
+						String newExpr = convertActionWithSV(stateVector, translations, savedVariables, func.getOperand(0).toString());
 						//no change? 
 						builder.append("((float)").append(newExpr).append(")");
 					} else {
-						builder.append("((float)").append(func.getOperand(i).toString()).append(")");
+						builder.append("((float)").append(func.getOperand(0).toString()).append(")");
 					}
 				}
-				if (i != func.getNumOperands() - 1) {
-					builder.append(',');
+				builder.append(")/log(");
+				//the base of logarith
+				if (func.getOperand(1) instanceof ExpressionFunc) {
+					convertFunc(builder, stateVector, translations, savedVariables, func.getOperand(1));
+				} else {
+					//cast to float for overloading functions e.g. min to (float,float), not (float,int)
+					if (translations.size() != 0 || savedVariables.size() != 0) {
+						String newExpr = convertActionWithSV(stateVector, translations, savedVariables, func.getOperand(1).toString());
+						//no change? 
+						builder.append("((float)").append(newExpr).append(")");
+					} else {
+						builder.append("((float)").append(func.getOperand(1).toString()).append(")");
+					}
 				}
+				builder.append(")");
+			} else {
+				builder.append(func.getName()).append('(');
+				for (int i = 0; i < func.getNumOperands(); ++i) {
+					if (func.getOperand(i) instanceof ExpressionFunc) {
+						convertFunc(builder, stateVector, translations, savedVariables, func.getOperand(i));
+					} else {
+						//cast to float for overloading functions e.g. min to (float,float), not (float,int)
+						if (translations.size() != 0 || savedVariables.size() != 0) {
+							String newExpr = convertActionWithSV(stateVector, translations, savedVariables, func.getOperand(i).toString());
+							//no change? 
+							builder.append("((float)").append(newExpr).append(")");
+						} else {
+							builder.append("((float)").append(func.getOperand(i).toString()).append(")");
+						}
+					}
+					if (i != func.getNumOperands() - 1) {
+						builder.append(',');
+					}
+				}
+				builder.append(")");
 			}
-			builder.append(")");
 		} else {
 			builder.append(convertActionWithSV(stateVector, translations, savedVariables, expr.toString()));
 		}
