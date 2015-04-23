@@ -1,0 +1,4 @@
+#../models/ctmcs/embedded, actuators_T.csl
+#../models/ctmcs/embedded, main_T.csl
+#../models/ctmcs/embedded, sensors_T.csl
+#../models/ctmcs/polling, s1_before_s2.csl
