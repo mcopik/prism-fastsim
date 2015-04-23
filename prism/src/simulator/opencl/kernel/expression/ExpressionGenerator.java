@@ -285,9 +285,9 @@ public class ExpressionGenerator
 					} else {
 						builder.append("((float)").append(func.getOperand(i).toString()).append(")");
 					}
-					if (i != func.getNumOperands() - 1) {
-						builder.append(',');
-					}
+				}
+				if (i != func.getNumOperands() - 1) {
+					builder.append(',');
 				}
 			}
 			builder.append(")");

@@ -63,8 +63,10 @@ public class ParsTreeModifier extends ASTTraverseModify
 	public Object visit(ExpressionBinaryOp e) throws PrismLangException
 	{
 		// Apply recursively
-		e.setOperand1((Expression) (e.getOperand1().accept(this)));
-		e.setOperand2((Expression) (e.getOperand2().accept(this)));
+		Expression leftOperand = e.getOperand1();
+		Expression rightOperand = e.getOperand2();
+		e.setOperand1((Expression) (leftOperand.accept(this)));
+		e.setOperand2((Expression) (rightOperand.accept(this)));
 
 		switch (e.getOperator()) {
 		case ExpressionBinaryOp.OR:
@@ -140,6 +142,19 @@ public class ParsTreeModifier extends ASTTraverseModify
 				//nothing to do for Double
 			}
 			break;
+		case ExpressionBinaryOp.IFF:
+			// use the logical evaluation:
+			// a <=> b TO (a & b) | (!a & !b)
+			Expression newLeftOperand = Expression.And(leftOperand, rightOperand);
+			Expression newRightOperand = Expression.And(Expression.Not(leftOperand), 
+										Expression.Not(rightOperand));
+			return Expression.Or(Expression.Parenth(newLeftOperand), 
+					Expression.Parenth(newRightOperand));
+		case ExpressionBinaryOp.IMPLIES:
+			// use logical equivalence:
+			// p => q TO !(p & !q)
+			Expression middleOperand = Expression.And(leftOperand, Expression.Not(rightOperand));
+			return Expression.Not(Expression.Parenth(middleOperand));
 		}
 		return e;
 	}
