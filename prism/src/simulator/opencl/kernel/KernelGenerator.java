@@ -81,6 +81,7 @@ import simulator.sampler.SamplerBoundedUntilCont;
 import simulator.sampler.SamplerBoundedUntilDisc;
 import simulator.sampler.SamplerNext;
 import simulator.sampler.SamplerUntil;
+import sun.org.mozilla.javascript.ast.SwitchCase;
 
 public abstract class KernelGenerator
 {
@@ -1648,6 +1649,8 @@ public abstract class KernelGenerator
 				savedTranslations.put(name, second);
 			}
 		}
+		// variables saved in single update
+		Map<String, CLVariable> varsSaved = new HashMap<>();
 
 		//for-each module
 		for (int i = 0; i < synCmd.getModulesNum(); ++i) {
@@ -1669,11 +1672,22 @@ public abstract class KernelGenerator
 							fromString(convertPrismRate(svPtrTranslations, rate))));
 					if (!update.isActionTrue(0)) {
 						ifElse.addExpression(0, updateSynLabelMethodProbabilityRecompute(probability, null, rate));
+						
+						addSavedVariables(stateVector, ifElse, 0, update.getAction(0), savedTranslations, varsSaved);
+						// make temporary copy, we may ovewrite some variables
+						Map<String, CLVariable> newSavedTranslations;
+						if( savedTranslations != null) {
+							newSavedTranslations = new HashMap<>(savedTranslations);
+						} else {
+							newSavedTranslations = new HashMap<>();
+						}
+						newSavedTranslations.putAll( varsSaved );
+						
 						if (!timingProperty) {
 							ifElse.addExpression(0,
-									convertPrismAction(stateVector, update.getAction(0), svPtrTranslations, savedTranslations, changeFlag, newValue));
+									convertPrismAction(stateVector, update.getAction(0), svPtrTranslations, newSavedTranslations, changeFlag, newValue));
 						} else {
-							ifElse.addExpression(0, convertPrismAction(stateVector, update.getAction(0), svPtrTranslations, savedTranslations));
+							ifElse.addExpression(0, convertPrismAction(stateVector, update.getAction(0), svPtrTranslations, newSavedTranslations));
 						}
 					}
 					for (int k = 1; k < update.getActionsNumber(); ++k) {
@@ -1681,23 +1695,45 @@ public abstract class KernelGenerator
 						rate.addRate(update.getRate(k));
 						ifElse.addElif(createBinaryExpression(probability.getSource(), Operator.LT, fromString(convertPrismRate(svPtrTranslations, rate))));
 						ifElse.addExpression(k, updateSynLabelMethodProbabilityRecompute(probability, previous, update.getRate(k)));
+						
+						addSavedVariables(stateVector, ifElse, k, update.getAction(k), savedTranslations, varsSaved);
+						// make temporary copy, we may ovewrite some variables
+						Map<String, CLVariable> newSavedTranslations;
+						if( savedTranslations != null) {
+							newSavedTranslations = new HashMap<>(savedTranslations);
+						} else {
+							newSavedTranslations = new HashMap<>();
+						}
+						newSavedTranslations.putAll( varsSaved );
+						
 						if (!update.isActionTrue(k)) {
 							if (!timingProperty) {
 								ifElse.addExpression(k,
-										convertPrismAction(stateVector, update.getAction(k), svPtrTranslations, savedTranslations, changeFlag, newValue));
+										convertPrismAction(stateVector, update.getAction(k), svPtrTranslations, newSavedTranslations, changeFlag, newValue));
 							} else {
-								ifElse.addExpression(k, convertPrismAction(stateVector, update.getAction(k), svPtrTranslations, savedTranslations));
+								ifElse.addExpression(k, convertPrismAction(stateVector, update.getAction(k), svPtrTranslations, newSavedTranslations));
 							}
 						}
 					}
 					internalSwitch.addExpression(j, ifElse);
 				} else {
 					if (!update.isActionTrue(0)) {
+						
+						addSavedVariables(stateVector, internalSwitch, j, update.getAction(0), savedTranslations, varsSaved);
+						// make temporary copy, we may ovewrite some variables
+						Map<String, CLVariable> newSavedTranslations;
+						if( savedTranslations != null) {
+							newSavedTranslations = new HashMap<>(savedTranslations);
+						} else {
+							newSavedTranslations = new HashMap<>();
+						}
+						newSavedTranslations.putAll( varsSaved );
+						
 						if (!timingProperty) {
 							internalSwitch.addExpression(j,
-									convertPrismAction(stateVector, update.getAction(0), svPtrTranslations, savedTranslations, changeFlag, newValue));
+									convertPrismAction(stateVector, update.getAction(0), svPtrTranslations, newSavedTranslations, changeFlag, newValue));
 						} else {
-							internalSwitch.addExpression(j, convertPrismAction(stateVector, update.getAction(0), svPtrTranslations, savedTranslations));
+							internalSwitch.addExpression(j, convertPrismAction(stateVector, update.getAction(0), svPtrTranslations, newSavedTranslations));
 						}
 						//no recomputation necessary!
 					}
