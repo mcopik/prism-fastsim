@@ -1021,7 +1021,7 @@ public abstract class KernelGenerator
 			Rate rate = new Rate(update.getRate(0));
 			Action action;
 			// variables saved in this action 
-			Map<String, String> savedVariables = new HashMap<>();
+			Map<String, CLVariable> savedVariables = new HashMap<>();
 			
 
 			// if there is more than one action possible, then create a conditional to choose between them
@@ -1031,7 +1031,7 @@ public abstract class KernelGenerator
 				//first one goes to 'if'
 				if (!update.isActionTrue(0)) {
 					action = update.getAction(0);
-					updateMethodAddSavedVariables(sv, ifElse, 0, action, savedVariables);
+					addSavedVariables(sv, ifElse, 0, action, null, savedVariables);
 					if (!timingProperty) {
 						ifElse.addExpression(0, convertPrismAction(sv, action, svPtrTranslations, savedVariables, changeFlag, oldValue));
 					} else {
@@ -1046,7 +1046,7 @@ public abstract class KernelGenerator
 					
 					if (!update.isActionTrue(j)) {
 						action = update.getAction(j);
-						updateMethodAddSavedVariables(sv, ifElse, 0, action, savedVariables);
+						addSavedVariables(sv, ifElse, 0, action, null, savedVariables);
 						if (!timingProperty) {
 							ifElse.addExpression(j, convertPrismAction(sv, action, svPtrTranslations, savedVariables, changeFlag, oldValue));
 						} else {
@@ -1061,7 +1061,7 @@ public abstract class KernelGenerator
 				if (!update.isActionTrue(0)) {
 					_switch.addCase(new Expression(Integer.toString(i)));
 					action = update.getAction(0);
-					updateMethodAddSavedVariables(sv, _switch, switchCounter, action, savedVariables);
+					addSavedVariables(sv, _switch, switchCounter, action, null, savedVariables);
 					if (!timingProperty) {
 						_switch.addExpression(switchCounter++, convertPrismAction(sv, action, svPtrTranslations, savedVariables, changeFlag, oldValue));
 					} else {
@@ -1078,55 +1078,6 @@ public abstract class KernelGenerator
 		}
 		
 		return currentMethod;
-	}
-
-	/**
-	 * Create variables, which need to be save before action, and their declarations to proper IfElse condition.
-	 * @param stateVector state vector instance in the method
-	 * @param ifElse kernel component to put declaration
-	 * @param conditionalNumber condition number in component
-	 * @param action
-	 * @param savedVariables map to save results
-	 */
-	protected void updateMethodAddSavedVariables(CLVariable stateVector, IfElse ifElse, int conditionalNumber, Action action, Map<String, String> savedVariables)
-	{
-		//clear previous adds
-		savedVariables.clear();
-		Set<PrismVariable> varsToSave = action.variablesCopiedBeforeUpdate();
-
-		//for every saved variable, create a local variable in C
-		for (PrismVariable var : varsToSave) {
-			CLVariable savedVar = new CLVariable(new StdVariableType(var), translateSavedVariable(var.name));
-			savedVar.setInitValue(stateVector.accessField(translateSVField(var.name)));
-			ifElse.addExpression(conditionalNumber, savedVar.getDefinition());
-
-			savedVariables.put(var.name, savedVar.varName);
-		}
-	}
-
-	/**
-	 * Create variables, which need to be save before action, and put declarations in proper Switch condition.
-	 * @param stateVector state vector instance in the method
-	 * @param _switch kernel component to put declaration
-	 * @param conditionalNumber condition number in component
-	 * @param action
-	 * @param savedVariables map to save results
-	 */
-	protected void updateMethodAddSavedVariables(CLVariable stateVector, Switch _switch, int conditionalNumber, Action action,
-			Map<String, String> savedVariables)
-	{
-		//clear previous adds
-		savedVariables.clear();
-		Set<PrismVariable> varsToSave = action.variablesCopiedBeforeUpdate();
-
-		//for every saved variable, create a local variable in C
-		for (PrismVariable var : varsToSave) {
-			CLVariable savedVar = new CLVariable(new StdVariableType(var), translateSavedVariable(var.name));
-			savedVar.setInitValue(stateVector.accessField(translateSVField(var.name)));
-			_switch.addExpression(conditionalNumber, savedVar.getDefinition());
-
-			savedVariables.put(var.name, savedVar.varName);
-		}
 	}
 
 	/**
@@ -1687,13 +1638,14 @@ public abstract class KernelGenerator
 
 		// Create translations variable -> savedStructure.variable
 		// Provide alternative access to state vector variable (instead of regular structure)
-		Map<String, String> savedTranslations = null;
+		Map<String, CLVariable> savedTranslations = null;
 		if (oldSV != null) {
 			savedTranslations = new HashMap<>();
+			
 			for (CLVariable var : savedVariables.getFields()) {
 				String name = var.varName.substring(STATE_VECTOR_PREFIX.length());
 				CLVariable second = oldSV.accessField(var.varName);
-				savedTranslations.put(name, second.varName);
+				savedTranslations.put(name, second);
 			}
 		}
 
@@ -1829,4 +1781,92 @@ public abstract class KernelGenerator
 		return String.format("%s%s", SAVED_VARIABLE_PREFIX, varName);
 	}
 
+	/**
+	 * Create variables, which need to be save before action, and their declarations to proper IfElse condition.
+	 * @param stateVector state vector instance in the method
+	 * @param ifElse kernel component to put declaration
+	 * @param conditionalNumber condition number in component
+	 * @param action
+	 * @param variableSources additional parameter (may be null, if not used) - for each variable, 
+	 * give additional source (different than default which is state vector)
+	 * @param savedVariables map to save results
+	 */
+	protected void addSavedVariables(CLVariable stateVector, IfElse ifElse, int conditionalNumber, 
+			Action action, Map<String, CLVariable> variableSources, Map<String, CLVariable> savedVariables)
+	{
+		//clear previous adds
+		savedVariables.clear();
+		Set<PrismVariable> varsToSave = action.variablesCopiedBeforeUpdate();
+
+		//for every saved variable, create a local variable in C
+		for (PrismVariable var : varsToSave) {
+			CLVariable savedVar = new CLVariable(new StdVariableType(var), translateSavedVariable(var.name));
+			
+			// are there any other sources of variables rather than original state vector?
+			// this additional parameter is used in synchronized update, where one may want to
+			// initialize 'saved' variable with the value in oldStateVector
+			// (unnecessary usage of variables may happen, but OpenCL compiler should eliminate that)
+			boolean flag = false;
+			if( variableSources != null ) {
+				CLVariable source = variableSources.get(var.name);
+				if( source != null ) {
+					flag = true;
+					savedVar.setInitValue(source);
+				}
+			}
+			
+			// not using additional source - just initialize variable from state vector
+			if(!flag) {
+				savedVar.setInitValue(stateVector.accessField(translateSVField(var.name)));
+			}
+			ifElse.addExpression(conditionalNumber, savedVar.getDefinition());
+
+			savedVariables.put(var.name, savedVar);
+		}
+	}
+
+	/**
+	 * Create variables, which need to be save before action, and put declarations in proper Switch condition.
+	 * @param stateVector state vector instance in the method
+	 * @param _switch kernel component to put declaration
+	 * @param conditionalNumber condition number in component
+	 * @param action
+	 * @param variableSources additional parameter (may be null, if not used) - for each variable, 
+	 * give additional source (different than default which is state vector)
+	 * @param savedVariables map to save results
+	 */
+	protected void addSavedVariables(CLVariable stateVector, Switch _switch, int conditionalNumber, Action action,
+			Map<String, CLVariable> variableSources, Map<String, CLVariable> savedVariables)
+	{
+		//clear previous adds
+		savedVariables.clear();
+		Set<PrismVariable> varsToSave = action.variablesCopiedBeforeUpdate();
+
+		//for every saved variable, create a local variable in C
+		for (PrismVariable var : varsToSave) {
+			CLVariable savedVar = new CLVariable(new StdVariableType(var), translateSavedVariable(var.name));
+			
+			// are there any other sources of variables rather than original state vector?
+			// this additional parameter is used in synchronized update, where one may want to
+			// initialize 'saved' variable with the value in oldStateVector
+			// (unnecessary usage of variables may happen, but OpenCL compiler should eliminate that)
+			boolean flag = false;
+			if( variableSources != null ) {
+				CLVariable source = variableSources.get(var.name);
+				if( source != null ) {
+					flag = true;
+					savedVar.setInitValue(source);
+				}
+			}
+			
+			// not using additional source - just initialize variable from state vector
+			if(!flag) {
+				savedVar.setInitValue(stateVector.accessField(translateSVField(var.name)));
+			}
+				
+			_switch.addExpression(conditionalNumber, savedVar.getDefinition());
+
+			savedVariables.put(var.name, savedVar);
+		}
+	}
 }

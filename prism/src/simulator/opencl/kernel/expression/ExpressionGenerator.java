@@ -200,7 +200,7 @@ public class ExpressionGenerator
 	 * @param savedVariables if not null, then references to 'save' place - will be used instead of translation in previous map
 	 * @return action converted from PRISM model to OpenCL
 	 */
-	static public Expression convertPrismAction(CLVariable stateVector, Action action, Map<String, String> translations, Map<String, String> savedVariables)
+	static public Expression convertPrismAction(CLVariable stateVector, Action action, Map<String, String> translations, Map<String, CLVariable> savedVariables)
 	{
 		StringBuilder builder = new StringBuilder();
 		for (Pair<PrismVariable, parser.ast.Expression> expr : action.expressions) {
@@ -222,7 +222,7 @@ public class ExpressionGenerator
 	 * @return action converted from PRISM model to OpenCL
 	 */
 	static public KernelComponent convertPrismAction(CLVariable stateVector, Action action, Map<String, String> translations,
-			Map<String, String> savedVariables, CLVariable changeFlag, CLVariable oldValue)
+			Map<String, CLVariable> savedVariables, CLVariable changeFlag, CLVariable oldValue)
 	{
 		ExpressionList list = new ExpressionList();
 		for (Pair<PrismVariable, parser.ast.Expression> expr : action.expressions) {
@@ -249,7 +249,7 @@ public class ExpressionGenerator
 	 * @param savedVariables if not null, then references to 'save' place - will be used instead of translation in previous map
 	 * @return convert variable update from PRISM model to OpenCL
 	 */
-	static private String convertUpdate(CLVariable stateVector, parser.ast.Expression expr, Map<String, String> translations, Map<String, String> savedVariables)
+	static private String convertUpdate(CLVariable stateVector, parser.ast.Expression expr, Map<String, String> translations, Map<String, CLVariable> savedVariables)
 	{
 		StringBuilder assignment = new StringBuilder();
 		convertFunc(assignment, stateVector, translations, savedVariables, expr);
@@ -267,7 +267,7 @@ public class ExpressionGenerator
 	 * @param savedVariables if not null, then references to 'save' place - will be used instead of translation in previous map
 	 * @param expr
 	 */
-	static private void convertFunc(StringBuilder builder, CLVariable stateVector, Map<String, String> translations, Map<String, String> savedVariables,
+	static private void convertFunc(StringBuilder builder, CLVariable stateVector, Map<String, String> translations, Map<String, CLVariable> savedVariables,
 			parser.ast.Expression expr)
 	{
 		if (expr instanceof ExpressionFunc) {
@@ -367,7 +367,7 @@ public class ExpressionGenerator
 	 * @param action
 	 * @return action with replaced all references to PRISM model variables
 	 */
-	static private String convertActionWithSV(CLVariable stateVector, Map<String, String> translations, Map<String, String> savedVariables, String action)
+	static private String convertActionWithSV(CLVariable stateVector, Map<String, String> translations, Map<String, CLVariable> savedVariables, String action)
 	{
 		StringBuilder builder = new StringBuilder(action);
 		for (Map.Entry<String, String> entry : translations.entrySet()) {
@@ -379,8 +379,8 @@ public class ExpressionGenerator
 		}
 
 		if (savedVariables != null) {
-			for (Map.Entry<String, String> entry : savedVariables.entrySet()) {
-				builderReplaceMostCommon(builder, entry.getKey(), entry.getValue());
+			for (Map.Entry<String, CLVariable> entry : savedVariables.entrySet()) {
+				builderReplaceMostCommon(builder, entry.getKey(), entry.getValue().varName);
 			}
 		}
 
