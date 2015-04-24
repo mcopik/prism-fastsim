@@ -297,9 +297,9 @@ public class ExpressionGenerator
 					if (translations.size() != 0 || savedVariables.size() != 0) {
 						String newExpr = convertActionWithSV(stateVector, translations, savedVariables, func.getOperand(0).toString());
 						//no change? 
-						builder.append("((float)").append(newExpr).append(")");
+						builder.append("(float)(").append(newExpr).append(")");
 					} else {
-						builder.append("((float)").append(func.getOperand(0).toString()).append(")");
+						builder.append("(float)(").append(func.getOperand(0).toString()).append(")");
 					}
 				}
 				builder.append(")/log(");
@@ -311,9 +311,9 @@ public class ExpressionGenerator
 					if (translations.size() != 0 || savedVariables.size() != 0) {
 						String newExpr = convertActionWithSV(stateVector, translations, savedVariables, func.getOperand(1).toString());
 						//no change? 
-						builder.append("((float)").append(newExpr).append(")");
+						builder.append("(float)(").append(newExpr).append(")");
 					} else {
-						builder.append("((float)").append(func.getOperand(1).toString()).append(")");
+						builder.append("(float)(").append(func.getOperand(1).toString()).append(")");
 					}
 				}
 				builder.append(")");
@@ -327,9 +327,9 @@ public class ExpressionGenerator
 						if (translations.size() != 0 || savedVariables.size() != 0) {
 							String newExpr = convertActionWithSV(stateVector, translations, savedVariables, func.getOperand(i).toString());
 							//no change? 
-							builder.append("((float)").append(newExpr).append(")");
+							builder.append("(float)(").append(newExpr).append(")");
 						} else {
-							builder.append("((float)").append(func.getOperand(i).toString()).append(")");
+							builder.append("(float)(").append(func.getOperand(i).toString()).append(")");
 						}
 					}
 					if (i != func.getNumOperands() - 1) {
