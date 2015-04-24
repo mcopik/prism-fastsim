@@ -252,7 +252,8 @@ public class ExpressionGenerator
 	static private String convertUpdate(CLVariable stateVector, parser.ast.Expression expr, Map<String, String> translations, Map<String, CLVariable> savedVariables)
 	{
 		StringBuilder assignment = new StringBuilder();
-		convertFunc(assignment, stateVector, translations, savedVariables, expr);
+		assignment.append(convertActionWithSV(stateVector, translations, savedVariables, expr.toString()));
+		convertActionWithSV(stateVector, translations, savedVariables, expr.toString());
 		convertEquality(assignment);
 		builderReplace(assignment, "|", "||");
 		builderReplace(assignment, "&", "&&");
@@ -316,6 +317,12 @@ public class ExpressionGenerator
 						builder.append("(float)(").append(func.getOperand(1).toString()).append(")");
 					}
 				}
+				builder.append(")");
+			} else if( func.getName().equals( ExpressionFunc.names[ExpressionFunc.MOD] )) {
+				builder.append("(");
+				builder.append(convertActionWithSV(stateVector, translations, savedVariables, func.getOperand(0).toString()));
+				builder.append(" % ");
+				builder.append(convertActionWithSV(stateVector, translations, savedVariables, func.getOperand(1).toString()));
 				builder.append(")");
 			} else {
 				builder.append(func.getName()).append('(');

@@ -145,8 +145,9 @@ public abstract class AbstractAutomaton
 	public AbstractAutomaton(ModulesFile modulesFile) throws PrismException
 	{
 		varList = modulesFile.createVarList();
-		this.modulesFile = (ModulesFile) modulesFile.deepCopy().replaceConstants(modulesFile.getConstantValues()).simplify().accept(new ParsTreeModifier());
+		this.modulesFile = (ModulesFile) modulesFile.deepCopy().replaceConstants(modulesFile.getConstantValues()).simplify();
 		this.modulesFile.tidyUp();
+		this.modulesFile = (ModulesFile) this.modulesFile.accept(new ParsTreeModifier());
 		extractVariables();
 		extractUpdates();
 	}

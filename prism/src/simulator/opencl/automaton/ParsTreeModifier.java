@@ -29,6 +29,7 @@ package simulator.opencl.automaton;
 import parser.ast.Expression;
 import parser.ast.ExpressionBinaryOp;
 import parser.ast.ExpressionConstant;
+import parser.ast.ExpressionFunc;
 import parser.ast.ExpressionLiteral;
 import parser.ast.ExpressionUnaryOp;
 import parser.ast.ExpressionVar;
@@ -48,7 +49,93 @@ import prism.PrismLangException;
  * 1/2 will be equal to 0 in C code 
  */
 public class ParsTreeModifier extends ASTTraverseModify
-{
+{	
+	
+	public Object visit(ExpressionFunc e) throws PrismLangException
+	{
+		for(int i = 0;i < e.getNumOperands(); ++i) {
+			e.setOperand(i, (Expression) (e.getOperand(i).accept(this)));
+		}
+		
+		/**
+		 * PRISM's logarithm is defined as: log(value, base).
+		 * OpenCL offers several logarithms, based on Euler constant, 2, 10.
+		 * The safest and cleanest way to do it is to use the well-known property of log function:
+		 * log_b(x) = log_a(x)/log_a(b)
+		 * 
+		 * In our case, we use the natural logarithm log(x)
+		 */
+//		if( e.getName().equals( ExpressionFunc.names[ExpressionFunc.LOG] )) {
+//			// Protect from changes in PRISM language
+//			Preconditions.checkCondition(func.getNumOperands() == 2);
+//			builder.append("log(");
+//			// the main argument of logarithm function
+//			if (func.getOperand(0) instanceof ExpressionFunc) {
+//				convertFunc(builder, stateVector, translations, savedVariables, func.getOperand(0));
+//			} else {
+//				//cast to float for overloading functions e.g. min to (float,float), not (float,int)
+//				if (translations.size() != 0 || savedVariables.size() != 0) {
+//					String newExpr = convertActionWithSV(stateVector, translations, savedVariables, func.getOperand(0).toString());
+//					//no change? 
+//					builder.append("(float)(").append(newExpr).append(")");
+//				} else {
+//					builder.append("(float)(").append(func.getOperand(0).toString()).append(")");
+//				}
+//			}
+//			builder.append(")/log(");
+//			//the base of logarith
+//			if (func.getOperand(1) instanceof ExpressionFunc) {
+//				convertFunc(builder, stateVector, translations, savedVariables, func.getOperand(1));
+//			} else {
+//				//cast to float for overloading functions e.g. min to (float,float), not (float,int)
+//				if (translations.size() != 0 || savedVariables.size() != 0) {
+//					String newExpr = convertActionWithSV(stateVector, translations, savedVariables, func.getOperand(1).toString());
+//					//no change? 
+//					builder.append("(float)(").append(newExpr).append(")");
+//				} else {
+//					builder.append("(float)(").append(func.getOperand(1).toString()).append(")");
+//				}
+//			}
+//			builder.append(")");
+//		} else if( func.getName().equals( ExpressionFunc.names[ExpressionFunc.MOD] )) {
+//			builder.append("(");
+//			builder.append(convertActionWithSV(stateVector, translations, savedVariables, func.getOperand(0).toString()));
+//			builder.append(" % ");
+//			builder.append(convertActionWithSV(stateVector, translations, savedVariables, func.getOperand(1).toString()));
+//			builder.append(")");
+//		} else {			Expression operand = e.getOperand1();
+
+		/**
+		 * For every argument of function, cast it to float to avoid misunderstanding for overloaded functions
+		 * Some functions require floating-point arguments and (float,double) is too confusing.
+		 */
+		for(int i = 0;i < e.getNumOperands(); ++i) {
+			
+			Expression operand = e.getOperand(i);
+			
+			if (operand instanceof ExpressionLiteral) {
+				Preconditions.checkCondition(operand instanceof ExpressionLiteral);
+				Object value = ((ExpressionLiteral) operand).getValue();
+				Type type = ((ExpressionLiteral) operand).getType();
+				//assume: only Double and Integer
+				Preconditions.checkCondition(type instanceof TypeInt || type instanceof TypeDouble, "Unknown type of expression " + type.getTypeString());
+				/**
+				 * Instead of using ExpressionLiteral, use ExpressionConstant and print in kernel as "2.0f" - 2.0 will be interpreted as double.
+				 */
+				if (type instanceof TypeInt) {
+					e.setOperand(i, new ExpressionConstant(String.format("%ff",Double.valueOf((Integer) value)), operand.getType()));
+				} else if (type instanceof TypeDouble) {
+					e.setOperand(i, new ExpressionConstant(String.format("%ff",(Double) value), operand.getType()));
+				}
+			} else {
+				String newVariable = String.format("((float)%s)", operand);
+				e.setOperand(i, new ExpressionConstant(newVariable, operand.getType()));
+			}
+		}
+		
+		return e;
+	}
+	
 	public Object visit(ExpressionUnaryOp e) throws PrismLangException
 	{
 		e.setOperand((Expression) (e.getOperand().accept(this)));
@@ -137,7 +224,7 @@ public class ParsTreeModifier extends ASTTraverseModify
 				//assume: only Double and Integer
 				Preconditions.checkCondition(value instanceof TypeInt || value instanceof TypeDouble);
 				if (type instanceof TypeInt) {
-					e.setOperand2(new ExpressionLiteral(TypeDouble.getInstance(), Double.valueOf((Integer) value)));
+					e.setOperand1(new ExpressionLiteral(TypeDouble.getInstance(), Double.valueOf((Integer) value)));
 				}
 				//nothing to do for Double
 			}
