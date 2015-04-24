@@ -28,7 +28,6 @@ package simulator.opencl.kernel.expression;
 import java.util.HashMap;
 import java.util.Map;
 
-import parser.ast.ExpressionFunc;
 import prism.Pair;
 import prism.Preconditions;
 import simulator.opencl.automaton.PrismVariable;
@@ -253,101 +252,10 @@ public class ExpressionGenerator
 	{
 		StringBuilder assignment = new StringBuilder();
 		assignment.append(convertActionWithSV(stateVector, translations, savedVariables, expr.toString()));
-		convertActionWithSV(stateVector, translations, savedVariables, expr.toString());
 		convertEquality(assignment);
 		builderReplace(assignment, "|", "||");
 		builderReplace(assignment, "&", "&&");
 		return assignment.toString();
-	}
-
-	/**
-	 * Convert expression containing new value for a variable - if function, then apply conversion to every argument
-	 * @param builder
-	 * @param stateVector
-	 * @param translations contains translations of model variables to proper references at state vector structure
-	 * @param savedVariables if not null, then references to 'save' place - will be used instead of translation in previous map
-	 * @param expr
-	 */
-	static private void convertFunc(StringBuilder builder, CLVariable stateVector, Map<String, String> translations, Map<String, CLVariable> savedVariables,
-			parser.ast.Expression expr)
-	{
-		if (expr instanceof ExpressionFunc) {
-			ExpressionFunc func = (ExpressionFunc) expr;
-			
-			/**
-			 * It would be cleaner to apply this change directly on parser tree,
-			 * but PRISM may not allow this change (usually an exception is thrown for an ill-formed
-			 * code).
-			 * 
-			 * PRISM's logarithm is defined as: log(value, base).
-			 * OpenCL offers several logarithms, based on Euler constant, 2, 10.
-			 * The safest and cleanest way to do it is to use the well-known property of log function:
-			 * log_b(x) = log_a(x)/log_a(b)
-			 * 
-			 * In our case, we use the natural logarithm log(x)
-			 */
-			if( func.getName().equals( ExpressionFunc.names[ExpressionFunc.LOG] )) {
-				// Protect from changes in PRISM language
-				Preconditions.checkCondition(func.getNumOperands() == 2);
-				builder.append("log(");
-				// the main argument of logarithm function
-				if (func.getOperand(0) instanceof ExpressionFunc) {
-					convertFunc(builder, stateVector, translations, savedVariables, func.getOperand(0));
-				} else {
-					//cast to float for overloading functions e.g. min to (float,float), not (float,int)
-					if (translations.size() != 0 || savedVariables.size() != 0) {
-						String newExpr = convertActionWithSV(stateVector, translations, savedVariables, func.getOperand(0).toString());
-						//no change? 
-						builder.append("(float)(").append(newExpr).append(")");
-					} else {
-						builder.append("(float)(").append(func.getOperand(0).toString()).append(")");
-					}
-				}
-				builder.append(")/log(");
-				//the base of logarith
-				if (func.getOperand(1) instanceof ExpressionFunc) {
-					convertFunc(builder, stateVector, translations, savedVariables, func.getOperand(1));
-				} else {
-					//cast to float for overloading functions e.g. min to (float,float), not (float,int)
-					if (translations.size() != 0 || savedVariables.size() != 0) {
-						String newExpr = convertActionWithSV(stateVector, translations, savedVariables, func.getOperand(1).toString());
-						//no change? 
-						builder.append("(float)(").append(newExpr).append(")");
-					} else {
-						builder.append("(float)(").append(func.getOperand(1).toString()).append(")");
-					}
-				}
-				builder.append(")");
-			} else if( func.getName().equals( ExpressionFunc.names[ExpressionFunc.MOD] )) {
-				builder.append("(");
-				builder.append(convertActionWithSV(stateVector, translations, savedVariables, func.getOperand(0).toString()));
-				builder.append(" % ");
-				builder.append(convertActionWithSV(stateVector, translations, savedVariables, func.getOperand(1).toString()));
-				builder.append(")");
-			} else {
-				builder.append(func.getName()).append('(');
-				for (int i = 0; i < func.getNumOperands(); ++i) {
-					if (func.getOperand(i) instanceof ExpressionFunc) {
-						convertFunc(builder, stateVector, translations, savedVariables, func.getOperand(i));
-					} else {
-						//cast to float for overloading functions e.g. min to (float,float), not (float,int)
-						if (translations.size() != 0 || savedVariables.size() != 0) {
-							String newExpr = convertActionWithSV(stateVector, translations, savedVariables, func.getOperand(i).toString());
-							//no change? 
-							builder.append("(float)(").append(newExpr).append(")");
-						} else {
-							builder.append("(float)(").append(func.getOperand(i).toString()).append(")");
-						}
-					}
-					if (i != func.getNumOperands() - 1) {
-						builder.append(',');
-					}
-				}
-				builder.append(")");
-			}
-		} else {
-			builder.append(convertActionWithSV(stateVector, translations, savedVariables, expr.toString()));
-		}
 	}
 
 	/**
