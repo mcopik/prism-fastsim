@@ -34,24 +34,35 @@ module counter
 	// 1 first phase of the protocol (sending messages of the form OT(.,.,.,.)
 	// 2 and 3 - second phase of the protocol (sending secretes 1..n and n+1..2n respectively)
 	// 4 finished the protocol
+
 	
 	// FIRST PHASE
-	[receiveB] phase=1 & party=1 -> (party'=2); // first A sends a message then B does
-	[receiveA] phase=1 & party=2 & n<N-1 -> (party'=1) & (n'=n+1); // after B sends a message we move onto the next message
-	[receiveA] phase=1 & party=2 & n=N-1 -> (party'=1) & (phase'=2) & (n'=0); // B has sent his final message - move to next phase
+	// CHANGE: introduce max, min (party = 1 in guard, party = 2 in update) 
+	[receiveB] phase=1 & party=min(1,party+1) -> (party'= max(2, phase - 4)); // first A sends a message then B does
+	// CHANGE: replace two commands with the conditional evaluation ?
+	[receiveA] phase=1 & party=2 -> (party'=1) & (n'= n<N-1 ? n+1 : 0) & (phase'= n=N-1 ? 2 : phase); // after B sends a message we move onto the next message OR B has sent his final message - move to next phase
 	// SECOND AND THIRD PHASES
 	// when A sends
 	[receiveB] ((phase)>=(2)&(phase)<=(3))& party=1 & n=0-> (party'=2); // A transmits bth bit of secrets 1..N or N=1..2N
-	[receiveA] ((phase)>=(2)&(phase)<=(3))& party=2 & n<N-1-> (n'=n+1); // A transmits bth bit of secrets 1..N or N=1..2N
+	// CHANGE: n'= n+1 to floor(log( pow(2, n+1), 2) );
+	[receiveA] ((phase)>=(2)&(phase)<=(3))& party=2 & n<N-1-> (n'= floor(log( pow(2, n+1), 2) ) ); // A transmits bth bit of secrets 1..N or N=1..2N
 	[receiveA] ((phase)>=(2)&(phase)<=(3))& party=2 & n=N-1 -> (party'=1) & (n'=1); // finished for party A now move to party B
 	// when A sends
-	[receiveB] ((phase)>=(2)&(phase)<=(3))& party=1 & n<N-1 & n>0 -> (n'=n+1); // B transmits bth bit of secrets 1..N or N=1..2N
-	[receiveB] ((phase)>=(2)&(phase)<=(3))& party=1 & n=N-1 & b<L -> (party'=1) & (n'=0) & (b'=b+1); // finished for party B move to next bit
-	[receiveB] phase=2 & party=1 & n=N-1 & b=L -> (phase'=3) & (party'=1) & (n'=0) & (b'=1); // finished for party B move to next phase
-	[receiveB] phase=3 & party=1 & n=N-1 & b=L -> (phase'=4); // finished protocol (reveal values)
+	//CHANGE: phase >= 2 & phase <=3 -> !(phase < 2 | phase > 3)
+	[receiveB] !(phase < 2 | phase > 3) & party=1 & n<N-1 & n>0 -> (n'=n+1); // B transmits bth bit of secrets 1..N or N=1..2N
+	// CHANGE: party'=1 to floor( log(2.71, 2.71) ) and n'= 0 to log(1,2.71) (party is 1 -> guard)
+	[receiveB] ((phase)>=(2)&(phase)<=(3))& party=1 & n=N-1 & b<L -> (party'=floor(log(party+2,2.71)) ) & (n'= floor( log(party, 2.71) ) ) & (b'=b+1); // finished for party B move to next bit
+	// CHANGE: phase = 2 AND party = 1 into:
+	// a) phase = 2 iff party = 1 -> evaluates also to true when both are false
+	// b) phase = 2 -> party != 1 -> evaluates to false when phase !=2 and party != 1
+	// CHANGE: phase = 3 to phase = mod(phase,5) + 1
+	[receiveB] (phase =2 <=> party = 1) & (phase != 2 => party = 1) & n=N-1 & b=L -> (phase'=mod(phase,5) + 1) & (party'=1) & (n'=0) & (b'=1); // finished for party B move to next phase
+	// CHANGE: phase'=4 to ceil( pow(2.71,1.3) ) (appr. 3.65)
+	[receiveB] phase=3 & party=1 & n=N-1 & b=L -> (phase'=ceil( pow(2.71,party+0.3))); // finished protocol (reveal values)
 	
 	// FINISHED
-	[] phase=4 -> (phase'=4); // loop
+	//CHANGE 4 -> pow(2,2)
+	[] phase=4 -> (phase'=pow(2,2)); // loop
 	
 endmodule
 
@@ -84,7 +95,7 @@ module partyA
 	
 	// first step (get either secret i or (N-1)+i with equal probability)
 	[receiveA] phase=1 & n=0  -> 0.5 : (b0'=L)  + 0.5 : (b20'=L);
-	[receiveA] phase=1 & n=1  -> n/2 : (b1'=L)  + 0.5 : (b21'=L);
+	[receiveA] phase=1 & n=1  -> 0.5 : (b1'=L)  + 0.5 : (b21'=L);
 	[receiveA] phase=1 & n=2  -> 0.5 : (b2'=L)  + 0.5 : (b22'=L);
 	[receiveA] phase=1 & n=3  -> 0.5 : (b3'=L)  + 0.5 : (b23'=L);
 	[receiveA] phase=1 & n=4  -> 0.5 : (b4'=L)  + 0.5 : (b24'=L);
@@ -207,7 +218,8 @@ label "knowA" = kA;
 
 // messages from B that A needs to knows a pair once B knows a pair
 rewards "messages_A_needs"
-	[receiveA] kB & !kA : 1;
+	// CHANGE: 1 as log(3.65,2.71) ~= 1.3
+	[receiveA] kB & !kA : ceil( log(3.65,2.71) ) - 1;
 endrewards
 
 // messages from A that B needs to knows a pair once A knows a pair

@@ -81,7 +81,6 @@ import simulator.sampler.SamplerBoundedUntilCont;
 import simulator.sampler.SamplerBoundedUntilDisc;
 import simulator.sampler.SamplerNext;
 import simulator.sampler.SamplerUntil;
-import sun.org.mozilla.javascript.ast.SwitchCase;
 
 public abstract class KernelGenerator
 {

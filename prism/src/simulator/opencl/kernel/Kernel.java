@@ -150,7 +150,6 @@ public class Kernel
 		defineMethods(builder);
 		
 		kernelSource = builder.toString();
-		System.out.println(kernelSource);
 	}
 
 	/**
