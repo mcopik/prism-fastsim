@@ -90,6 +90,7 @@ public class StructureType implements VariableTypeInterface, UDType
 	 * Structure fields. The order can't change!
 	 */
 	private LinkedHashMap<String, CLVariable> fields = new LinkedHashMap<>();
+	
 	/**
 	 * Structure type name.
 	 */
@@ -119,6 +120,14 @@ public class StructureType implements VariableTypeInterface, UDType
 		return fields.values();
 	}
 
+	/**
+	 * @return number of fields in structure
+	 */
+	public int getNumberOfFields()
+	{
+		return fields.size();
+	}
+	
 	@Override
 	public Expression getDeclaration()
 	{

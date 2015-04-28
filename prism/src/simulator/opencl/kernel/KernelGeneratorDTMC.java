@@ -34,6 +34,7 @@ import static simulator.opencl.kernel.expression.ExpressionGenerator.fromString;
 import static simulator.opencl.kernel.expression.ExpressionGenerator.functionCall;
 import static simulator.opencl.kernel.expression.ExpressionGenerator.postIncrement;
 
+import java.util.EnumMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 
@@ -76,7 +77,7 @@ public class KernelGeneratorDTMC extends KernelGenerator
 	 * @param properties
 	 * @param config
 	 */
-	public KernelGeneratorDTMC(AbstractAutomaton model, List<Sampler> properties, RuntimeConfig config)
+	public KernelGeneratorDTMC(AbstractAutomaton model, List<Sampler> properties, RuntimeConfig config) throws KernelException
 	{
 		super(model, properties, config);
 	}
@@ -107,6 +108,22 @@ public class KernelGeneratorDTMC extends KernelGenerator
 			type.addVariable(guards);
 			synchronizedStates.put(cmd.synchLabel, type);
 		}
+	}
+	
+	@Override
+	protected void initializeRewardRequiredVarsCumulative(EnumMap<RewardTypes,String[]> map)
+	{
+		map.put(RewardTypes.CUMULATIVE, new String[]{ 
+				REWARD_STRUCTURE_VAR_CUMULATIVE_TOTAL
+		});
+	}
+	
+	@Override
+	protected void initializeRewardRequiredVarsInstantaneous(EnumMap<RewardTypes,String[]> map)
+	{
+		map.put(RewardTypes.CUMULATIVE, new String[]{ 
+				REWARD_STRUCTURE_VAR_CURRENT_STATE
+		});
 	}
 
 	/*********************************

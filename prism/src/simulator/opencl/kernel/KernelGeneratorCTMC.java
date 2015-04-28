@@ -34,6 +34,7 @@ import static simulator.opencl.kernel.expression.ExpressionGenerator.createBinar
 import static simulator.opencl.kernel.expression.ExpressionGenerator.fromString;
 import static simulator.opencl.kernel.expression.ExpressionGenerator.postIncrement;
 
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -78,7 +79,7 @@ public class KernelGeneratorCTMC extends KernelGenerator
 	 * @param properties
 	 * @param config
 	 */
-	public KernelGeneratorCTMC(AbstractAutomaton model, List<Sampler> properties, RuntimeConfig config)
+	public KernelGeneratorCTMC(AbstractAutomaton model, List<Sampler> properties, RuntimeConfig config) throws KernelException
 	{
 		super(model, properties, config);
 	}
@@ -99,6 +100,26 @@ public class KernelGeneratorCTMC extends KernelGenerator
 			type.addVariable(guards);
 			synchronizedStates.put(cmd.synchLabel, type);
 		}
+	}
+	
+	@Override
+	protected void initializeRewardRequiredVarsCumulative(EnumMap<RewardTypes,String[]> map)
+	{
+		map.put(RewardTypes.CUMULATIVE, new String[]{ 
+				REWARD_STRUCTURE_VAR_CUMULATIVE_TOTAL,
+				REWARD_STRUCTURE_VAR_PREVIOUS_STATE,
+				REWARD_STRUCTURE_VAR_PREVIOUS_TRANSITION,
+				REWARD_STRUCTURE_VAR_CURRENT_STATE
+		});
+	}
+	
+	@Override
+	protected void initializeRewardRequiredVarsInstantaneous(EnumMap<RewardTypes,String[]> map)
+	{
+		map.put(RewardTypes.CUMULATIVE, new String[]{ 
+				REWARD_STRUCTURE_VAR_PREVIOUS_STATE,
+				REWARD_STRUCTURE_VAR_CURRENT_STATE
+		});
 	}
 
 	/*********************************

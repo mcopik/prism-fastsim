@@ -36,6 +36,7 @@ import static simulator.opencl.kernel.expression.ExpressionGenerator.createNegat
 import static simulator.opencl.kernel.expression.ExpressionGenerator.fromString;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.EnumMap;
 import java.util.HashMap;
@@ -82,6 +83,10 @@ import simulator.sampler.SamplerBoundedUntilCont;
 import simulator.sampler.SamplerBoundedUntilDisc;
 import simulator.sampler.SamplerDouble;
 import simulator.sampler.SamplerNext;
+import simulator.sampler.SamplerRewardCumulCont;
+import simulator.sampler.SamplerRewardCumulDisc;
+import simulator.sampler.SamplerRewardInstCont;
+import simulator.sampler.SamplerRewardInstDisc;
 import simulator.sampler.SamplerRewardReach;
 import simulator.sampler.SamplerUntil;
 
@@ -167,6 +172,20 @@ public abstract class KernelGenerator
 		PROPERTY_STATE_STRUCTURE = type;
 	}
 
+	/**
+	 * Types of rewards.
+	 */
+	protected enum RewardTypes {
+		REACHABILITY,
+		CUMULATIVE,
+		INSTANTANEOUS
+	}
+	/**
+	 * Reward required to save in structure.
+	 */
+	protected final EnumMap<RewardTypes, String[]> REWARD_REQUIRED_VARIABLES;
+	
+	
 	/**
 	 * StateVector field prefix.
 	 */
@@ -289,9 +308,14 @@ public abstract class KernelGenerator
 	 * @param properties
 	 * @param config
 	 */
-	public KernelGenerator(AbstractAutomaton model, List<Sampler> properties, RuntimeConfig config)
+	public KernelGenerator(AbstractAutomaton model, List<Sampler> properties, RuntimeConfig config) throws KernelException
 	{
 		this.model = model;
+		this.config = config;
+		this.prngType = config.prngType;
+		REWARD_REQUIRED_VARIABLES = initializeRewardRequiredVars();
+		
+		
 		// Separate properties
 		for(Sampler property : properties) {
 			if( property instanceof SamplerBoolean ) {
@@ -307,11 +331,9 @@ public abstract class KernelGenerator
 				this.rewardProperties.add((SamplerDouble) property);
 			}
 		}
-		createRewardStructures();
 		
-		this.config = config;
-		this.prngType = config.prngType;
 		importStateVector();
+		createRewardStructures();
 		int synSize = model.synchCmdsNumber();
 		int size = model.commandsNumber();
 		
@@ -356,6 +378,9 @@ public abstract class KernelGenerator
 			createSynchronizedStructures();
 		}
 		additionalDeclarations.add(PROPERTY_STATE_STRUCTURE.getDefinition());
+		for(Map.Entry<Integer, StructureType> rewardStruct : rewardStructures.entrySet()) {
+			additionalDeclarations.add( rewardStruct.getValue().getDefinition() );
+		}
 		
 		// PRNG definitions
 		if (prngType.getAdditionalDefinitions() != null) {
@@ -447,41 +472,39 @@ public abstract class KernelGenerator
 	 * - cumulative DTMC - total cumulative reward
 	 * - cumulative CTMC - total cumulative reward, previous state & transition reward, current state reward
 	 */
-	protected void createRewardStructures()
-	{
-		if( rewardProperties == null) {
-			return;
-		}
+	protected EnumMap<RewardTypes,String[]> initializeRewardRequiredVars() throws KernelException
+	{	
+		EnumMap<RewardTypes,String[]> map = new EnumMap<>( RewardTypes.class );
 		
-		for(SamplerDouble rewardProperty : rewardProperties) {
-			if( rewardProperty instanceof SamplerRewardReach ) {
-				createRewardStructuresReachability( (SamplerRewardReach) rewardProperty );
-			}
-		}
-	
+		// reachability - common for both CTMC and DTMC
+		map.put(RewardTypes.REACHABILITY, new String[]{ REWARD_STRUCTURE_VAR_CUMULATIVE_TOTAL} );
+		initializeRewardRequiredVarsCumulative(map);
+		initializeRewardRequiredVarsInstantaneous(map);
+		
+		return map;
 	}
 	
 	/**
-	 * Update reward structure and add (if necessary) fields used for reachability reward.
+	 * DTMC:
+	 * - total cumulative reward (state + transition)
+	 * 
+	 * CTMC:
+	 * - total cumulative reward (state + transition)
+	 * - previous state and transition reward
+	 * - current state reward
 	 * @param property
 	 */
-	protected void createRewardStructuresReachability(SamplerRewardReach property)
-	{
-		StructureType reward = rewardStructures.get(property.getRewardIndex());
-		
-		//if we already have a reward structure with this index, then check if we have to add a field
-		boolean addField = true;
-		if( reward != null ) {
-			if( reward.containsField(REWARD_STRUCTURE_VAR_CUMULATIVE_TOTAL) ) {
-				addField = false;
-			}
-		}
-		
-		if( addField ) {
-			CLVariable rewardVar = new CLVariable(rewardVarsType(), REWARD_STRUCTURE_VAR_CUMULATIVE_TOTAL);
-			reward.addVariable(rewardVar);
-		}
-	}
+	protected abstract void initializeRewardRequiredVarsCumulative(EnumMap<RewardTypes,String[]> map);
+	
+	/**
+	 * DTMC:
+	 * - current state reward
+	 * 
+	 * CTMC:
+	 * - current and previous state reward
+	 * @param property
+	 */
+	protected abstract void initializeRewardRequiredVarsInstantaneous(EnumMap<RewardTypes,String[]> map);
 	
 	/**
 	 * Initialize state vector from initial state declared in model or provided by user.  
@@ -507,6 +530,69 @@ public abstract class KernelGenerator
 			}
 		}
 		return stateVectorType.initializeStdStructure(init);
+	}
+	
+	protected void createRewardStructures() throws KernelException
+	{
+		if( rewardProperties == null) {
+			return;
+		}
+
+		int index = -1;
+		boolean flags[] = null;
+		String vars[] = null;
+		
+		for(SamplerDouble rewardProperty : rewardProperties) {
+			if( rewardProperty instanceof SamplerRewardReach ) {
+				
+				index = ((SamplerRewardReach) rewardProperty).getRewardIndex();
+				vars = REWARD_REQUIRED_VARIABLES.get( RewardTypes.REACHABILITY );
+				
+			} else if( rewardProperty instanceof SamplerRewardCumulCont) {
+				
+				index = ((SamplerRewardCumulCont) rewardProperty).getRewardIndex();
+				vars = REWARD_REQUIRED_VARIABLES.get( RewardTypes.CUMULATIVE );
+				
+			} else if( rewardProperty instanceof SamplerRewardCumulDisc) {
+
+				index = ((SamplerRewardCumulDisc) rewardProperty).getRewardIndex();
+				vars = REWARD_REQUIRED_VARIABLES.get( RewardTypes.CUMULATIVE );
+				
+			} else if( rewardProperty instanceof SamplerRewardInstCont) {
+				
+				index = ((SamplerRewardInstCont) rewardProperty).getRewardIndex();
+				vars = REWARD_REQUIRED_VARIABLES.get( RewardTypes.INSTANTANEOUS );
+				
+			} else if( rewardProperty instanceof SamplerRewardInstDisc) {
+
+				index = ((SamplerRewardInstDisc) rewardProperty).getRewardIndex();
+				vars = REWARD_REQUIRED_VARIABLES.get( RewardTypes.INSTANTANEOUS );
+				
+			} else {
+				throw new KernelException("Unknown type of reward property: " + rewardProperty.getClass().getName() + 
+						" for property: " + rewardProperty.toString());
+			}
+			
+			flags = new boolean[ vars.length ];
+			Arrays.fill(flags, true);
+			
+			StructureType type = rewardStructures.get(index);
+			
+			if( type != null ) {
+				for(int i = 0; i < vars.length; ++i) {
+					flags[i] = type.containsField(vars[i]);
+				}
+			} else {
+				type = new StructureType( String.format("REWARD_STRUCTURE_%d", index));
+				rewardStructures.put(index, type);
+			}
+			
+			for(int i = 0; i < vars.length; ++i) {
+				if( flags[i] ) {
+					type.addVariable( new CLVariable(rewardVarsType(), vars[i]));
+				}
+			}
+		}
 	}
 
 	/*********************************
@@ -541,13 +627,28 @@ public abstract class KernelGenerator
 		pathLengths.memLocation = Location.GLOBAL;
 		currentMethod.addArg(pathLengths);
 		//ARG 6..N: property results
-		CLVariable[] propertyResults = new CLVariable[properties.size()];
-		for (int i = 0; i < propertyResults.length; ++i) {
-			propertyResults[i] = new CLVariable(new PointerType(new StdVariableType(StdType.UINT8)),
-			//propertyNumber
-					String.format("property%d", i));
-			propertyResults[i].memLocation = Location.GLOBAL;
-			currentMethod.addArg(propertyResults[i]);
+		CLVariable[] propertyResults = null;
+		CLVariable[] rewardResults = null;
+		if ( properties != null) {
+			propertyResults = new CLVariable[properties.size()];
+			for (int i = 0; i < propertyResults.length; ++i) {
+				propertyResults[i] = new CLVariable(new PointerType(new StdVariableType(StdType.UINT8)),
+				//propertyNumber
+						String.format("property%d", i));
+				propertyResults[i].memLocation = Location.GLOBAL;
+				currentMethod.addArg(propertyResults[i]);
+			}
+		}
+		
+		if ( rewardProperties != null) {
+			rewardResults = new CLVariable[rewardProperties.size()];
+			for (int i = 0; i < rewardResults.length; ++i) {
+				rewardResults[i] = new CLVariable(new PointerType( rewardVarsType() ),
+				//propertyNumber
+						String.format("rewardOutput_%d", i));
+				rewardResults[i].memLocation = Location.GLOBAL;
+				currentMethod.addArg(rewardResults[i]);
+			}
 		}
 		
 		/**
@@ -565,15 +666,34 @@ public abstract class KernelGenerator
 		currentMethod.addLocalVar(varStateVector);
 
 		//property results
-		ArrayType propertiesArrayType = new ArrayType(PROPERTY_STATE_STRUCTURE, properties.size());
-		varPropertiesArray = new CLVariable(propertiesArrayType, "properties");
-		currentMethod.addLocalVar(varPropertiesArray);
-		CLValue initValues[] = new CLValue[properties.size()];
-		CLValue initValue = PROPERTY_STATE_STRUCTURE.initializeStdStructure(new Number[] { 0, 0 });
-		for (int i = 0; i < initValues.length; ++i) {
-			initValues[i] = initValue;
+		ArrayType propertiesArrayType = null;
+		if ( properties != null ) {
+			propertiesArrayType = new ArrayType(PROPERTY_STATE_STRUCTURE, properties.size());
+			varPropertiesArray = new CLVariable(propertiesArrayType, "properties");
+			currentMethod.addLocalVar(varPropertiesArray);
+			CLValue initValues[] = new CLValue[properties.size()];
+			CLValue initValue = PROPERTY_STATE_STRUCTURE.initializeStdStructure(new Number[] { 0, 0 });
+			for (int i = 0; i < initValues.length; ++i) {
+				initValues[i] = initValue;
+			}
+			varPropertiesArray.setInitValue(propertiesArrayType.initializeArray(initValues));
 		}
-		varPropertiesArray.setInitValue(propertiesArrayType.initializeArray(initValues));
+		//reward results
+		List<CLVariable> rewardVariables = null;
+		if( rewardProperties != null ) {
+			rewardVariables = new ArrayList<>();
+
+			for (Map.Entry<Integer, StructureType> reward : rewardStructures.entrySet()) {
+				CLVariable var = new CLVariable(reward.getValue(), String.format("reward_%d", reward.getKey()) );
+				Float initValues[] = new Float[ reward.getValue().getNumberOfFields() ];
+				Arrays.fill(initValues, 0.0f);
+				CLValue initValue = reward.getValue().initializeStdStructure( initValues );
+				var.setInitValue(initValue);
+				rewardVariables.add( var );
+				currentMethod.addLocalVar( var );
+			}
+		}
+		
 		//non-synchronized guard tab
 		if (hasNonSynchronized) {
 			varGuardsTab = new CLVariable(new ArrayType(new StdVariableType(0, commands.length), commands.length), "guardsTab");
@@ -611,8 +731,11 @@ public abstract class KernelGenerator
 			createSynGuardsMethod();
 			createUpdateMethodSyn();
 		}
-		helperMethods.put(KernelMethods.UPDATE_PROPERTIES, createPropertiesMethod());
-
+		
+		if( properties != null) {
+			helperMethods.put(KernelMethods.UPDATE_PROPERTIES, createPropertiesMethod());
+		}
+		
 		/**
 		 * Reject samples with globalID greater than numberOfSimulations
 		 * Necessary in every kernel, because number of OpenCL kernel launches will be aligned
@@ -689,8 +812,9 @@ public abstract class KernelGenerator
 		/**
 		 * if all properties are known, then we can end iterating
 		 */
-		mainMethodUpdateProperties(loop);
-		
+		if( properties != null ) {
+			mainMethodUpdateProperties(loop);
+		}
 
 		/**
 		 * if(selectionSize + synSelectionSize == 0) -> deadlock, break
@@ -751,10 +875,12 @@ public abstract class KernelGenerator
 		currentMethod.addExpression(createAssignment(pathLength, varPathLength));
 		position = createBinaryExpression(globalID.getSource(), Operator.ADD, resultsOffset.getSource());
 		//each property result
-		for (int i = 0; i < properties.size(); ++i) {
-			CLVariable result = propertyResults[i].accessElement(position);
-			CLVariable property = varPropertiesArray.accessElement(fromString(i)).accessField("propertyState");
-			currentMethod.addExpression(createAssignment(result, property));
+		if( properties != null ) {
+			for (int i = 0; i < properties.size(); ++i) {
+				CLVariable result = propertyResults[i].accessElement(position);
+				CLVariable property = varPropertiesArray.accessElement(fromString(i)).accessField("propertyState");
+				currentMethod.addExpression(createAssignment(result, property));
+			}
 		}
 		
 		// deinitialize PRNG
@@ -936,7 +1062,9 @@ public abstract class KernelGenerator
 			updateSize = createBinaryExpression(updateSize, Operator.EQ, fromString("1"));
 			IfElse loop = new IfElse(createBinaryExpression(updateFlag, Operator.LAND, updateSize));
 			loop.setConditionNumber(0);
-			mainMethodUpdateProperties(loop);
+			if( properties != null ) {
+				mainMethodUpdateProperties(loop);
+			}
 			loop.addExpression(new Expression("break;\n"));
 			parent.addExpression(loop);
 		}
