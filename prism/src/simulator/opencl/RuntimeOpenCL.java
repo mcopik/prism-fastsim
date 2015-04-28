@@ -32,6 +32,7 @@ import java.util.Map;
 
 import parser.State;
 import parser.ast.Expression;
+import parser.ast.ExpressionProb;
 import parser.ast.ExpressionReward;
 import parser.ast.ModulesFile;
 import prism.ModelType;
@@ -295,16 +296,22 @@ public class RuntimeOpenCL extends PrismComponent implements SMCRuntimeInterface
 				currentContexts.add(currentContext);
 			}
 			long time = System.nanoTime() - startTime;
+			
+			mainLog.println();
 			mainLog.println("Time of generation and compilation of OpenCL kernel: " + String.format("%s", time * 10e-10) + " seconds.");
-			mainLog.flush();
-
+			
+			mainLog.println();
 			mainLog.println("Compilation details:");
 			counter = 1;
 			for (CLDeviceWrapper device : currentDevices) {
 				mainLog.println(Integer.toString(counter) + " : " + device.getExtendedName());
-				mainLog.println(currentContexts.get(counter - 1).getBuildInfo(counter++ - 1));
+				String details = currentContexts.get(counter - 1).getBuildInfo(counter++ - 1);
+				mainLog.println( details.length() == 0 ? "None." : details);
 			}
-			mainLog.println("Start sampling on devices!");
+			
+			mainLog.println();
+			mainLog.println("Start sampling on devices!");			
+			mainLog.flush();
 
 			for (RuntimeContext context : currentContexts) {
 				context.runSimulation();
@@ -337,8 +344,10 @@ public class RuntimeOpenCL extends PrismComponent implements SMCRuntimeInterface
 	@Override
 	public void checkPropertyForAMC(Expression expr) throws PrismException
 	{
-		if (expr instanceof ExpressionReward) {
-			throw new PrismException("Currently reward properties are not supported in OpenCL simulator.");
+		//TODO: Start developing reward properties
+		if (!(expr instanceof ExpressionReward) && !(expr instanceof ExpressionProb)) {
+			throw new PrismException("Currently only probabilistic and reward properties are supported in OpenCL simulator. "
+					+ "Unknown type of property: " + expr.getClass().getName());
 		}
 	}
 }

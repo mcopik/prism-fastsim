@@ -43,6 +43,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 
 import parser.ast.ExpressionLiteral;
 import prism.PrismLangException;
@@ -79,8 +80,11 @@ import simulator.sampler.Sampler;
 import simulator.sampler.SamplerBoolean;
 import simulator.sampler.SamplerBoundedUntilCont;
 import simulator.sampler.SamplerBoundedUntilDisc;
+import simulator.sampler.SamplerDouble;
 import simulator.sampler.SamplerNext;
+import simulator.sampler.SamplerRewardReach;
 import simulator.sampler.SamplerUntil;
+import sun.reflect.ReflectionFactory.GetReflectionFactoryAction;
 
 public abstract class KernelGenerator
 {
@@ -180,12 +184,37 @@ public abstract class KernelGenerator
 	protected RuntimeConfig config = null;
 	protected Command commands[] = null;
 	protected SynchronizedCommand synCommands[] = null;
-	protected List<Sampler> properties = null;
-	protected List<KernelComponent> additionalDeclarations = new ArrayList<>();
+	
 	/**
-	 * 
+	 * Samplers for PCTL/CSL properties.
+	 */
+	protected List<SamplerBoolean> properties = null;
+	
+	/**
+	 * Samplers for rewards.
+	 */
+	protected List<SamplerDouble> rewardProperties = null;
+	
+	/**
+	 * Structures for rewards, indexed by PRISM rewardStructureIndex.
+	 */
+	protected Map<Integer, StructureType> rewardStructures = null;
+	
+	/**
+	 * Additional declarations in kernel - structure types for StateVector,
+	 * synchronized updates, saved variables etc.
+	 */
+	protected List<KernelComponent> additionalDeclarations = new ArrayList<>();
+	
+	/**
+	 * Methods:
+	 * - non-synchronized guards check & update
+	 * - synchronized guards check & update
+	 * - property verification
+	 * - reward update
 	 */
 	protected EnumMap<KernelMethods, Method> helperMethods = new EnumMap<>(KernelMethods.class);
+	
 	/**
 	 * List of synchronized guard check methods, one for each label.
 	 */
@@ -244,7 +273,23 @@ public abstract class KernelGenerator
 	public KernelGenerator(AbstractAutomaton model, List<Sampler> properties, RuntimeConfig config)
 	{
 		this.model = model;
-		this.properties = properties;
+		// Separate properties
+		for(Sampler property : properties) {
+			if( property instanceof SamplerBoolean ) {
+				if( this.properties == null ) {
+					this.properties = new ArrayList<>();
+				}
+				this.properties.add((SamplerBoolean) property);
+			} else {
+				if( this.rewardProperties == null ) {
+					this.rewardProperties = new ArrayList<>();
+					this.rewardStructures = new TreeMap<>();
+				}
+				this.rewardProperties.add((SamplerDouble) property);
+			}
+		}
+		createRewardStructures();
+		
 		this.config = config;
 		this.prngType = config.prngType;
 		importStateVector();
@@ -361,6 +406,53 @@ public abstract class KernelGenerator
 		additionalDeclarations.add(stateVectorType.getDefinition());
 	}
 
+	protected StdVariableType rewardType()
+	{
+		return new StdVariableType(StdType.FLOAT);
+	}
+	
+	/**
+	 * Import all reward samplers and create C structures to contain required information in kernel launch.
+	 * 
+	 * For every reward structure:
+	 * - reward reachability - total cumulative reward
+	 * - instanteous reward DTMC - current state reward
+	 * - instanteous reward CTMC - current and previous state reward
+	 * - cumulative DTMC - total cumulative reward
+	 * - cumulative CTMC - total cumulative reward, previous state & transition reward, current state reward
+	 */
+	protected void createRewardStructures()
+	{
+		if( rewardProperties == null) {
+			return;
+		}
+		
+		
+		for(SamplerDouble rewardProperty : rewardProperties) {
+			if( rewardProperty instanceof SamplerRewardReach ) {
+				createRewardStructuresReachability( (SamplerRewardReach) rewardProperty );
+			}
+		}
+	
+	}
+	
+	protected void createRewardStructuresReachability(SamplerRewardReach property)
+	{
+		StructureType reward = rewardStructures.get(property.getRewardIndex());
+		
+		//if we already have a reward structure with this index, then check if we have to add a field
+		boolean addField = true;
+		if( reward != null ) {
+			if( reward.containsField("cumulativeTotalReward") ) {
+				addField = false;
+			}
+		}
+		
+		if( addField ) {
+			CLVariable rewardVar = new CLVariable(rewardType(), "cumulativeTotalReward");
+		}
+	}
+	
 	/**
 	 * Initialize state vector from initial state declared in model or provided by user.  
 	 * @return structure initialization value
@@ -556,25 +648,6 @@ public abstract class KernelGenerator
 		}
 		
 		/**
-		 * if(selectionSize + synSelectionSize == 0) -> deadlock, break
-		 */
-		Expression sum = null;
-		if (varSynSelectionSize != null && varSelectionSize != null) {
-			sum = createBinaryExpression(varSelectionSize.getSource(), Operator.ADD, varSynSelectionSize.getSource());
-		} else if (varSynSelectionSize != null) {
-			sum = varSynSelectionSize.getSource();
-		} else {
-			sum = varSelectionSize.getSource();
-		}
-		
-		/**
-		 * Deadlock when number of possible choices is 0.
-		 */
-		IfElse deadlockState = new IfElse(createBinaryExpression(sum, Operator.EQ, fromString(0)));
-		deadlockState.addExpression(new Expression("break;\n"));
-		loop.addExpression(deadlockState);
-		
-		/**
 		 * update time -> in case of CTMC and bounded until we need two time values:
 		 * 1) entering state
 		 * 2) leaving state
@@ -587,6 +660,25 @@ public abstract class KernelGenerator
 		 * if all properties are known, then we can end iterating
 		 */
 		mainMethodUpdateProperties(loop);
+		
+
+		/**
+		 * if(selectionSize + synSelectionSize == 0) -> deadlock, break
+		 */
+		Expression sum = null;
+		if (varSynSelectionSize != null && varSelectionSize != null) {
+			sum = createBinaryExpression(varSelectionSize.getSource(), Operator.ADD, varSynSelectionSize.getSource());
+		} else if (varSynSelectionSize != null) {
+			sum = varSynSelectionSize.getSource();
+		} else {
+			sum = varSelectionSize.getSource();
+		}
+		/**
+		 * Deadlock when number of possible choices is 0.
+		 */
+		IfElse deadlockState = new IfElse(createBinaryExpression(sum, Operator.EQ, fromString(0)));
+		deadlockState.addExpression(new Expression("break;\n"));
+		loop.addExpression(deadlockState);
 		
 		/**
 		 * call update method; 

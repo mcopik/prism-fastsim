@@ -1,5 +1,0 @@
-#../models/ctmcs/cluster, qos3.csl
-#../models/ctmcs/cluster, qos4.csl
-#../models/ctmcs/embedded, io_T.csl
-#../models/ctmcs/polling, station1_polled.csl
-#../models/ctmcs/tandem, first_queue.csl

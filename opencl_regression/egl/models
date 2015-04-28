@@ -1,7 +1,0 @@
-egl.pm -const N=5,L=2
-
-egl.pm -const N=10,L=2
-
-#egl.pm -const N=15,L=2
-
-#egl.pm -const N=20,L=2

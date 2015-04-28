@@ -1,6 +1,0 @@
-// Expected number of messages from B that A needs to knows a pair once B knows a pair
-
-// RESULT(N=5,L=2): 1.1513671875
-// RESULT(N=5,L=3): 1.302734375
-// RESULT(N=10,L=2): 1.009756088256836
-"messagesA": R{"messages_A_needs"}=? [ F phase=4 ];
