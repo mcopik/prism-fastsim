@@ -32,6 +32,7 @@ import parser.ast.ExpressionConstant;
 import parser.ast.ExpressionFunc;
 import parser.ast.ExpressionLiteral;
 import parser.ast.ExpressionUnaryOp;
+import parser.ast.ExpressionVar;
 import parser.type.Type;
 import parser.type.TypeDouble;
 import parser.type.TypeInt;
@@ -215,13 +216,14 @@ public class ParsTreeModifier extends ASTTraverseModify
 			 * Instead of using ExpressionLiteral, use ExpressionConstant and print in kernel as "2.0f" - 2.0 will be interpreted as double.
 			 */
 			if (type instanceof TypeInt) {
-				return new ExpressionConstant(String.format("%ff",Double.valueOf((Integer) value)), operand.getType());
+				return new ExpressionLiteral(operand.getType(), String.format("%ff",Double.valueOf((Integer) value)));
 			} else {
-				return new ExpressionConstant(String.format("%ff",(Double) value), operand.getType());
+				return new ExpressionLiteral(operand.getType(), String.format("%ff",(Double) value));
 			}
 		} else {
 			String newVariable = String.format("(float)(%s)", operand);
-			return new ExpressionConstant(newVariable, operand.getType());
+			// will break parser rules!
+			return new ExpressionVar(newVariable, operand.getType());
 		}
 	}
 }
