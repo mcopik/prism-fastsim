@@ -84,7 +84,6 @@ import simulator.sampler.SamplerDouble;
 import simulator.sampler.SamplerNext;
 import simulator.sampler.SamplerRewardReach;
 import simulator.sampler.SamplerUntil;
-import sun.reflect.ReflectionFactory.GetReflectionFactoryAction;
 
 public abstract class KernelGenerator
 {
@@ -178,6 +177,26 @@ public abstract class KernelGenerator
 	 */
 	protected final static String SAVED_VARIABLE_PREFIX = "SAVED_VARIABLE__";
 
+	/**
+	 * Name of structure field corresponding to total cumulative reward.
+	 */
+	protected final static String REWARD_STRUCTURE_VAR_CUMULATIVE_TOTAL = "cumulativeTotalReward";
+	
+	/**
+	 * Name of structure field corresponding to current state reward.
+	 */
+	protected final static String REWARD_STRUCTURE_VAR_CURRENT_STATE = "currentStateReward";
+	
+	/**
+	 * Name of structure field corresponding to previous state reward.
+	 */
+	protected final static String REWARD_STRUCTURE_VAR_PREVIOUS_STATE = "prevStateReward";
+	
+	/**
+	 * Name of structure field corresponding to previous transitions reward (previous update).
+	 */
+	protected final static String REWARD_STRUCTURE_VAR_PREVIOUS_TRANSITION = "prevStateReward";
+	
 	protected Map<String, StructureType> synchronizedStates = new LinkedHashMap<>();
 	protected StructureType synCmdState = null;
 	protected AbstractAutomaton model = null;
@@ -406,9 +425,16 @@ public abstract class KernelGenerator
 		additionalDeclarations.add(stateVectorType.getDefinition());
 	}
 
-	protected StdVariableType rewardType()
+	/**
+	 * @return type of variable containing rewards
+	 */
+	protected StdVariableType rewardVarsType()
 	{
-		return new StdVariableType(StdType.FLOAT);
+		if( this.config.rewardVariableType == RuntimeConfig.RewardVariableType.FLOAT ) {
+			return new StdVariableType(StdType.FLOAT);
+		} else {
+			return new StdVariableType(StdType.DOUBLE);
+		}
 	}
 	
 	/**
@@ -427,7 +453,6 @@ public abstract class KernelGenerator
 			return;
 		}
 		
-		
 		for(SamplerDouble rewardProperty : rewardProperties) {
 			if( rewardProperty instanceof SamplerRewardReach ) {
 				createRewardStructuresReachability( (SamplerRewardReach) rewardProperty );
@@ -436,6 +461,10 @@ public abstract class KernelGenerator
 	
 	}
 	
+	/**
+	 * Update reward structure and add (if necessary) fields used for reachability reward.
+	 * @param property
+	 */
 	protected void createRewardStructuresReachability(SamplerRewardReach property)
 	{
 		StructureType reward = rewardStructures.get(property.getRewardIndex());
@@ -443,13 +472,14 @@ public abstract class KernelGenerator
 		//if we already have a reward structure with this index, then check if we have to add a field
 		boolean addField = true;
 		if( reward != null ) {
-			if( reward.containsField("cumulativeTotalReward") ) {
+			if( reward.containsField(REWARD_STRUCTURE_VAR_CUMULATIVE_TOTAL) ) {
 				addField = false;
 			}
 		}
 		
 		if( addField ) {
-			CLVariable rewardVar = new CLVariable(rewardType(), "cumulativeTotalReward");
+			CLVariable rewardVar = new CLVariable(rewardVarsType(), REWARD_STRUCTURE_VAR_CUMULATIVE_TOTAL);
+			reward.addVariable(rewardVar);
 		}
 	}
 	

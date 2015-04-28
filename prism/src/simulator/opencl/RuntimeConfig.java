@@ -114,6 +114,16 @@ public class RuntimeConfig
 	 */
 	static public final int DEFAULT_INDIRECT_PATH_PERIOD = 3;
 	public int inDirectPathCheckPeriod = DEFAULT_INDIRECT_PATH_PERIOD;
+	
+	/**
+	 * Type of variable containing current/previous/cumulative rewards in OpenCL.
+	 * Double precision may not be necessary and the usage of registers is doubled. 
+	 */
+	public enum RewardVariableType {
+		FLOAT, DOUBLE
+	}
+	static public final RewardVariableType DEFAULT_REWARD_VAR_TYPE = RewardVariableType.FLOAT;
+	public RewardVariableType rewardVariableType = DEFAULT_REWARD_VAR_TYPE;
 
 	/**
 	 * Configure using only PrismSettings.
@@ -142,6 +152,14 @@ public class RuntimeConfig
 			prngType = new PRNGRandom123("prng", prngSeed);
 		} else {
 			prngType = new PRNGmwc64x("prng", prngSeed);
+		}
+		
+		//reward variable type
+		choice = settings.getChoice(PrismSettings.OPENCL_SIMULATOR_REWARD_VARIABLE_TYPE);
+		if (choice == PrismSettings.OPENCL_SIMULATOR_REWARD_VARIABLE_TYPE_CHOICES.FLOAT.id) {
+			rewardVariableType = RewardVariableType.FLOAT;
+		} else {
+			rewardVariableType = RewardVariableType.DOUBLE;
 		}
 		
 		//load other parameters

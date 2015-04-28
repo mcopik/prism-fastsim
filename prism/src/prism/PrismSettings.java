@@ -153,6 +153,7 @@ public class PrismSettings implements Observer
 	public static final String OPENCL_SIMULATOR_PROPERTIES_SIMULTANEOUS				= "opencl.simultaneous";
 	public static final	String OPENCL_SIMULATOR_PRNG								= "opencl.prng";
 	public static final String OPENCL_SIMULATOR_PRNG_SEED							= "opencl.prngSeed";
+	public static final String OPENCL_SIMULATOR_REWARD_VARIABLE_TYPE				= "opencl.rewardVariableType";
 	// available prngs
 	public enum OPENCL_SIMULATOR_PRNG_CHOICES { 
 		RANDOM123(1), MWC64X(2); 
@@ -171,6 +172,26 @@ public class PrismSettings implements Observer
 		OPENCL_SIMULATOR_PRNG_CAPTIONS.put(OPENCL_SIMULATOR_PRNG_CHOICES.MWC64X, "mwc64x");
 		OPENCL_SIMULATOR_PRNG_CAPTIONS_ALL = "Random123 (default),mwc64x";
 		OPENCL_SIMULATOR_PRNG_CAPTIONS_DEFAULT = "Random123 (default)";
+	}
+	
+	// available prngs
+	public enum OPENCL_SIMULATOR_REWARD_VARIABLE_TYPE_CHOICES { 
+		FLOAT(1), DOUBLE(2); 
+		public final int id; 
+		OPENCL_SIMULATOR_REWARD_VARIABLE_TYPE_CHOICES(int id)
+		{
+			this.id = id;
+		}
+	};
+	private static final EnumMap<OPENCL_SIMULATOR_REWARD_VARIABLE_TYPE_CHOICES,String> OPENCL_SIMULATOR_REWARD_VARIABLE_TYPE_CAPTIONS;
+	private static final String OPENCL_SIMULATOR_REWARD_VARIABLE_TYPE_CAPTIONS_ALL;
+	private static final String OPENCL_SIMULATOR_REWARD_VARIABLE_TYPE_CAPTIONS_DEFAULT;
+	static {
+		OPENCL_SIMULATOR_REWARD_VARIABLE_TYPE_CAPTIONS = new EnumMap<>(OPENCL_SIMULATOR_REWARD_VARIABLE_TYPE_CHOICES.class);
+		OPENCL_SIMULATOR_REWARD_VARIABLE_TYPE_CAPTIONS.put(OPENCL_SIMULATOR_REWARD_VARIABLE_TYPE_CHOICES.FLOAT, "Single-precision floating-point value");
+		OPENCL_SIMULATOR_REWARD_VARIABLE_TYPE_CAPTIONS.put(OPENCL_SIMULATOR_REWARD_VARIABLE_TYPE_CHOICES.DOUBLE, "Double-precision floating-point value");
+		OPENCL_SIMULATOR_REWARD_VARIABLE_TYPE_CAPTIONS_ALL = "Single-precision floating-point value, Double-precision floating-point value";
+		OPENCL_SIMULATOR_REWARD_VARIABLE_TYPE_CAPTIONS_DEFAULT = "Single-precision floating-point value";
 	}
 	
 	//GUI Model
@@ -412,7 +433,10 @@ public class PrismSettings implements Observer
 			{ CHOICE_TYPE,		OPENCL_SIMULATOR_PRNG,						"Pseudorandom number generator",				"4.1",		OPENCL_SIMULATOR_PRNG_CAPTIONS_DEFAULT,			OPENCL_SIMULATOR_PRNG_CAPTIONS_ALL,
 																			"Which PRNG will be used by simulator. Default choice is Random123 which provides much better performance." },
 			{ STRING_TYPE,		OPENCL_SIMULATOR_PRNG_SEED,					"PRNG seed",			"4.1",		"",			"",
-																			"If non-empty, the seed will be used to initialize PRNG. Otherwise, current time will be used." }
+																			"If non-empty, the seed will be used to initialize PRNG. Otherwise, current time will be used." },
+			{ CHOICE_TYPE,		OPENCL_SIMULATOR_REWARD_VARIABLE_TYPE,		"Variable type of reward",				"4.1",		OPENCL_SIMULATOR_REWARD_VARIABLE_TYPE_CAPTIONS_DEFAULT,	OPENCL_SIMULATOR_REWARD_VARIABLE_TYPE_CAPTIONS_ALL,
+																			"Decide whether one should use single or double precision floating point format to store rewards in OpenCL kernel. Double precision may give more accurate results, when it is needed, but the kernel will use more registers." }
+
 		},
 		{
 			{ BOOLEAN_TYPE,		MODEL_AUTO_PARSE,						"Auto parse",							"2.1",			new Boolean(true),															"",																							"Parse PRISM models automatically as they are loaded/edited in the text editor." },
