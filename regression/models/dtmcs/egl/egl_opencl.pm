@@ -95,7 +95,7 @@ module partyA
 	
 	// first step (get either secret i or (N-1)+i with equal probability)
 	[receiveA] phase=1 & n=0  -> 0.5 : (b0'=L)  + 0.5 : (b20'=L);
-	[receiveA] phase=1 & n=1  -> 0.5 : (b1'=L)  + 0.5 : (b21'=L);
+	[receiveA] phase=1 & n=1  -> n/2 : (b1'=L)  + 0.5 : (b21'=L);
 	[receiveA] phase=1 & n=2  -> 0.5 : (b2'=L)  + 0.5 : (b22'=L);
 	[receiveA] phase=1 & n=3  -> 0.5 : (b3'=L)  + 0.5 : (b23'=L);
 	[receiveA] phase=1 & n=4  -> 0.5 : (b4'=L)  + 0.5 : (b24'=L);

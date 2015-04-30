@@ -36,7 +36,8 @@ import simulator.opencl.automaton.AbstractAutomaton.AutomatonType;
 import simulator.opencl.kernel.expression.Include;
 import simulator.opencl.kernel.expression.KernelComponent;
 import simulator.opencl.kernel.expression.Method;
-import simulator.sampler.Sampler;
+import simulator.sampler.SamplerBoolean;
+import simulator.sampler.SamplerDouble;
 
 public class Kernel
 {
@@ -88,15 +89,17 @@ public class Kernel
 	 * @param config
 	 * @param model
 	 * @param properties
+	 * @param rewardProperties
 	 * @throws KernelException
 	 * @throws PrismLangException 
 	 */
-	public Kernel(RuntimeConfig config, AbstractAutomaton model, List<Sampler> properties) throws KernelException, PrismLangException
+	public Kernel(RuntimeConfig config, AbstractAutomaton model, List<SamplerBoolean> properties, List<SamplerDouble> rewardProperties) 
+			throws KernelException, PrismLangException
 	{
 		if (model.getType() == AutomatonType.DTMC) {
-			this.methodsGenerator = new KernelGeneratorDTMC(model, properties, config);
+			this.methodsGenerator = new KernelGeneratorDTMC(model, properties, rewardProperties, config);
 		} else {
-			this.methodsGenerator = new KernelGeneratorCTMC(model, properties, config);
+			this.methodsGenerator = new KernelGeneratorCTMC(model, properties, rewardProperties, config);
 		}
 		mainMethod = methodsGenerator.createMainMethod();
 		helperMethods = methodsGenerator.getHelperMethods();

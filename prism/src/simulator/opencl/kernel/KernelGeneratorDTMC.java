@@ -59,9 +59,9 @@ import simulator.opencl.kernel.memory.RValue;
 import simulator.opencl.kernel.memory.StdVariableType;
 import simulator.opencl.kernel.memory.StdVariableType.StdType;
 import simulator.opencl.kernel.memory.StructureType;
-import simulator.sampler.Sampler;
 import simulator.sampler.SamplerBoolean;
 import simulator.sampler.SamplerBoundedUntilDisc;
+import simulator.sampler.SamplerDouble;
 
 public class KernelGeneratorDTMC extends KernelGenerator
 {
@@ -75,11 +75,13 @@ public class KernelGeneratorDTMC extends KernelGenerator
 	 * Constructor for DTMC kernel generator.
 	 * @param model
 	 * @param properties
+	 * @param rewardProperties
 	 * @param config
 	 */
-	public KernelGeneratorDTMC(AbstractAutomaton model, List<Sampler> properties, RuntimeConfig config) throws KernelException
+	public KernelGeneratorDTMC(AbstractAutomaton model, List<SamplerBoolean> properties, List<SamplerDouble> rewardProperties, 
+			RuntimeConfig config) throws KernelException
 	{
-		super(model, properties, config);
+		super(model, properties, rewardProperties, config);
 	}
 
 	@Override

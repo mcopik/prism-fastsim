@@ -32,6 +32,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 
 import prism.Preconditions;
 import prism.PrismException;
@@ -89,6 +90,8 @@ public class SynchronizedCommand implements CommandInterface
 
 				//for every action
 				for (int i = 0; i < up.getActionsNumber(); ++i) {
+					// we may use the variable in rate definition
+					builder.append( up.getRate(i) ).append(" ");
 					Action action = up.getAction(i);
 					//for every updated value
 					for (int j = 0; j < action.getUpdatesNumber(); ++j) {
@@ -109,7 +112,7 @@ public class SynchronizedCommand implements CommandInterface
 	/**
 	 * module_name -> commands at module
 	 */
-	private Map<String, ModuleGroup> synchronizedCommands = new HashMap<>();
+	private Map<String, ModuleGroup> synchronizedCommands = new TreeMap<>();
 
 	/**
 	 * All modules containing commands with given label.

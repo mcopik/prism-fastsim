@@ -50,11 +50,13 @@ import simulator.method.CIMethod;
 import simulator.method.CIiterations;
 import simulator.method.SPRTMethod;
 import simulator.method.SimulationMethod;
+import simulator.opencl.RuntimeConfig.RewardVariableType;
 import simulator.opencl.automaton.AbstractAutomaton;
 import simulator.opencl.kernel.Kernel;
 import simulator.opencl.kernel.KernelException;
 import simulator.sampler.Sampler;
 import simulator.sampler.SamplerBoolean;
+import simulator.sampler.SamplerDouble;
 
 import com.nativelibs4java.opencl.CLBuffer;
 import com.nativelibs4java.opencl.CLBuildException;
@@ -74,11 +76,27 @@ public class RuntimeContext
 	 * b) when estimator and quantile determine if sampling should be stopped
 	 */
 	private abstract class ContextState
-	{
+	{	
 		/**
-		 * Properties.
+		 * OpenCL buffers to store results.
+		 * One for each boolean property.
 		 */
-		public List<Sampler> properties;
+		protected List<CLBuffer<Byte>> resultBuffers = new ArrayList<>();
+		
+		/**
+		 * OpenCL buffers to store results of rewards - single-precision float.
+		 */
+		protected List< CLBuffer<Float> > resultRewardBuffersFloat = null;
+		
+		/**
+		 * OpenCL buffers to store results of rewards - double-precision float.
+		 */
+		protected List< CLBuffer<Double> > resultRewardBuffersDouble = null;
+		
+		/**
+		 * OpenCL buffer for path lengths.
+		 */
+		protected CLBuffer<Integer> pathLengths = null;
 		
 		/**
 		 * Status of each property - verified or not?
@@ -115,13 +133,18 @@ public class RuntimeContext
 		 * @param gwSize
 		 * @param lwSize
 		 */
-		protected ContextState(List<Sampler> properties, int gwSize, int lwSize)
+		protected ContextState(int gwSize, int lwSize)
 		{
-			this.properties = properties;
-			propertiesStatus = new Boolean[properties.size()];
+			propertiesStatus = new Boolean[properties.size() + rewardProperties.size()];
 			Arrays.fill(propertiesStatus, false);
 			this.globalWorkSize = roundUp(lwSize, gwSize);
 			this.localWorkSize = lwSize;
+			
+			if ( config.rewardVariableType == RewardVariableType.FLOAT ) {
+				resultRewardBuffersFloat = new ArrayList<>();
+			} else {
+				resultRewardBuffersDouble = new ArrayList<>();
+			}
 		}
 
 		/**
@@ -192,6 +215,12 @@ public class RuntimeContext
 			for (int i = 0; i < properties.size(); ++i) {
 				programKernel.setObjectArg(5 + argOffset + i, resultBuffers.get(i));
 			}
+			int propertiesOffset = 5 + argOffset + properties.size();
+			for (int i = 0; i < rewardProperties.size(); ++i) {
+				programKernel.setObjectArg(propertiesOffset + i, resultRewardBuffersFloat != null ? 
+						resultRewardBuffersFloat.get(i) : resultRewardBuffersDouble.get(i));
+			}
+			
 			return programKernel.enqueueNDRange(queue, new int[] { currentGWSize }, new int[] { localWorkSize });
 		}
 
@@ -218,21 +247,38 @@ public class RuntimeContext
 		protected void readResults(int start, int samples, int periodityOfSamplerCheck) throws PrismException
 		{
 			List<Pair<SamplerBoolean, Pointer<Byte>>> bytes = new ArrayList<>();
+			List<Pair<SamplerDouble, Pointer<Float>>> rewardResultsF = new ArrayList<>();
+			List<Pair<SamplerDouble, Pointer<Double>>> rewardResultsD = new ArrayList<>();
 			List<CLEvent> readEvents = new ArrayList<>();
+			
 			/**
 			 * For each active sampler, add a pair of sampler and pointer to read data.
 			 */
 			for (int i = 0; i < properties.size(); ++i) {
-				SamplerBoolean sampler = (SamplerBoolean) properties.get(i);
 				if (!propertiesStatus[i]) {
-					bytes.add(new Pair<SamplerBoolean, Pointer<Byte>>(sampler, Pointer.allocateBytes(samples)));
+					bytes.add(new Pair<SamplerBoolean, Pointer<Byte>>(properties.get(i), Pointer.allocateBytes(samples)));
 					readEvents.add(resultBuffers.get(i).read(queue, start, samples, bytes.get(i).second, false));
 				}
 			}
+			int offset = properties.size();
+			for (int i = 0; i < rewardProperties.size(); ++i) {
+				if (!propertiesStatus[offset + i]) {
+					if ( resultRewardBuffersFloat != null ) {
+						rewardResultsF.add(new Pair<SamplerDouble, Pointer<Float>>(rewardProperties.get(i), Pointer.allocateFloats(samples)));
+						readEvents.add(resultRewardBuffersFloat.get(i).read(queue, start, samples, rewardResultsF.get(i).second, false));
+					} else {
+						rewardResultsD.add(new Pair<SamplerDouble, Pointer<Double>>(rewardProperties.get(i), Pointer.allocateDoubles(samples)));
+						readEvents.add(resultRewardBuffersDouble.get(i).read(queue, start, samples, rewardResultsD.get(i).second, false));
+					}
+				}
+			}
+			
+			
 			/**
 			 * Wait for reading.
 			 */
 			CLEvent.waitFor(readEvents.toArray(new CLEvent[readEvents.size()]));
+			
 			/**
 			 * Add read data to sampler.
 			 */
@@ -272,6 +318,45 @@ public class RuntimeContext
 					}
 				}
 			}
+			
+			if( rewardResultsF != null) {
+				readResultsReward(rewardResultsF, periodityOfSamplerCheck);
+			}
+		}
+		
+		protected <T extends Number> void readResultsReward(List<Pair<SamplerDouble, Pointer<T>>> data, int periodityOfSamplerCheck) throws PrismException
+		{
+
+			for (int i = 0; i < data.size(); ++i) {
+				Pair<SamplerDouble, Pointer<T>> pair = data.get(i);
+				NativeList<T> results = pair.second.asList();
+				
+				for (int j = 0; j < results.size(); ++j) {
+					Double _result = results.get(j).doubleValue();
+					/**
+					 * Property was not verified!
+					 */
+					if (_result.isNaN()) {
+						throw new PrismException("Property was not verified on one of the samples!");
+					}
+					/**
+					 * Normal result.
+					 */
+					else {
+						pair.first.addSample(_result);
+						if (periodityOfSamplerCheck != -1 && j % periodityOfSamplerCheck == 0) {
+							Sampler sampler = pair.first;
+							if (sampler.getSimulationMethod().shouldStopNow(samplesProcessed + j, sampler)) {
+								/**
+								 * We're already finished with sampler, jump to next property.
+								 */
+								propertiesStatus[i] = true;
+								break;
+							}
+						}
+					}
+				}
+			}
 		}
 
 		/**
@@ -295,6 +380,14 @@ public class RuntimeContext
 		 * @return time of running a kernel
 		 */
 		public abstract long getKernelTime();
+		
+		public void release()
+		{
+			for (CLBuffer<Byte> buffer : resultBuffers) {
+				buffer.release();
+			}
+			pathLengths.release();
+		}
 	}
 
 	private class KnownIterationsState extends ContextState
@@ -314,9 +407,9 @@ public class RuntimeContext
 		 * @param lwSize
 		 * @param numberOfSamples
 		 */
-		public KnownIterationsState(List<Sampler> properties, int lwSize, int numberOfSamples)
+		public KnownIterationsState(int lwSize, int numberOfSamples)
 		{
-			super(properties, currentDevice.isGPU() ? config.directMethodGWSizeGPU : config.directMethodGWSizeCPU, lwSize);
+			super(currentDevice.isGPU() ? config.directMethodGWSizeGPU : config.directMethodGWSizeCPU, lwSize);
 			this.numberOfSamples = numberOfSamples;
 			createBuffers();
 		}
@@ -426,9 +519,9 @@ public class RuntimeContext
 		 * @param properties
 		 * @param lwSize
 		 */
-		public NotKnownIterationsState(List<Sampler> properties, int lwSize)
+		public NotKnownIterationsState(int lwSize)
 		{
-			super(properties, currentDevice.isGPU() ? config.inDirectMethodGWSizeGPU : config.inDirectMethodGWSizeCPU, lwSize);
+			super(currentDevice.isGPU() ? config.inDirectMethodGWSizeGPU : config.inDirectMethodGWSizeCPU, lwSize);
 			resultCheckPeriod = config.inDirectResultCheckPeriod;
 			pathCheckPeriod = config.inDirectPathCheckPeriod;
 			createBuffers();
@@ -605,6 +698,16 @@ public class RuntimeContext
 	CLContext context = null;
 	
 	/**
+	 * Properties.
+	 */
+	public List<SamplerBoolean> properties;
+	
+	/**
+	 * Reward properties.
+	 */
+	public List<SamplerDouble> rewardProperties;
+	
+	/**
 	 * Created kernel.
 	 */
 	Kernel kernel = null;
@@ -618,17 +721,6 @@ public class RuntimeContext
 	 * PRISM log.
 	 */
 	private PrismLog mainLog = null;
-	
-	/**
-	 * OpenCL buffers to store results.
-	 * One for each property.
-	 */
-	private List<CLBuffer<Byte>> resultBuffers = new ArrayList<>();
-	
-	/**
-	 * OpenCL buffer for path lengths.
-	 */
-	private CLBuffer<Integer> pathLengths = null;
 	
 	/**
 	 * Internal implementation of sampling - different approaches when number of samples is known
@@ -694,8 +786,19 @@ public class RuntimeContext
 		try {
 			this.config = config;
 			//TODO : extend for multiple devices
-			this.config.configDevice(currentDevice);
-			kernel = new Kernel(this.config, automaton, properties);
+			this.config.configDevice(currentDevice);		
+			
+			// Separate properties
+			this.properties = new ArrayList<>();
+			this.rewardProperties = new ArrayList<>();
+			for(Sampler property : properties) {
+				if( property instanceof SamplerBoolean ) {
+					this.properties.add((SamplerBoolean) property);
+				} else {
+					this.rewardProperties.add((SamplerDouble) property);
+				}
+			}
+			kernel = new Kernel(this.config, automaton, this.properties, rewardProperties);
 			
 			String str = kernel.getSource();
 			program = context.createProgram(str);
@@ -729,11 +832,11 @@ public class RuntimeContext
 			
 			//compute the minimal, but reasonable number of samples
 			if (numberOfSamplesNotKnown) {
-				state = new NotKnownIterationsState(properties, localWorkSize);
+				state = new NotKnownIterationsState(localWorkSize);
 			}
 			//compute the exact number of samples
 			else {
-				state = new KnownIterationsState(properties, localWorkSize, numberOfSamples);
+				state = new KnownIterationsState(localWorkSize, numberOfSamples);
 			}
 			
 		} catch (CLBuildException exc) {
@@ -825,10 +928,7 @@ public class RuntimeContext
 	 */
 	public void release()
 	{
-		for (CLBuffer<Byte> buffer : resultBuffers) {
-			buffer.release();
-		}
-		pathLengths.release();
+		state.release();
 		context.release();
 		state = null;
 	}

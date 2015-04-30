@@ -306,31 +306,19 @@ public abstract class KernelGenerator
 	 * Constructor.
 	 * @param model
 	 * @param properties
+	 * @param rewardProperties
 	 * @param config
 	 */
-	public KernelGenerator(AbstractAutomaton model, List<Sampler> properties, RuntimeConfig config) throws KernelException
+	public KernelGenerator(AbstractAutomaton model, List<SamplerBoolean> properties, List<SamplerDouble> rewardProperties, 
+			RuntimeConfig config) throws KernelException
 	{
 		this.model = model;
 		this.config = config;
 		this.prngType = config.prngType;
+		this.properties = properties;
+		this.rewardProperties = rewardProperties;
+		this.rewardStructures = rewardProperties != null ? new TreeMap<Integer, StructureType>() : null;
 		REWARD_REQUIRED_VARIABLES = initializeRewardRequiredVars();
-		
-		
-		// Separate properties
-		for(Sampler property : properties) {
-			if( property instanceof SamplerBoolean ) {
-				if( this.properties == null ) {
-					this.properties = new ArrayList<>();
-				}
-				this.properties.add((SamplerBoolean) property);
-			} else {
-				if( this.rewardProperties == null ) {
-					this.rewardProperties = new ArrayList<>();
-					this.rewardStructures = new TreeMap<>();
-				}
-				this.rewardProperties.add((SamplerDouble) property);
-			}
-		}
 		
 		importStateVector();
 		createRewardStructures();
@@ -378,8 +366,10 @@ public abstract class KernelGenerator
 			createSynchronizedStructures();
 		}
 		additionalDeclarations.add(PROPERTY_STATE_STRUCTURE.getDefinition());
-		for(Map.Entry<Integer, StructureType> rewardStruct : rewardStructures.entrySet()) {
-			additionalDeclarations.add( rewardStruct.getValue().getDefinition() );
+		if ( rewardStructures != null ) {
+			for(Map.Entry<Integer, StructureType> rewardStruct : rewardStructures.entrySet()) {
+				additionalDeclarations.add( rewardStruct.getValue().getDefinition() );
+			}
 		}
 		
 		// PRNG definitions
@@ -1277,7 +1267,7 @@ public abstract class KernelGenerator
 			// if there is more than one action possible, then create a conditional to choose between them
 			// for one action, it's unnecessary
 			if (update.getActionsNumber() > 1) {
-				IfElse ifElse = new IfElse(createBinaryExpression(selectionSum.getSource(), Operator.LT, fromString(convertPrismRate(svPtrTranslations, rate))));
+				IfElse ifElse = new IfElse(createBinaryExpression(selectionSum.getSource(), Operator.LT, fromString(convertPrismRate(svPtrTranslations, null, rate))));
 				//first one goes to 'if'
 				if (!update.isActionTrue(0)) {
 					action = update.getAction(0);
@@ -1292,7 +1282,7 @@ public abstract class KernelGenerator
 				for (int j = 1; j < update.getActionsNumber(); ++j) {
 					// else if (selection <= sum)
 					rate.addRate(update.getRate(j));
-					ifElse.addElif(createBinaryExpression(selectionSum.getSource(), Operator.LT, fromString(convertPrismRate(svPtrTranslations, rate))));
+					ifElse.addElif(createBinaryExpression(selectionSum.getSource(), Operator.LT, fromString(convertPrismRate(svPtrTranslations, null, rate))));
 					
 					if (!update.isActionTrue(j)) {
 						action = update.getAction(j);
@@ -1918,9 +1908,9 @@ public abstract class KernelGenerator
 				//when update is in form prob:action + prob:action + ...
 				if (update.getActionsNumber() > 1) {
 					IfElse ifElse = new IfElse(createBinaryExpression(probability.getSource(), Operator.LT,
-							fromString(convertPrismRate(svPtrTranslations, rate))));
+							fromString(convertPrismRate(svPtrTranslations, savedTranslations, rate))));
 					if (!update.isActionTrue(0)) {
-						ifElse.addExpression(0, updateSynLabelMethodProbabilityRecompute(probability, null, rate));
+						ifElse.addExpression(0, updateSynLabelMethodProbabilityRecompute(probability, null, rate, savedTranslations));
 						
 						addSavedVariables(stateVector, ifElse, 0, update.getAction(0), savedTranslations, varsSaved);
 						// make temporary copy, we may ovewrite some variables
@@ -1942,8 +1932,8 @@ public abstract class KernelGenerator
 					for (int k = 1; k < update.getActionsNumber(); ++k) {
 						Rate previous = new Rate(rate);
 						rate.addRate(update.getRate(k));
-						ifElse.addElif(createBinaryExpression(probability.getSource(), Operator.LT, fromString(convertPrismRate(svPtrTranslations, rate))));
-						ifElse.addExpression(k, updateSynLabelMethodProbabilityRecompute(probability, previous, update.getRate(k)));
+						ifElse.addElif(createBinaryExpression(probability.getSource(), Operator.LT, fromString(convertPrismRate(svPtrTranslations, savedTranslations, rate))));
+						ifElse.addExpression(k, updateSynLabelMethodProbabilityRecompute(probability, previous, update.getRate(k), savedTranslations));
 						
 						addSavedVariables(stateVector, ifElse, k, update.getAction(k), savedTranslations, varsSaved);
 						// make temporary copy, we may ovewrite some variables
@@ -2029,20 +2019,20 @@ public abstract class KernelGenerator
 	 * @param current
 	 * @return expression recomputing probability before going to an action
 	 */
-	protected Expression updateSynLabelMethodProbabilityRecompute(CLVariable probability, Rate before, Rate current)
+	protected Expression updateSynLabelMethodProbabilityRecompute(CLVariable probability, Rate before, Rate current, Map<String, CLVariable> savedVariables)
 	{
 		Expression compute = null;
 		if (before != null) {
 			compute = createBinaryExpression(probability.getSource(), Operator.SUB,
 			//probability - sum of rates before
-					fromString(convertPrismRate(svPtrTranslations, before)));
+					fromString(convertPrismRate(svPtrTranslations, savedVariables, before)));
 		} else {
 			compute = probability.getSource();
 		}
 		addParentheses(compute);
 		return createAssignment(probability, createBinaryExpression(compute, Operator.DIV,
 		//divide by current interval
-				fromString(convertPrismRate(svPtrTranslations, current))));
+				fromString(convertPrismRate(svPtrTranslations, savedVariables, current))));
 	}
 	/*********************************
 	 * OTHER METHODS

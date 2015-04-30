@@ -62,9 +62,9 @@ import simulator.opencl.kernel.memory.CLVariable;
 import simulator.opencl.kernel.memory.StdVariableType;
 import simulator.opencl.kernel.memory.StdVariableType.StdType;
 import simulator.opencl.kernel.memory.StructureType;
-import simulator.sampler.Sampler;
 import simulator.sampler.SamplerBoolean;
 import simulator.sampler.SamplerBoundedUntilCont;
+import simulator.sampler.SamplerDouble;
 
 public class KernelGeneratorCTMC extends KernelGenerator
 {
@@ -77,11 +77,13 @@ public class KernelGeneratorCTMC extends KernelGenerator
 	 * Constructor for CTMC kernel generator.
 	 * @param model
 	 * @param properties
+	 * @param rewardProperties
 	 * @param config
 	 */
-	public KernelGeneratorCTMC(AbstractAutomaton model, List<Sampler> properties, RuntimeConfig config) throws KernelException
+	public KernelGeneratorCTMC(AbstractAutomaton model, List<SamplerBoolean> properties, List<SamplerDouble> rewardProperties, 
+			RuntimeConfig config) throws KernelException
 	{
-		super(model, properties, config);
+		super(model, properties, rewardProperties, config);
 	}
 
 	@Override
@@ -360,7 +362,7 @@ public class KernelGeneratorCTMC extends KernelGenerator
 		IfElse ifElse = new IfElse(new Expression(guard));
 		ifElse.addExpression(0, createAssignment(tabPos, fromString(position)));
 		Expression sumExpr = createBinaryExpression(sum.getSource(), Operator.ADD_AUGM,
-				fromString(convertPrismRate(svPtrTranslations, commands[position].getRateSum())));
+				fromString(convertPrismRate(svPtrTranslations, null, commands[position].getRateSum())));
 		ifElse.addExpression(0, sumExpr);
 		currentMethod.addExpression(ifElse);
 	}
@@ -395,7 +397,7 @@ public class KernelGeneratorCTMC extends KernelGenerator
 		for (int i = 0; i < commands.length; ++i) {
 			Rate rateSum = commands[i].getRateSum();
 			_switch.addCase(new Expression(Integer.toString(i)));
-			_switch.addExpression(i, ExpressionGenerator.createAssignment(newSum, fromString(convertPrismRate(svPtrTranslations, rateSum))));
+			_switch.addExpression(i, ExpressionGenerator.createAssignment(newSum, fromString(convertPrismRate(svPtrTranslations, null, rateSum))));
 		}
 		loop.addExpression(_switch);
 		// if(sum + newSum > selectionSum)
@@ -562,7 +564,7 @@ public class KernelGeneratorCTMC extends KernelGenerator
 		IfElse ifElse = new IfElse(new Expression(convertPrismGuard(svPtrTranslations, cmd.getGuard().toString())));
 		ifElse.addExpression(createBinaryExpression(size.getSource(), Operator.ADD_AUGM,
 		//converted rate
-				new Expression(convertPrismRate(svPtrTranslations, cmd.getRateSum()))));
+				new Expression(convertPrismRate(svPtrTranslations, null, cmd.getRateSum()))));
 		ifElse.addExpression(createAssignment(guardArray, fromString(1)));
 		ifElse.addElse();
 		ifElse.addExpression(1, createAssignment(guardArray, fromString(0)));

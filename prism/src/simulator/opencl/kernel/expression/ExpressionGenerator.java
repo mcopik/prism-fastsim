@@ -307,12 +307,23 @@ public class ExpressionGenerator
 	 * @param rate
 	 * @return rate of update with replaced all references to model variable
 	 */
-	static public String convertPrismRate(Map<String, String> translations, Rate rate)
+	static public String convertPrismRate(Map<String, String> translations, Map<String, CLVariable> savedVariables, Rate rate)
 	{
 		StringBuilder builder = new StringBuilder(rate.toString());
-		for (Map.Entry<String, String> entry : translations.entrySet()) {
+		for (Map.Entry<String, String> entry : translations.entrySet()) {			
+			
+			if (savedVariables != null && savedVariables.containsKey(entry.getKey())) {
+				continue;
+			}
 			builderReplaceMostCommon(builder, entry.getKey(), entry.getValue());
 		}
+
+		if (savedVariables != null) {
+			for (Map.Entry<String, CLVariable> entry : savedVariables.entrySet()) {
+				builderReplaceMostCommon(builder, entry.getKey(), entry.getValue().varName);
+			}
+		}
+
 		return builder.toString();
 	}
 
