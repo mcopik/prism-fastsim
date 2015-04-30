@@ -186,6 +186,21 @@ public class RuntimeContext
 		protected abstract void reset();
 
 		/**
+		 * Create buffers to store results for reward properties - float or double CLBuffer, depending on config.
+		 * @param size
+		 */
+		protected void createRewardBuffers(int size)
+		{	
+			for (int i = 0; i < rewardProperties.size(); ++i) {
+				if( config.rewardVariableType == RewardVariableType.FLOAT) {
+					resultRewardBuffersFloat.add(context.createFloatBuffer(CLMem.Usage.Output, size));
+				} else {
+					resultRewardBuffersDouble.add(context.createDoubleBuffer(CLMem.Usage.Output, size));
+				}
+			}
+		}
+		
+		/**
 		 * Enqueue N samples at given offsets to result and path buffers.
 		 * @param samplesToProcess
 		 * @param resultsOffset
@@ -421,6 +436,7 @@ public class RuntimeContext
 			for (int i = 0; i < properties.size(); ++i) {
 				resultBuffers.add(context.createByteBuffer(CLMem.Usage.Output, numberOfSamples));
 			}
+			createRewardBuffers(numberOfSamples);
 		}
 
 		@Override
@@ -540,6 +556,7 @@ public class RuntimeContext
 			for (int i = 0; i < properties.size(); ++i) {
 				resultBuffers.add(context.createByteBuffer(CLMem.Usage.Output, globalWorkSize * resultCheckPeriod));
 			}
+			createRewardBuffers( globalWorkSize * resultCheckPeriod );
 		}
 
 		@Override

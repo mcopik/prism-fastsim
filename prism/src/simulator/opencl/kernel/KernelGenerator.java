@@ -317,7 +317,7 @@ public abstract class KernelGenerator
 		this.prngType = config.prngType;
 		this.properties = properties;
 		this.rewardProperties = rewardProperties;
-		this.rewardStructures = rewardProperties != null ? new TreeMap<Integer, StructureType>() : null;
+		this.rewardStructures = rewardProperties.size() != 0 ? new TreeMap<Integer, StructureType>() : null;
 		REWARD_REQUIRED_VARIABLES = initializeRewardRequiredVars();
 		
 		importStateVector();
@@ -619,7 +619,7 @@ public abstract class KernelGenerator
 		//ARG 6..N: property results
 		CLVariable[] propertyResults = null;
 		CLVariable[] rewardResults = null;
-		if ( properties != null) {
+		if ( properties.size() != 0) {
 			propertyResults = new CLVariable[properties.size()];
 			for (int i = 0; i < propertyResults.length; ++i) {
 				propertyResults[i] = new CLVariable(new PointerType(new StdVariableType(StdType.UINT8)),
@@ -630,7 +630,7 @@ public abstract class KernelGenerator
 			}
 		}
 		
-		if ( rewardProperties != null) {
+		if ( rewardProperties.size() != 0) {
 			rewardResults = new CLVariable[rewardProperties.size()];
 			for (int i = 0; i < rewardResults.length; ++i) {
 				rewardResults[i] = new CLVariable(new PointerType( rewardVarsType() ),
@@ -657,7 +657,7 @@ public abstract class KernelGenerator
 
 		//property results
 		ArrayType propertiesArrayType = null;
-		if ( properties != null ) {
+		if ( properties.size() != 0) {
 			propertiesArrayType = new ArrayType(PROPERTY_STATE_STRUCTURE, properties.size());
 			varPropertiesArray = new CLVariable(propertiesArrayType, "properties");
 			currentMethod.addLocalVar(varPropertiesArray);
@@ -670,7 +670,7 @@ public abstract class KernelGenerator
 		}
 		//reward results
 		List<CLVariable> rewardVariables = null;
-		if( rewardProperties != null ) {
+		if( rewardProperties.size() != 0) {
 			rewardVariables = new ArrayList<>();
 
 			for (Map.Entry<Integer, StructureType> reward : rewardStructures.entrySet()) {
@@ -722,7 +722,7 @@ public abstract class KernelGenerator
 			createUpdateMethodSyn();
 		}
 		
-		if( properties != null) {
+		if( properties.size() != 0) {
 			helperMethods.put(KernelMethods.UPDATE_PROPERTIES, createPropertiesMethod());
 		}
 		
@@ -802,7 +802,7 @@ public abstract class KernelGenerator
 		/**
 		 * if all properties are known, then we can end iterating
 		 */
-		if( properties != null ) {
+		if( properties.size() != 0 ) {
 			mainMethodUpdateProperties(loop);
 		}
 
@@ -865,7 +865,7 @@ public abstract class KernelGenerator
 		currentMethod.addExpression(createAssignment(pathLength, varPathLength));
 		position = createBinaryExpression(globalID.getSource(), Operator.ADD, resultsOffset.getSource());
 		//each property result
-		if( properties != null ) {
+		if( properties.size() != 0 ) {
 			for (int i = 0; i < properties.size(); ++i) {
 				CLVariable result = propertyResults[i].accessElement(position);
 				CLVariable property = varPropertiesArray.accessElement(fromString(i)).accessField("propertyState");
@@ -1052,7 +1052,7 @@ public abstract class KernelGenerator
 			updateSize = createBinaryExpression(updateSize, Operator.EQ, fromString("1"));
 			IfElse loop = new IfElse(createBinaryExpression(updateFlag, Operator.LAND, updateSize));
 			loop.setConditionNumber(0);
-			if( properties != null ) {
+			if( properties.size() != 0 ) {
 				mainMethodUpdateProperties(loop);
 			}
 			loop.addExpression(new Expression("break;\n"));
