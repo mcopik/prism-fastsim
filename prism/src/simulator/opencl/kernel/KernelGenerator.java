@@ -865,12 +865,30 @@ public abstract class KernelGenerator
 		currentMethod.addExpression(createAssignment(pathLength, varPathLength));
 		position = createBinaryExpression(globalID.getSource(), Operator.ADD, resultsOffset.getSource());
 		//each property result
-		if( properties.size() != 0 ) {
-			for (int i = 0; i < properties.size(); ++i) {
-				CLVariable result = propertyResults[i].accessElement(position);
-				CLVariable property = varPropertiesArray.accessElement(fromString(i)).accessField("propertyState");
-				currentMethod.addExpression(createAssignment(result, property));
-			}
+		// computation ended by a deadlock or loop detector
+		Expression loopOrDeadlock = createBinaryExpression(
+				createBinaryExpression(varSelectionSize.getSource(), ExpressionGenerator.Operator.EQ, fromString(0)),
+				ExpressionGenerator.Operator.LOR, varLoopDetection.getSource());
+		for (int i = 0; i < properties.size(); ++i) {
+			CLVariable result = propertyResults[i].accessElement(position);
+			CLVariable property = varPropertiesArray.accessElement(fromString(i)).accessField("propertyState");
+			CLVariable valueKnown = varPropertiesArray.accessElement(fromString(i)).accessField("valueKnown");
+			// if loop was detected, then by definition property is verified
+			Expression assignment = ExpressionGenerator.createConditionalAssignment(
+					createBinaryExpression(loopOrDeadlock, ExpressionGenerator.Operator.LOR, valueKnown.getSource()), 
+					property.getSource().toString(), "2");
+					
+			currentMethod.addExpression(createAssignment(result, assignment));
+		}		
+		for (int i = 0; i < rewardProperties.size(); ++i) {
+			CLVariable result = rewardResults[i].accessElement(position);
+			//CLVariable property = rewardResults[i].accessElement(fromString(i)).accessField("propertyState");
+			CLVariable valueKnown = rewardResults[i].accessElement(fromString(i)).accessField("valueKnown");
+			Expression assignment = ExpressionGenerator.createConditionalAssignment(
+					createBinaryExpression(valueKnown.getSource(), ExpressionGenerator.Operator.LOR, varLoopDetection.getSource()),
+					"0", "NaN");
+			
+			currentMethod.addExpression(createAssignment(result, assignment));
 		}
 		
 		// deinitialize PRNG

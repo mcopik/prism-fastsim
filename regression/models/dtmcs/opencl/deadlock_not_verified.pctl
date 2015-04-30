@@ -1,0 +1,2 @@
+// Should fail ( property will not be verified on any sample)
+P=? [F s = 3];

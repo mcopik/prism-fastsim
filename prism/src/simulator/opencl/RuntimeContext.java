@@ -310,12 +310,6 @@ public class RuntimeContext
 						throw new PrismException("Property was not verified on one of the samples!");
 					}
 					/**
-					 * Deadlock in sample
-					 */
-					else if (_byte < 0) {
-						throw new PrismException("Deadlock occured on one of the samples!");
-					}
-					/**
 					 * Normal result.
 					 */
 					else {
