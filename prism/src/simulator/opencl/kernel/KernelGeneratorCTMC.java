@@ -34,7 +34,6 @@ import static simulator.opencl.kernel.expression.ExpressionGenerator.createBinar
 import static simulator.opencl.kernel.expression.ExpressionGenerator.fromString;
 import static simulator.opencl.kernel.expression.ExpressionGenerator.postIncrement;
 
-import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -65,6 +64,10 @@ import simulator.opencl.kernel.memory.StructureType;
 import simulator.sampler.SamplerBoolean;
 import simulator.sampler.SamplerBoundedUntilCont;
 import simulator.sampler.SamplerDouble;
+import simulator.sampler.SamplerRewardCumulCont;
+import simulator.sampler.SamplerRewardCumulDisc;
+import simulator.sampler.SamplerRewardInstCont;
+import simulator.sampler.SamplerRewardInstDisc;
 
 public class KernelGeneratorCTMC extends KernelGenerator
 {
@@ -105,23 +108,27 @@ public class KernelGeneratorCTMC extends KernelGenerator
 	}
 	
 	@Override
-	protected void initializeRewardRequiredVarsCumulative(EnumMap<RewardTypes,String[]> map)
+	protected void initializeRewardRequiredVarsCumulative(Map<Class<? extends SamplerDouble>, String[]> map)
 	{
-		map.put(RewardTypes.CUMULATIVE, new String[]{ 
+		String[] vars = new String[]{ 
 				REWARD_STRUCTURE_VAR_CUMULATIVE_TOTAL,
 				REWARD_STRUCTURE_VAR_PREVIOUS_STATE,
 				REWARD_STRUCTURE_VAR_PREVIOUS_TRANSITION,
 				REWARD_STRUCTURE_VAR_CURRENT_STATE
-		});
+		};
+		map.put(SamplerRewardCumulDisc.class, vars);
+		map.put(SamplerRewardCumulCont.class, vars);
 	}
 	
 	@Override
-	protected void initializeRewardRequiredVarsInstantaneous(EnumMap<RewardTypes,String[]> map)
+	protected void initializeRewardRequiredVarsInstantaneous(Map<Class<? extends SamplerDouble>, String[]> map)
 	{
-		map.put(RewardTypes.CUMULATIVE, new String[]{ 
+		String[] vars = new String[]{ 
 				REWARD_STRUCTURE_VAR_PREVIOUS_STATE,
 				REWARD_STRUCTURE_VAR_CURRENT_STATE
-		});
+		};
+		map.put(SamplerRewardInstDisc.class, vars);
+		map.put(SamplerRewardInstCont.class, vars);
 	}
 
 	/*********************************

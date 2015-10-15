@@ -34,9 +34,9 @@ import static simulator.opencl.kernel.expression.ExpressionGenerator.fromString;
 import static simulator.opencl.kernel.expression.ExpressionGenerator.functionCall;
 import static simulator.opencl.kernel.expression.ExpressionGenerator.postIncrement;
 
-import java.util.EnumMap;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 import parser.ast.ExpressionLiteral;
 import prism.Preconditions;
@@ -62,6 +62,10 @@ import simulator.opencl.kernel.memory.StructureType;
 import simulator.sampler.SamplerBoolean;
 import simulator.sampler.SamplerBoundedUntilDisc;
 import simulator.sampler.SamplerDouble;
+import simulator.sampler.SamplerRewardCumulCont;
+import simulator.sampler.SamplerRewardCumulDisc;
+import simulator.sampler.SamplerRewardInstCont;
+import simulator.sampler.SamplerRewardInstDisc;
 
 public class KernelGeneratorDTMC extends KernelGenerator
 {
@@ -111,21 +115,21 @@ public class KernelGeneratorDTMC extends KernelGenerator
 			synchronizedStates.put(cmd.synchLabel, type);
 		}
 	}
-	
+
 	@Override
-	protected void initializeRewardRequiredVarsCumulative(EnumMap<RewardTypes,String[]> map)
+	protected void initializeRewardRequiredVarsCumulative(Map<Class<? extends SamplerDouble>, String[]> map)
 	{
-		map.put(RewardTypes.CUMULATIVE, new String[]{ 
-				REWARD_STRUCTURE_VAR_CUMULATIVE_TOTAL
-		});
+		String[] vars = new String[] { REWARD_STRUCTURE_VAR_CUMULATIVE_TOTAL };
+		map.put(SamplerRewardCumulCont.class, vars);
+		map.put(SamplerRewardCumulDisc.class, vars);
 	}
-	
+
 	@Override
-	protected void initializeRewardRequiredVarsInstantaneous(EnumMap<RewardTypes,String[]> map)
+	protected void initializeRewardRequiredVarsInstantaneous(Map<Class<? extends SamplerDouble>, String[]> map)
 	{
-		map.put(RewardTypes.CUMULATIVE, new String[]{ 
-				REWARD_STRUCTURE_VAR_CURRENT_STATE
-		});
+		String[] vars = new String[] { REWARD_STRUCTURE_VAR_CURRENT_STATE };
+		map.put(SamplerRewardInstCont.class, vars);
+		map.put(SamplerRewardInstDisc.class, vars);
 	}
 
 	/*********************************
@@ -281,7 +285,7 @@ public class KernelGeneratorDTMC extends KernelGenerator
 	/*********************************
 	 * NON-SYNCHRONIZED GUARDS CHECK
 	 ********************************/
-	
+
 	@Override
 	protected void guardsMethodCreateLocalVars(Method currentMethod) throws KernelException
 	{
@@ -301,7 +305,7 @@ public class KernelGeneratorDTMC extends KernelGenerator
 		Preconditions.checkNotNull(guardsTab, "");
 		CLVariable counter = currentMethod.getLocalVar("counter");
 		Preconditions.checkNotNull(counter, "");
-		
+
 		CLVariable tabPos = guardsTab.accessElement(ExpressionGenerator.postIncrement(counter));
 		IfElse ifElse = new IfElse(new Expression(guard));
 		ifElse.addExpression(0, createAssignment(tabPos, fromString(position)));
@@ -319,7 +323,7 @@ public class KernelGeneratorDTMC extends KernelGenerator
 	/*********************************
 	 * NON-SYNCHRONIZED UPDATE
 	 ********************************/
-	
+
 	@Override
 	protected void updateMethodPerformSelection(Method currentMethod) throws KernelException
 	{
@@ -360,7 +364,7 @@ public class KernelGeneratorDTMC extends KernelGenerator
 	/*********************************
 	 * PROPERTY METHODS
 	 ********************************/
-	
+
 	@Override
 	protected void propertiesMethodTimeArg(Method currentMethod) throws KernelException
 	{
@@ -385,13 +389,13 @@ public class KernelGeneratorDTMC extends KernelGenerator
 		 * if(time > upper_bound)
 		 */
 		IfElse ifElse = new IfElse(createBinaryExpression(time.getSource(), Operator.GE, fromString(prop.getUpperBound())));
-		
+
 		/**
 		 * if(right_side == true) -> true
 		 * else -> false
 		 */
 		IfElse rhsCheck = null;
-		
+
 		//TODO: always !prop?
 		if (prop.getRightSide().toString().charAt(0) == '!') {
 			rhsCheck = createPropertyCondition(propertyVar, true, propertyStringRight.substring(1), true);
@@ -425,7 +429,7 @@ public class KernelGeneratorDTMC extends KernelGenerator
 	/*********************************
 	 * SYNCHRONIZED GUARDS CHECK
 	 ********************************/
-	
+
 	@Override
 	protected Method guardsSynCreateMethod(String label, int maxCommandsNumber)
 	{
@@ -458,7 +462,7 @@ public class KernelGeneratorDTMC extends KernelGenerator
 	/*********************************
 	 * SYNCHRONIZED UPDATE
 	 ********************************/
-	
+
 	@Override
 	protected void updateSynAdditionalVars(Method parent, SynchronizedCommand cmd)
 	{

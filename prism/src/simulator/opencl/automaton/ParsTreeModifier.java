@@ -49,14 +49,14 @@ import prism.PrismLangException;
  * 1/2 will be equal to 0 in C code 
  */
 public class ParsTreeModifier extends ASTTraverseModify
-{	
-	
+{
+
 	public Object visit(ExpressionFunc e) throws PrismLangException
 	{
-		for(int i = 0;i < e.getNumOperands(); ++i) {
+		for (int i = 0; i < e.getNumOperands(); ++i) {
 			e.setOperand(i, (Expression) (e.getOperand(i).accept(this)));
 		}
-		
+
 		/**
 		 * PRISM's logarithm is defined as: log(value, base).
 		 * OpenCL offers several logarithms, based on Euler constant, 2, 10.
@@ -65,47 +65,46 @@ public class ParsTreeModifier extends ASTTraverseModify
 		 * 
 		 * In our case, we use the natural logarithm log(x)
 		 */
-		if( e.getName().equals( ExpressionFunc.names[ExpressionFunc.LOG] )) {
+		if (e.getName().equals(ExpressionFunc.names[ExpressionFunc.LOG])) {
 			// Protect from changes in PRISM language
 			Preconditions.checkCondition(e.getNumOperands() == 2);
 			StringBuilder builder = new StringBuilder("log(");
 			// the main argument of logarithm function
-			builder.append( castExpression( e.getOperand(0) ) );
+			builder.append(castExpression(e.getOperand(0)));
 			//base
-			builder.append( ") / log(");
-			builder.append( castExpression( e.getOperand(1) ) );
+			builder.append(") / log(");
+			builder.append(castExpression(e.getOperand(1)));
 			builder.append(")");
-			return new ExpressionConstant( builder.toString(), e.getType());
-		} 
+			return new ExpressionConstant(builder.toString(), e.getType());
+		}
 		/**
 		 * PRISM's mod functions has to be translated using C modulo operator:
 		 * mod(a,b) -> a % b
-		 * For safety, put every argument and whole expression in bracktets
+		 * For safety, put every argument and whole expression in brackets
 		 */
-		else if( e.getName().equals( ExpressionFunc.names[ExpressionFunc.MOD] )) {
+		else if (e.getName().equals(ExpressionFunc.names[ExpressionFunc.MOD])) {
 			// Protect from changes in PRISM language
 			Preconditions.checkCondition(e.getNumOperands() == 2);
 			StringBuilder builder = new StringBuilder("( (");
 			// no casting! it's an operation on integers
-			builder.append( e.getOperand(0).toString() ).append(") % (");
-			builder.append( e.getOperand(1).toString() ).append(") )");
-			
-			return new ExpressionConstant( builder.toString(), e.getType());
+			builder.append(e.getOperand(0).toString()).append(") % (");
+			builder.append(e.getOperand(1).toString()).append(") )");
+
+			return new ExpressionConstant(builder.toString(), e.getType());
 		} else {
 
 			/**
 			 * For every argument of function, cast it to float to avoid misunderstanding for overloaded functions
 			 * Some functions require floating-point arguments and (float,double) is too confusing.
 			 */
-			for(int i = 0;i < e.getNumOperands(); ++i) {
-				
-				e.setOperand(i, castExpression( e.getOperand(i) ));
+			for (int i = 0; i < e.getNumOperands(); ++i) {
+				e.setOperand(i, castExpression(e.getOperand(i)));
 			}
 		}
-		
+
 		return e;
 	}
-	
+
 	public Object visit(ExpressionUnaryOp e) throws PrismLangException
 	{
 		e.setOperand((Expression) (e.getOperand().accept(this)));
@@ -183,27 +182,23 @@ public class ParsTreeModifier extends ASTTraverseModify
 			// add casting to float
 			// it should be only an identifier or a literal
 			Expression operand = e.getOperand1();
-			e.setOperand1( castExpression(operand) );
+			e.setOperand1(castExpression(operand));
 			break;
 		case ExpressionBinaryOp.IFF:
 			// use the logical evaluation:
 			// a <=> b TO (a & b) | (!a & !b)
 			Expression newLeftOperand = Expression.And(leftOperand, rightOperand);
-			Expression newRightOperand = Expression.And( 
-					Expression.Not( Expression.Parenth(leftOperand) ), 
-					Expression.Not( Expression.Parenth(rightOperand) ));
-			return Expression.Or( Expression.Parenth(newLeftOperand), 
-					Expression.Parenth(newRightOperand) );
+			Expression newRightOperand = Expression.And(Expression.Not(Expression.Parenth(leftOperand)), Expression.Not(Expression.Parenth(rightOperand)));
+			return Expression.Or(Expression.Parenth(newLeftOperand), Expression.Parenth(newRightOperand));
 		case ExpressionBinaryOp.IMPLIES:
 			// use logical equivalence:
 			// p => q TO !(p & !q)
-			Expression middleOperand = Expression.And(leftOperand, 
-					Expression.Not( Expression.Parenth(rightOperand)) );
+			Expression middleOperand = Expression.And(leftOperand, Expression.Not(Expression.Parenth(rightOperand)));
 			return Expression.Not(Expression.Parenth(middleOperand));
 		}
 		return e;
 	}
-	
+
 	private Expression castExpression(Expression operand)
 	{
 		if (operand instanceof ExpressionLiteral) {
@@ -216,9 +211,9 @@ public class ParsTreeModifier extends ASTTraverseModify
 			 * Instead of using ExpressionLiteral, use ExpressionConstant and print in kernel as "2.0f" - 2.0 will be interpreted as double.
 			 */
 			if (type instanceof TypeInt) {
-				return new ExpressionLiteral(operand.getType(), String.format("%ff",Double.valueOf((Integer) value)));
+				return new ExpressionLiteral(operand.getType(), String.format("%ff", Double.valueOf((Integer) value)));
 			} else {
-				return new ExpressionLiteral(operand.getType(), String.format("%ff",(Double) value));
+				return new ExpressionLiteral(operand.getType(), String.format("%ff", (Double) value));
 			}
 		} else {
 			String newVariable = String.format("(float)(%s)", operand);
