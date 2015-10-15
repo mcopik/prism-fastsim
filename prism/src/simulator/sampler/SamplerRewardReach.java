@@ -26,14 +26,16 @@
 
 package simulator.sampler;
 
-import simulator.*;
-import prism.*;
-import parser.ast.*;
+import parser.ast.Expression;
+import parser.ast.ExpressionTemporal;
+import prism.PrismException;
+import prism.PrismLangException;
+import simulator.Path;
+import simulator.TransitionList;
 
 public class SamplerRewardReach extends SamplerDouble
 {
 	private Expression target;
-	private int rewardStructIndex;
 
 	/**
 	 * Construct a sampler for a reachability reward property.
@@ -46,7 +48,7 @@ public class SamplerRewardReach extends SamplerDouble
 		// If the answer is already known we should do nothing
 		if (valueKnown)
 			return;
-		
+
 		// Make sure expression is of the correct type
 		// Then extract other required info
 		if (expr.getOperator() != ExpressionTemporal.R_F)
@@ -64,15 +66,15 @@ public class SamplerRewardReach extends SamplerDouble
 		// If the answer is already known we should do nothing
 		if (valueKnown)
 			return true;
-		
+
 		if (target.evaluateBoolean(path.getCurrentState())) {
 			valueKnown = true;
 			value = path.getTotalCumulativeReward(rewardStructIndex);
 		}
-		
+
 		return valueKnown;
 	}
-	
+
 	/**
 	 * @return expression describing state to reach
 	 */
@@ -80,7 +82,7 @@ public class SamplerRewardReach extends SamplerDouble
 	{
 		return target.deepCopy();
 	}
-	
+
 	/**
 	 * @return index of reward structure 
 	 */

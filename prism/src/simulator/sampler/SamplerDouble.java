@@ -27,9 +27,10 @@
 
 package simulator.sampler;
 
-import simulator.*;
 import prism.PrismException;
 import prism.PrismLangException;
+import simulator.Path;
+import simulator.TransitionList;
 
 /**
  * Samplers for properties that associate a simulation path with a real (double) value.
@@ -42,6 +43,7 @@ public abstract class SamplerDouble extends Sampler
 	protected double valueSum;
 	protected double valueSumSq;
 	protected int numSamples;
+	protected int rewardStructIndex;
 
 	@Override
 	public void reset()
@@ -57,7 +59,7 @@ public abstract class SamplerDouble extends Sampler
 		valueSumSq = 0.0;
 		numSamples = 0;
 	}
-	
+
 	/**
 	 * Directly add sample - used by OpenCL simulator.
 	 * Enables update of sampler without using update() method.
@@ -68,7 +70,7 @@ public abstract class SamplerDouble extends Sampler
 		this.value = value;
 		updateStats();
 	}
-	
+
 	@Override
 	public abstract boolean update(Path path, TransitionList transList) throws PrismLangException;
 
@@ -102,7 +104,7 @@ public abstract class SamplerDouble extends Sampler
 			double mean = valueSum / numSamples;
 			return (valueSumSq - numSamples * mean * mean) / (numSamples - 1.0);
 		}
-		
+
 		// An alternative, below, would be to use the empirical mean
 		// (this is not equivalent (or unbiased) but, asymptotically, is the same)
 		//double mean = valueSum / numSamples;
@@ -125,5 +127,13 @@ public abstract class SamplerDouble extends Sampler
 			throw new PrismException("Error computing likelihood ratio");
 		}
 		return Math.exp(lr);
+	}
+
+	/**
+	 * @return index of reward structure 
+	 */
+	public int getRewardIndex()
+	{
+		return rewardStructIndex;
 	}
 }

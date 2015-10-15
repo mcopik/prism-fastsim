@@ -26,14 +26,15 @@
 
 package simulator.sampler;
 
-import simulator.*;
-import prism.*;
-import parser.ast.*;
+import parser.ast.ExpressionTemporal;
+import prism.PrismException;
+import prism.PrismLangException;
+import simulator.Path;
+import simulator.TransitionList;
 
 public class SamplerRewardInstDisc extends SamplerDouble
 {
 	private int time;
-	private int rewardStructIndex;
 
 	/**
 	 * Construct a sampler for a (discrete-time) instantaneous reward property.
@@ -60,7 +61,7 @@ public class SamplerRewardInstDisc extends SamplerDouble
 		// If the answer is already known we should do nothing
 		if (valueKnown)
 			return true;
-		
+
 		// As soon as time bound reached, store current state reward
 		if (path.size() == time) {
 			valueKnown = true;
@@ -72,17 +73,17 @@ public class SamplerRewardInstDisc extends SamplerDouble
 			value = path.getCurrentStateReward(rewardStructIndex);
 		}
 		// Otherwise, don't know
-		
+
 		return valueKnown;
 	}
-	
+
 	@Override
 	public boolean needsBoundedNumSteps()
 	{
 		// Always bounded
 		return true;
-	}	
-	
+	}
+
 	/**
 	 * @return time describing the 'moment' of catching reward
 	 */
@@ -90,7 +91,7 @@ public class SamplerRewardInstDisc extends SamplerDouble
 	{
 		return time;
 	}
-	
+
 	/**
 	 * @return index of reward structure 
 	 */

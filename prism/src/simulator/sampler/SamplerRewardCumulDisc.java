@@ -26,14 +26,15 @@
 
 package simulator.sampler;
 
-import simulator.*;
-import prism.*;
-import parser.ast.*;
+import parser.ast.ExpressionTemporal;
+import prism.PrismException;
+import prism.PrismLangException;
+import simulator.Path;
+import simulator.TransitionList;
 
 public class SamplerRewardCumulDisc extends SamplerDouble
 {
 	private int timeBound;
-	private int rewardStructIndex;
 
 	/**
 	 * Construct a sampler for a (discrete-time) cumulative reward property.
@@ -47,7 +48,7 @@ public class SamplerRewardCumulDisc extends SamplerDouble
 		// Then extract other required info
 		if (expr.getOperator() != ExpressionTemporal.R_C)
 			throw new PrismException("Error creating Sampler");
-		
+
 		timeBound = expr.getUpperBound().evaluateInt();
 		this.rewardStructIndex = rewardStructIndex;
 		// Initialise sampler info
@@ -61,23 +62,23 @@ public class SamplerRewardCumulDisc extends SamplerDouble
 		// If the answer is already known we should do nothing
 		if (valueKnown)
 			return true;
-		
+
 		// As soon as time bound reached, store current reward total
 		if (path.size() == timeBound) {
 			valueKnown = true;
 			value = path.getTotalCumulativeReward(rewardStructIndex);
 		}
-		
+
 		return valueKnown;
 	}
-	
+
 	@Override
 	public boolean needsBoundedNumSteps()
 	{
 		// Always bounded
 		return true;
-	}	
-	
+	}
+
 	/**
 	 * @return time bound to reach
 	 */
@@ -85,7 +86,7 @@ public class SamplerRewardCumulDisc extends SamplerDouble
 	{
 		return timeBound;
 	}
-	
+
 	/**
 	 * @return index of reward structure 
 	 */
