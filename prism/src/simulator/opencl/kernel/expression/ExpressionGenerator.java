@@ -48,7 +48,7 @@ public class ExpressionGenerator
 		Preconditions.checkNotNull(object, "ExpressionGenerator.fromString() called on null reference!");
 		return new Expression(object.toString());
 	}
-	
+
 	/**
 	 * @param dest
 	 * @param expr
@@ -248,7 +248,8 @@ public class ExpressionGenerator
 	 * @param savedVariables if not null, then references to 'save' place - will be used instead of translation in previous map
 	 * @return convert variable update from PRISM model to OpenCL
 	 */
-	static private String convertUpdate(CLVariable stateVector, parser.ast.Expression expr, Map<String, String> translations, Map<String, CLVariable> savedVariables)
+	static private String convertUpdate(CLVariable stateVector, parser.ast.Expression expr, Map<String, String> translations,
+			Map<String, CLVariable> savedVariables)
 	{
 		StringBuilder assignment = new StringBuilder();
 		assignment.append(convertActionWithSV(stateVector, translations, savedVariables, expr.toString()));
@@ -310,8 +311,8 @@ public class ExpressionGenerator
 	static public String convertPrismRate(Map<String, String> translations, Map<String, CLVariable> savedVariables, Rate rate)
 	{
 		StringBuilder builder = new StringBuilder(rate.toString());
-		for (Map.Entry<String, String> entry : translations.entrySet()) {			
-			
+		for (Map.Entry<String, String> entry : translations.entrySet()) {
+
 			if (savedVariables != null && savedVariables.containsKey(entry.getKey())) {
 				continue;
 			}
@@ -388,8 +389,7 @@ public class ExpressionGenerator
 		int index = 0;
 		while ((index = builder.indexOf(first, index)) != -1) {
 			//check whether it is a prefix
-			if (builder.length() > index + first.length()
-					&& isIdentifierCharacter(builder.charAt(index + first.length()))) {
+			if (builder.length() > index + first.length() && isIdentifierCharacter(builder.charAt(index + first.length()))) {
 				index += first.length();
 			}
 			//check if it is a suffix

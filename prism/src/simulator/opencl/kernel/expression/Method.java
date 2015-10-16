@@ -105,6 +105,19 @@ public class Method extends ComplexKernelComponent
 		return args.get(name);
 	}
 
+	/**
+	 * Add collection of local vars.
+	 * @param vars
+	 * @throws KernelException when a variable with this name already exists
+	 */
+	public void addLocalVar(Collection<CLVariable> vars) throws KernelException
+	{
+		Preconditions.checkNotNull(vars);
+		for (CLVariable var : vars) {
+			addLocalVar(var);
+		}
+	}
+
 	@Override
 	public void addLocalVar(CLVariable var) throws KernelException
 	{

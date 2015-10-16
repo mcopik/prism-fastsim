@@ -36,7 +36,6 @@ import static simulator.opencl.kernel.expression.ExpressionGenerator.postIncreme
 
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 
 import parser.ast.ExpressionLiteral;
 import prism.Preconditions;
@@ -62,10 +61,6 @@ import simulator.opencl.kernel.memory.StructureType;
 import simulator.sampler.SamplerBoolean;
 import simulator.sampler.SamplerBoundedUntilDisc;
 import simulator.sampler.SamplerDouble;
-import simulator.sampler.SamplerRewardCumulCont;
-import simulator.sampler.SamplerRewardCumulDisc;
-import simulator.sampler.SamplerRewardInstCont;
-import simulator.sampler.SamplerRewardInstDisc;
 
 public class KernelGeneratorDTMC extends KernelGenerator
 {
@@ -82,8 +77,8 @@ public class KernelGeneratorDTMC extends KernelGenerator
 	 * @param rewardProperties
 	 * @param config
 	 */
-	public KernelGeneratorDTMC(AbstractAutomaton model, List<SamplerBoolean> properties, List<SamplerDouble> rewardProperties, 
-			RuntimeConfig config) throws KernelException
+	public KernelGeneratorDTMC(AbstractAutomaton model, List<SamplerBoolean> properties, List<SamplerDouble> rewardProperties, RuntimeConfig config)
+			throws KernelException
 	{
 		super(model, properties, rewardProperties, config);
 	}
@@ -114,22 +109,6 @@ public class KernelGeneratorDTMC extends KernelGenerator
 			type.addVariable(guards);
 			synchronizedStates.put(cmd.synchLabel, type);
 		}
-	}
-
-	@Override
-	protected void initializeRewardRequiredVarsCumulative(Map<Class<? extends SamplerDouble>, String[]> map)
-	{
-		String[] vars = new String[] { REWARD_STRUCTURE_VAR_CUMULATIVE_TOTAL };
-		map.put(SamplerRewardCumulCont.class, vars);
-		map.put(SamplerRewardCumulDisc.class, vars);
-	}
-
-	@Override
-	protected void initializeRewardRequiredVarsInstantaneous(Map<Class<? extends SamplerDouble>, String[]> map)
-	{
-		String[] vars = new String[] { REWARD_STRUCTURE_VAR_CURRENT_STATE };
-		map.put(SamplerRewardInstCont.class, vars);
-		map.put(SamplerRewardInstDisc.class, vars);
 	}
 
 	/*********************************

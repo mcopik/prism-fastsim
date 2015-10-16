@@ -64,10 +64,6 @@ import simulator.opencl.kernel.memory.StructureType;
 import simulator.sampler.SamplerBoolean;
 import simulator.sampler.SamplerBoundedUntilCont;
 import simulator.sampler.SamplerDouble;
-import simulator.sampler.SamplerRewardCumulCont;
-import simulator.sampler.SamplerRewardCumulDisc;
-import simulator.sampler.SamplerRewardInstCont;
-import simulator.sampler.SamplerRewardInstDisc;
 
 public class KernelGeneratorCTMC extends KernelGenerator
 {
@@ -83,8 +79,8 @@ public class KernelGeneratorCTMC extends KernelGenerator
 	 * @param rewardProperties
 	 * @param config
 	 */
-	public KernelGeneratorCTMC(AbstractAutomaton model, List<SamplerBoolean> properties, List<SamplerDouble> rewardProperties, 
-			RuntimeConfig config) throws KernelException
+	public KernelGeneratorCTMC(AbstractAutomaton model, List<SamplerBoolean> properties, List<SamplerDouble> rewardProperties, RuntimeConfig config)
+			throws KernelException
 	{
 		super(model, properties, rewardProperties, config);
 	}
@@ -105,30 +101,6 @@ public class KernelGeneratorCTMC extends KernelGenerator
 			type.addVariable(guards);
 			synchronizedStates.put(cmd.synchLabel, type);
 		}
-	}
-	
-	@Override
-	protected void initializeRewardRequiredVarsCumulative(Map<Class<? extends SamplerDouble>, String[]> map)
-	{
-		String[] vars = new String[]{ 
-				REWARD_STRUCTURE_VAR_CUMULATIVE_TOTAL,
-				REWARD_STRUCTURE_VAR_PREVIOUS_STATE,
-				REWARD_STRUCTURE_VAR_PREVIOUS_TRANSITION,
-				REWARD_STRUCTURE_VAR_CURRENT_STATE
-		};
-		map.put(SamplerRewardCumulDisc.class, vars);
-		map.put(SamplerRewardCumulCont.class, vars);
-	}
-	
-	@Override
-	protected void initializeRewardRequiredVarsInstantaneous(Map<Class<? extends SamplerDouble>, String[]> map)
-	{
-		String[] vars = new String[]{ 
-				REWARD_STRUCTURE_VAR_PREVIOUS_STATE,
-				REWARD_STRUCTURE_VAR_CURRENT_STATE
-		};
-		map.put(SamplerRewardInstDisc.class, vars);
-		map.put(SamplerRewardInstCont.class, vars);
 	}
 
 	/*********************************
@@ -340,7 +312,7 @@ public class KernelGeneratorCTMC extends KernelGenerator
 	/*********************************
 	 * NON-SYNCHRONIZED GUARDS CHECK
 	 ********************************/
-	
+
 	@Override
 	protected void guardsMethodCreateLocalVars(Method currentMethod) throws KernelException
 	{
@@ -365,7 +337,7 @@ public class KernelGeneratorCTMC extends KernelGenerator
 		CLVariable sum = currentMethod.getLocalVar("sum");
 		Preconditions.checkNotNull(sum, "");
 		CLVariable tabPos = guardsTab.accessElement(postIncrement(counter));
-		
+
 		IfElse ifElse = new IfElse(new Expression(guard));
 		ifElse.addExpression(0, createAssignment(tabPos, fromString(position)));
 		Expression sumExpr = createBinaryExpression(sum.getSource(), Operator.ADD_AUGM,
@@ -394,12 +366,12 @@ public class KernelGeneratorCTMC extends KernelGenerator
 		CLVariable newSum = currentMethod.getLocalVar("newSum");
 		CLVariable selectionSum = currentMethod.getArg("selectionSum");
 		CLVariable sum = currentMethod.getLocalVar("sum");
-		
+
 		//loop over all selected guards
 		ForLoop loop = new ForLoop(selection, false);
 		//switch with all possible guards - in i-th iteration go to guardsTab[i] guard
 		Switch _switch = new Switch(guardsTab.accessElement(selection.getName()));
-		
+
 		//sum rates and check if we reached the probability of update
 		for (int i = 0; i < commands.length; ++i) {
 			Rate rateSum = commands[i].getRateSum();
@@ -441,7 +413,7 @@ public class KernelGeneratorCTMC extends KernelGenerator
 		CLVariable sum = new CLVariable(new StdVariableType(StdType.FLOAT), "sum");
 		sum.setInitValue(StdVariableType.initialize(0.0f));
 		currentMethod.addLocalVar(sum);
-		
+
 		//selection
 		CLVariable selection = currentMethod.getLocalVar("selection");
 		selection.setInitValue(StdVariableType.initialize(0));
@@ -543,7 +515,7 @@ public class KernelGeneratorCTMC extends KernelGenerator
 	/*********************************
 	 * SYNCHRONIZED GUARDS CHECK
 	 ********************************/
-	
+
 	@Override
 	protected Method guardsSynCreateMethod(String label, int maxCommandsNumber)
 	{
@@ -581,7 +553,7 @@ public class KernelGeneratorCTMC extends KernelGenerator
 	/*********************************
 	 * SYNCHRONIZED UPDATE
 	 ********************************/
-	
+
 	@Override
 	protected void updateSynAdditionalVars(Method parent, SynchronizedCommand cmd) throws KernelException
 	{
