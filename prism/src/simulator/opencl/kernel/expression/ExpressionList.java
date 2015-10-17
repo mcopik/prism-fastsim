@@ -31,7 +31,7 @@ import java.util.List;
 
 import prism.Preconditions;
 
-public class ExpressionList implements KernelComponent,Iterable<Expression>
+public class ExpressionList implements KernelComponent, Iterable<Expression>
 {
 	/**
 	 * List containing all expressions.
@@ -45,7 +45,7 @@ public class ExpressionList implements KernelComponent,Iterable<Expression>
 	 * Does one or more of the expression have declarations?
 	 */
 	private boolean hasDeclarations = false;
-	
+
 	/**
 	 * Add expression to the list.
 	 * @param expr
@@ -61,7 +61,7 @@ public class ExpressionList implements KernelComponent,Iterable<Expression>
 			hasDeclarations = true;
 		}
 	}
-	
+
 	/**
 	 * Add all expressions in list to the object.
 	 * @param expr list
@@ -74,7 +74,7 @@ public class ExpressionList implements KernelComponent,Iterable<Expression>
 			addExpression(it.next());
 		}
 	}
-	
+
 	@Override
 	public Iterator<Expression> iterator()
 	{

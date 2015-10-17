@@ -241,6 +241,11 @@ public abstract class KernelGenerator
 	protected boolean hasNonSynchronized = false;
 
 	/**
+	 * True when there are some reward properties to evaluate.
+	 */
+	protected boolean hasRewardProperties = false;
+
+	/**
 	 * True when one of processed properties has timing constraints.
 	 */
 	protected boolean timingProperty = false;
@@ -272,7 +277,8 @@ public abstract class KernelGenerator
 		this.config = config;
 		this.prngType = config.prngType;
 		this.properties = properties;
-		this.rewardGenerator = rewardProperties.size() != 0 ? RewardGenerator.createGenerator(config, model.getType(), rewardProperties) : null;
+		this.hasRewardProperties = rewardProperties.size() != 0;
+		this.rewardGenerator = hasRewardProperties ? RewardGenerator.createGenerator(config, model.getType(), rewardProperties) : null;
 
 		importStateVector();
 		int synSize = model.synchCmdsNumber();
@@ -326,7 +332,8 @@ public abstract class KernelGenerator
 		if (hasProbProperties()) {
 			additionalDeclarations.add(PROPERTY_STATE_STRUCTURE.getDefinition());
 		}
-		if (hasRewardProperties()) {
+
+		if (hasRewardProperties) {
 			additionalDeclarations.addAll(rewardGenerator.getDefinitions());
 		}
 
@@ -468,7 +475,7 @@ public abstract class KernelGenerator
 			}
 		}
 		//ARG N+1...M: reward property results
-		if (hasRewardProperties()) {
+		if (hasRewardProperties) {
 			currentMethod.addArg(rewardGenerator.getKernelArgs());
 		}
 
@@ -501,7 +508,7 @@ public abstract class KernelGenerator
 		}
 
 		//reward structures and results
-		if (hasRewardProperties()) {
+		if (hasRewardProperties) {
 			currentMethod.addLocalVar(rewardGenerator.getLocalVars());
 		}
 
@@ -628,6 +635,13 @@ public abstract class KernelGenerator
 		}
 
 		/**
+		 * Update reward-based properties.
+		 */
+		if (hasRewardProperties) {
+			//rewardGenerator.updateProperties(loop, varStateVector);
+		}
+
+		/**
 		 * if(selectionSize + synSelectionSize == 0) -> deadlock, break
 		 */
 		Expression sum = null;
@@ -638,6 +652,7 @@ public abstract class KernelGenerator
 		} else {
 			sum = varSelectionSize.getSource();
 		}
+
 		/**
 		 * Deadlock when number of possible choices is 0.
 		 */
@@ -671,6 +686,13 @@ public abstract class KernelGenerator
 		mainMethodUpdateTimeAfter(currentMethod, loop);
 
 		/**
+		 * Necessary recomputations after state update.
+		 */
+		if (hasRewardProperties) {
+			loop.addExpression(rewardGenerator.afterUpdate(varStateVector));
+		}
+
+		/**
 		 * Loop detection procedure - end computations in case of a loop.
 		 */
 		mainMethodLoopDetection(loop);
@@ -701,8 +723,8 @@ public abstract class KernelGenerator
 			currentMethod.addExpression(createAssignment(result, assignment));
 		}
 
-		if (hasRewardProperties()) {
-			rewardGenerator.writeOutput(position, currentMethod, varLoopDetection);
+		if (hasRewardProperties) {
+			rewardGenerator.writeOutput(currentMethod, position, varLoopDetection);
 		}
 
 		// deinitialize PRNG
@@ -724,6 +746,27 @@ public abstract class KernelGenerator
 	 * @throws KernelException
 	 */
 	protected abstract void mainMethodDefineLocalVars(Method currentMethod) throws KernelException;
+
+	/**
+	 * Generate a call to the non-synchronized update method.
+	 * There are two major steps:
+	 * a) call a method for transition rewards update, if it is needed
+	 * b) call the non-synch update method, which is different in CTMC and DTMD,
+	 * implemented by mainMethodCallNonsynUpdateImpl
+	 * @param parent
+	 * @param args used to specify additional parameters which are already computed (random, sum)
+	 * if they are not provided, use the default implementation
+	 */
+	protected void mainMethodCallNonsynUpdate(ComplexKernelComponent parent, CLValue... args)
+	{
+		/**
+		 * If there are some reward properties, add a 
+		 */
+		if (hasRewardProperties) {
+			parent.addExpression(rewardGenerator.beforeUpdate(varStateVector));
+		}
+		mainMethodCallNonsynUpdateImpl(parent, args);
+	}
 
 	/**
 	 * Create the call expression for both updates: non-synchronized and synchronized.
@@ -831,6 +874,14 @@ public abstract class KernelGenerator
 			_switch = new Switch(counter);
 			for (int i = 0; i < synCommands.length; ++i) {
 				_switch.addCase(fromString(i));
+
+				/**
+				 * Before a synchronized update, compute transition rewards.
+				 */
+				if (hasRewardProperties) {
+					_switch.addExpression(i, rewardGenerator.beforeUpdate(varStateVector, synCommands[i]));
+				}
+
 				Expression call = synchronizedUpdates.get(i).callMethod(
 				//&stateVector
 						varStateVector.convertToPointer(),
@@ -854,6 +905,12 @@ public abstract class KernelGenerator
 					varSynchronizedStates[0].convertToPointer(),
 					//probability
 					selection);
+			/**
+			 * Before a synchronized update, compute transition rewards.
+			 */
+			if (hasRewardProperties) {
+				parent.addExpression(rewardGenerator.beforeUpdate(varStateVector, synCommands[0]));
+			}
 			parent.addExpression(timingProperty ? call : createAssignment(varLoopDetection, call));
 		}
 	}
@@ -938,8 +995,9 @@ public abstract class KernelGenerator
 	/**
 	 * Generate call to non-synchronized update. Different arguments for DTMC (additional variable - selectionSize).
 	 * @param parent
+	 * @param args specify here additional arguments which are already computed (randomized number, sum of active cmds)
 	 */
-	protected abstract void mainMethodCallNonsynUpdate(ComplexKernelComponent parent);
+	protected abstract void mainMethodCallNonsynUpdateImpl(ComplexKernelComponent parent, CLValue... args);
 
 	/**
 	 * First property check, before even entering the loop - necessary only for CTMC.
@@ -1878,14 +1936,6 @@ public abstract class KernelGenerator
 	private boolean hasProbProperties()
 	{
 		return properties.size() != 0;
-	}
-
-	/**
-	 * @return true iff kernel has some reward properties
-	 */
-	public boolean hasRewardProperties()
-	{
-		return rewardGenerator != null;
 	}
 
 	/**

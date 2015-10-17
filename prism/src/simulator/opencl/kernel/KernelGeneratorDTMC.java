@@ -161,11 +161,17 @@ public class KernelGeneratorDTMC extends KernelGenerator
 	}
 
 	@Override
-	protected void mainMethodCallNonsynUpdate(ComplexKernelComponent parent)
+	protected void mainMethodCallNonsynUpdateImpl(ComplexKernelComponent parent, CLValue... args)
 	{
-		Expression rndNumber = new Expression(String.format("%s%%%d", varPathLength.getSource().toString(), config.prngType.numbersPerRandomize()));
-		CLValue random = config.prngType.getRandomUnifFloat(rndNumber);
-		parent.addExpression(mainMethodCallNonsynUpdate(random, varSelectionSize));
+		if (args.length == 0) {
+			Expression rndNumber = new Expression(String.format("%s%%%d", varPathLength.getSource().toString(), config.prngType.numbersPerRandomize()));
+			CLValue random = config.prngType.getRandomUnifFloat(rndNumber);
+			parent.addExpression(mainMethodCallNonsynUpdateImpl(random, varSelectionSize));
+		} else if (args.length == 2) {
+			parent.addExpression(mainMethodCallNonsynUpdateImpl(args[0], args[1]));
+		} else {
+			throw new RuntimeException("Illegal number of parameters for mainMethodCallNonsynUpdateImpl @ KernelGeneratorDTMC, required 0 or 2!");
+		}
 	}
 
 	/**
@@ -175,7 +181,7 @@ public class KernelGeneratorDTMC extends KernelGenerator
 	 * @param sum
 	 * @return method call expression
 	 */
-	private Expression mainMethodCallNonsynUpdate(CLValue rnd, CLValue sum)
+	private Expression mainMethodCallNonsynUpdateImpl(CLValue rnd, CLValue sum)
 	{
 		Method update = helperMethods.get(KernelMethods.PERFORM_UPDATE);
 		Expression call = update.callMethod(
@@ -209,7 +215,7 @@ public class KernelGeneratorDTMC extends KernelGenerator
 		 * if(selection < selectionSize/sum)
 		 * callNonsynUpdate(..)
 		 */
-		ifElse.addExpression(mainMethodCallNonsynUpdate(selection, new RValue(sum)));
+		mainMethodCallNonsynUpdate(ifElse, selection, new RValue(sum));
 		return ifElse;
 	}
 

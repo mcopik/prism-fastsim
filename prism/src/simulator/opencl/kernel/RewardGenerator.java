@@ -39,6 +39,7 @@ import java.util.TreeMap;
 
 import simulator.opencl.RuntimeConfig;
 import simulator.opencl.automaton.AbstractAutomaton.AutomatonType;
+import simulator.opencl.automaton.command.SynchronizedCommand;
 import simulator.opencl.kernel.expression.Expression;
 import simulator.opencl.kernel.expression.ExpressionGenerator;
 import simulator.opencl.kernel.expression.KernelComponent;
@@ -88,7 +89,7 @@ public abstract class RewardGenerator implements KernelComponentGenerator
 	/**
 	 * Name of structure field corresponding to previous transitions reward (previous update).
 	 */
-	protected final static String REWARD_STRUCTURE_VAR_PREVIOUS_TRANSITION = "prevStateReward";
+	protected final static String REWARD_STRUCTURE_VAR_PREVIOUS_TRANSITION = "prevTransReward";
 
 	/**
 	 * Variables required to save the state of reward in a C structure.
@@ -277,6 +278,9 @@ public abstract class RewardGenerator implements KernelComponentGenerator
 		return definitions;
 	}
 
+	/**
+	 * @return args for the kernel used by this generator - reward result output
+	 */
 	public Collection<CLVariable> getKernelArgs()
 	{
 		/**
@@ -329,7 +333,13 @@ public abstract class RewardGenerator implements KernelComponentGenerator
 		return localVars;
 	}
 
-	public void writeOutput(Expression threadPosition, Method mainMethod, CLVariable loopDetectionVariable)
+	/**
+	 * Generate code for writing reward result into an OpenCL buffer.
+	 * @param threadPosition
+	 * @param mainMethod
+	 * @param loopDetectionVariable
+	 */
+	public void writeOutput(Method mainMethod, Expression threadPosition, CLVariable loopDetectionVariable)
 	{
 		for (int i = 0; i < rewardProperties.size(); ++i) {
 			CLVariable result = kernelArgs.get(i).accessElement(threadPosition);
@@ -342,5 +352,34 @@ public abstract class RewardGenerator implements KernelComponentGenerator
 
 			mainMethod.addExpression(createAssignment(result, assignment));
 		}
+	}
+
+	/**
+	 * Before the state update, evaluate transition rewards for a non-synchronized update.
+	 * @param stateVector
+	 */
+	public Expression beforeUpdate(CLVariable stateVector)
+	{
+		return null;
+	}
+
+	/**
+	 * Before the state update, evaluate transition rewards for a synchronized update.
+	 * @param stateVector
+	 * @param cmd
+	 */
+	public Expression beforeUpdate(CLVariable stateVector, SynchronizedCommand cmd)
+	{
+		return null;
+	}
+
+	/**
+	 * Before the state update, evaluate state rewards.
+	 * @param component
+	 * @param stateVector
+	 */
+	public Expression afterUpdate(CLVariable stateVector)
+	{
+		return null;
 	}
 }

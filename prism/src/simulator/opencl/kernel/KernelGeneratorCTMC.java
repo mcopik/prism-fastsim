@@ -53,6 +53,7 @@ import simulator.opencl.kernel.expression.ExpressionGenerator;
 import simulator.opencl.kernel.expression.ExpressionGenerator.Operator;
 import simulator.opencl.kernel.expression.ForLoop;
 import simulator.opencl.kernel.expression.IfElse;
+import simulator.opencl.kernel.expression.KernelComponent;
 import simulator.opencl.kernel.expression.Method;
 import simulator.opencl.kernel.expression.Switch;
 import simulator.opencl.kernel.memory.ArrayType;
@@ -216,10 +217,18 @@ public class KernelGeneratorCTMC extends KernelGenerator
 	}
 
 	@Override
-	protected void mainMethodCallNonsynUpdate(ComplexKernelComponent parent)
+	protected void mainMethodCallNonsynUpdateImpl(ComplexKernelComponent parent, CLValue... args)
 	{
-		CLValue random = config.prngType.getRandomFloat(fromString(0), varSelectionSize.getSource());
-		parent.addExpression(mainMethodCallNonsynUpdate(random));
+		if (hasRewardProperties) {
+			parent.addExpression(rewardGenerator.beforeUpdate(varStateVector));
+		}
+		CLValue random = null;
+		if (args.length == 0) {
+			random = config.prngType.getRandomFloat(fromString(0), varSelectionSize.getSource());
+		} else {
+			random = args[0];
+		}
+		parent.addExpression(mainMethodCallNonsynUpdateImpl(random));
 	}
 
 	/**
@@ -227,7 +236,7 @@ public class KernelGeneratorCTMC extends KernelGenerator
 	 * @param rnd
 	 * @return call expression
 	 */
-	private Expression mainMethodCallNonsynUpdate(CLValue rnd)
+	private KernelComponent mainMethodCallNonsynUpdateImpl(CLValue rnd)
 	{
 		Method update = helperMethods.get(KernelMethods.PERFORM_UPDATE);
 		Expression call = update.callMethod(
@@ -277,7 +286,7 @@ public class KernelGeneratorCTMC extends KernelGenerator
 		 * if(selection < selectionSize/sum)
 		 * callNonsynUpdate(..)
 		 */
-		ifElse.addExpression(mainMethodCallNonsynUpdate(selection));
+		mainMethodCallNonsynUpdate(ifElse, selection);
 		return ifElse;
 	}
 
