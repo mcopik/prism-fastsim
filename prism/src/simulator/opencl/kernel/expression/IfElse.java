@@ -43,6 +43,7 @@ public class IfElse extends ComplexKernelComponent
 		public enum Type {
 			IF, ELIF, ELSE
 		}
+
 		/**
 		 * Component type.
 		 */
@@ -55,7 +56,7 @@ public class IfElse extends ComplexKernelComponent
 		 * Component body.
 		 */
 		public List<KernelComponent> commands = new ArrayList<>();
-		
+
 		/**
 		 * Create condition with given type and condition.
 		 * @param type
@@ -68,7 +69,7 @@ public class IfElse extends ComplexKernelComponent
 			this.type = type;
 			this.condition = expr;
 		}
-		
+
 		/**
 		 * Create else.
 		 */
@@ -135,7 +136,7 @@ public class IfElse extends ComplexKernelComponent
 			return builder.toString();
 		}
 	}
-	
+
 	/**
 	 * True when the IfElse contains an "else" at the end.
 	 */
@@ -144,7 +145,7 @@ public class IfElse extends ComplexKernelComponent
 	 * Currently selected condition.
 	 */
 	private int conditionNumber = 0;
-	
+
 	/**
 	 * Default constructor. Requires condition for the "if".
 	 * @param ifCondition
@@ -154,7 +155,7 @@ public class IfElse extends ComplexKernelComponent
 		Preconditions.checkNotNull(ifCondition, "Trying to add null condition in IfElses!");
 		body.add(new Condition(Condition.Type.IF, ifCondition));
 	}
-	
+
 	/**
 	 * Add another "else-if" condition.
 	 * @param condition
@@ -184,7 +185,7 @@ public class IfElse extends ComplexKernelComponent
 			necessaryIncludes.addAll(expr.getIncludes());
 		}
 	}
-	
+
 	/**
 	 * Add "else".
 	 */
@@ -193,7 +194,7 @@ public class IfElse extends ComplexKernelComponent
 		hasElse = true;
 		body.add(new Condition());
 	}
-	
+
 	/**
 	 * @return number of components - conditions
 	 */
@@ -201,7 +202,7 @@ public class IfElse extends ComplexKernelComponent
 	{
 		return body.size();
 	}
-	
+
 	/**
 	 * Specify current condition, used by addExpression method
 	 * which doesn't use the condition number argument. 
@@ -223,7 +224,7 @@ public class IfElse extends ComplexKernelComponent
 			necessaryIncludes.addAll(expr.getIncludes());
 		}
 	}
-	
+
 	@Override
 	public void addExpression(String expr)
 	{

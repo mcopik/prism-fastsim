@@ -80,9 +80,9 @@ public class Kernel
 	 * Not necessary right now, because Random123 provides these definition in include.
 	 * May be helpful later.
 	 */
-	public final static String KERNEL_TYPEDEFS = "typedef unsigned char uchar" + "typedef char int8_t;\n" + "typedef unsigned char uint8_t;\n" + "typedef unsigned short uint16_t;\n"
-			+ "typedef short int16_t;\n" + "typedef unsigned int uint32_t;\n" + "typedef int int32_t;\n" + "typedef long int64_t;\n"
-			+ "typedef unsigned long uint64_t;\n";
+	public final static String KERNEL_TYPEDEFS = "typedef unsigned char uchar" + "typedef char int8_t;\n" + "typedef unsigned char uint8_t;\n"
+			+ "typedef unsigned short uint16_t;\n" + "typedef short int16_t;\n" + "typedef unsigned int uint32_t;\n" + "typedef int int32_t;\n"
+			+ "typedef long int64_t;\n" + "typedef unsigned long uint64_t;\n";
 
 	/**
 	 * Create kernel for an automaton and properties, using also a configuration class.
@@ -93,8 +93,8 @@ public class Kernel
 	 * @throws KernelException
 	 * @throws PrismLangException 
 	 */
-	public Kernel(RuntimeConfig config, AbstractAutomaton model, List<SamplerBoolean> properties, List<SamplerDouble> rewardProperties) 
-			throws KernelException, PrismLangException
+	public Kernel(RuntimeConfig config, AbstractAutomaton model, List<SamplerBoolean> properties, List<SamplerDouble> rewardProperties) throws KernelException,
+			PrismLangException
 	{
 		if (model.getType() == AutomatonType.DTMC) {
 			this.methodsGenerator = new KernelGeneratorDTMC(model, properties, rewardProperties, config);
@@ -104,6 +104,7 @@ public class Kernel
 		mainMethod = methodsGenerator.createMainMethod();
 		helperMethods = methodsGenerator.getHelperMethods();
 		globalDeclarations.addAll(methodsGenerator.getAdditionalDeclarations());
+
 		generateSource();
 	}
 
@@ -151,7 +152,7 @@ public class Kernel
 		}
 		declareMethods(builder);
 		defineMethods(builder);
-		
+
 		kernelSource = builder.toString();
 	}
 

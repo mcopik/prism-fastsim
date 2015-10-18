@@ -284,7 +284,7 @@ public class KernelGeneratorDTMC extends KernelGenerator
 	}
 
 	@Override
-	protected void guardsMethodCreateCondition(Method currentMethod, int position, String guard)
+	protected void guardsMethodCreateCondition(Method currentMethod, int position, Expression guard)
 	{
 		CLVariable guardsTab = currentMethod.getArg("guardsTab");
 		Preconditions.checkNotNull(guardsTab, "");
@@ -292,7 +292,7 @@ public class KernelGeneratorDTMC extends KernelGenerator
 		Preconditions.checkNotNull(counter, "");
 
 		CLVariable tabPos = guardsTab.accessElement(ExpressionGenerator.postIncrement(counter));
-		IfElse ifElse = new IfElse(new Expression(guard));
+		IfElse ifElse = new IfElse(guard);
 		ifElse.addExpression(0, createAssignment(tabPos, fromString(position)));
 		currentMethod.addExpression(ifElse);
 	}
@@ -437,7 +437,7 @@ public class KernelGeneratorDTMC extends KernelGenerator
 	@Override
 	protected void guardsSynAddGuard(ComplexKernelComponent parent, CLVariable guardArray, Command cmd, CLVariable size)
 	{
-		Expression guard = new Expression(convertPrismGuard(svPtrTranslations, cmd.getGuard().toString()));
+		Expression guard = convertPrismGuard(svPtrTranslations, cmd.getGuard());
 		parent.addExpression(createAssignment(guardArray, guard));
 		parent.addExpression(createBinaryExpression(size.getSource(), Operator.ADD_AUGM,
 		//converted guard

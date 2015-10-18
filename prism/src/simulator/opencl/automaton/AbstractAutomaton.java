@@ -34,6 +34,7 @@ import java.util.Map;
 import parser.VarList;
 import parser.ast.Module;
 import parser.ast.ModulesFile;
+import parser.ast.RewardStruct;
 import prism.Preconditions;
 import prism.PrismException;
 import simulator.opencl.automaton.command.CommandBuilder;
@@ -218,6 +219,11 @@ public abstract class AbstractAutomaton
 	public StateVector getStateVector()
 	{
 		return variables;
+	}
+
+	public Collection<RewardStruct> getPrismRewards()
+	{
+		return modulesFile.getRewardStructs();
 	}
 
 	@Override

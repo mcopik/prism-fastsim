@@ -337,7 +337,7 @@ public class KernelGeneratorCTMC extends KernelGenerator
 	}
 
 	@Override
-	protected void guardsMethodCreateCondition(Method currentMethod, int position, String guard)
+	protected void guardsMethodCreateCondition(Method currentMethod, int position, Expression guard)
 	{
 		CLVariable guardsTab = currentMethod.getArg("guardsTab");
 		Preconditions.checkNotNull(guardsTab, "");
@@ -347,7 +347,7 @@ public class KernelGeneratorCTMC extends KernelGenerator
 		Preconditions.checkNotNull(sum, "");
 		CLVariable tabPos = guardsTab.accessElement(postIncrement(counter));
 
-		IfElse ifElse = new IfElse(new Expression(guard));
+		IfElse ifElse = new IfElse(guard);
 		ifElse.addExpression(0, createAssignment(tabPos, fromString(position)));
 		Expression sumExpr = createBinaryExpression(sum.getSource(), Operator.ADD_AUGM,
 				fromString(convertPrismRate(svPtrTranslations, null, commands[position].getRateSum())));
@@ -549,7 +549,7 @@ public class KernelGeneratorCTMC extends KernelGenerator
 	{
 		//TODO: optimize this by removing if and setting rate add:
 		// rateSum += rate*guards
-		IfElse ifElse = new IfElse(new Expression(convertPrismGuard(svPtrTranslations, cmd.getGuard().toString())));
+		IfElse ifElse = new IfElse(convertPrismGuard(svPtrTranslations, cmd.getGuard()));
 		ifElse.addExpression(createBinaryExpression(size.getSource(), Operator.ADD_AUGM,
 		//converted rate
 				new Expression(convertPrismRate(svPtrTranslations, null, cmd.getRateSum()))));

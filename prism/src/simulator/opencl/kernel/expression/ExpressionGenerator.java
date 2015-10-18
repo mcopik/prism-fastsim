@@ -30,6 +30,7 @@ import java.util.Map;
 
 import prism.Pair;
 import prism.Preconditions;
+import simulator.opencl.automaton.Guard;
 import simulator.opencl.automaton.PrismVariable;
 import simulator.opencl.automaton.update.Action;
 import simulator.opencl.automaton.update.Rate;
@@ -205,7 +206,7 @@ public class ExpressionGenerator
 		for (Pair<PrismVariable, parser.ast.Expression> expr : action.expressions) {
 
 			builder.append(translations.get(expr.first.name)).append(" = ");
-			builder.append(convertUpdate(stateVector, expr.second, translations, savedVariables));
+			builder.append(convertPrismUpdate(stateVector, expr.second, translations, savedVariables).getSource());
 			builder.append(";\n");
 		}
 		return new Expression(builder.toString());
@@ -232,7 +233,7 @@ public class ExpressionGenerator
 			Preconditions.checkCondition(destinationSVName != null);
 
 			Expression mainAssignment = new Expression(String.format("%s = %s", translations.get(expr.first.name),
-					convertUpdate(stateVector, expr.second, translations, savedVariables)));
+					convertPrismUpdate(stateVector, expr.second, translations, savedVariables).getSource()));
 			addParentheses(mainAssignment);
 			list.addExpression(createBinaryExpression(changeFlag.getSource(), Operator.LAND_AUGM, createConditionalAssignment(
 			//destination == new_value
@@ -248,7 +249,7 @@ public class ExpressionGenerator
 	 * @param savedVariables if not null, then references to 'save' place - will be used instead of translation in previous map
 	 * @return convert variable update from PRISM model to OpenCL
 	 */
-	static private String convertUpdate(CLVariable stateVector, parser.ast.Expression expr, Map<String, String> translations,
+	static public Expression convertPrismUpdate(CLVariable stateVector, parser.ast.Expression expr, Map<String, String> translations,
 			Map<String, CLVariable> savedVariables)
 	{
 		StringBuilder assignment = new StringBuilder();
@@ -256,7 +257,7 @@ public class ExpressionGenerator
 		convertEquality(assignment);
 		builderReplace(assignment, "|", "||");
 		builderReplace(assignment, "&", "&&");
-		return assignment.toString();
+		return new Expression(assignment.toString());
 	}
 
 	/**
@@ -347,10 +348,31 @@ public class ExpressionGenerator
 
 	/**
 	 * @param translations contains translations of model variables to proper references at state vector structure
-	 * @param expr
-	 * @return PRISM guard with replaced all references to model variable and fixed logical operators
+	 * @param exprd guarding expression
+	 * @return PRISM guard with replaced all references to model variable and fixed logical operators. It has to be a single expression,
+	 * otherwise it couldn't be a logical condition with single value
 	 */
-	static public String convertPrismGuard(Map<String, String> translations, String expr)
+	static public Expression convertPrismGuard(Map<String, String> translations, parser.ast.Expression expr)
+	{
+		return convertPrismGuard(translations, expr.toString());
+	}
+
+	/**
+	 * @param translations contains translations of model variables to proper references at state vector structure
+	 * @param exprd possibly preprocessed guard
+	 * @return PRISM guard with replaced all references to model variable and fixed logical operators. It has to be a single expression,
+	 * otherwise it couldn't be a logical condition with single value
+	 */
+	static public Expression convertPrismGuard(Map<String, String> translations, Guard expr)
+	{
+		return convertPrismGuard(translations, expr.toString());
+	}
+
+	/**
+	 * Common implementation for method taking a preprocessed guard or a PRISM expression.
+	 * Documentation - look for overloaded methods.
+	 */
+	static private Expression convertPrismGuard(Map<String, String> translations, String expr)
 	{
 		StringBuilder builder = new StringBuilder(expr);
 		for (Map.Entry<String, String> entry : translations.entrySet()) {
@@ -359,7 +381,7 @@ public class ExpressionGenerator
 		convertEquality(builder);
 		builderReplace(builder, "|", "||");
 		builderReplace(builder, "&", "&&");
-		return builder.toString();
+		return new Expression(builder.toString());
 	}
 
 	/**

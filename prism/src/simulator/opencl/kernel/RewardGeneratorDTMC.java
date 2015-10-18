@@ -39,9 +39,9 @@ import simulator.sampler.SamplerRewardInstDisc;
 
 public class RewardGeneratorDTMC extends RewardGenerator
 {
-	public RewardGeneratorDTMC(List<SamplerDouble> properties, RuntimeConfig config) throws KernelException
+	public RewardGeneratorDTMC(KernelGenerator generator) throws KernelException
 	{
-		super(properties, config);
+		super(generator);
 	}
 
 	@Override

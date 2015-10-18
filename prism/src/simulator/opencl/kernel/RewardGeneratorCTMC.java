@@ -26,10 +26,8 @@
 package simulator.opencl.kernel;
 
 import java.util.Collection;
-import java.util.List;
 import java.util.Map;
 
-import simulator.opencl.RuntimeConfig;
 import simulator.opencl.kernel.expression.Method;
 import simulator.sampler.SamplerDouble;
 import simulator.sampler.SamplerRewardCumulCont;
@@ -39,9 +37,9 @@ import simulator.sampler.SamplerRewardInstDisc;
 
 public class RewardGeneratorCTMC extends RewardGenerator
 {
-	public RewardGeneratorCTMC(List<SamplerDouble> properties, RuntimeConfig config) throws KernelException
+	public RewardGeneratorCTMC(KernelGenerator generator) throws KernelException
 	{
-		super(properties, config);
+		super(generator);
 	}
 
 	@Override
@@ -54,23 +52,16 @@ public class RewardGeneratorCTMC extends RewardGenerator
 	@Override
 	protected void initializeRewardRequiredVarsCumulative(Map<Class<? extends SamplerDouble>, String[]> map)
 	{
-		String[] vars = new String[]{ 
-				REWARD_STRUCTURE_VAR_CUMULATIVE_TOTAL,
-				REWARD_STRUCTURE_VAR_PREVIOUS_STATE,
-				REWARD_STRUCTURE_VAR_PREVIOUS_TRANSITION,
-				REWARD_STRUCTURE_VAR_CURRENT_STATE
-		};
+		String[] vars = new String[] { REWARD_STRUCTURE_VAR_CUMULATIVE_TOTAL, REWARD_STRUCTURE_VAR_PREVIOUS_STATE, REWARD_STRUCTURE_VAR_PREVIOUS_TRANSITION,
+				REWARD_STRUCTURE_VAR_CURRENT_STATE };
 		map.put(SamplerRewardCumulDisc.class, vars);
 		map.put(SamplerRewardCumulCont.class, vars);
 	}
-	
+
 	@Override
 	protected void initializeRewardRequiredVarsInstantaneous(Map<Class<? extends SamplerDouble>, String[]> map)
 	{
-		String[] vars = new String[]{ 
-				REWARD_STRUCTURE_VAR_PREVIOUS_STATE,
-				REWARD_STRUCTURE_VAR_CURRENT_STATE
-		};
+		String[] vars = new String[] { REWARD_STRUCTURE_VAR_PREVIOUS_STATE, REWARD_STRUCTURE_VAR_CURRENT_STATE };
 		map.put(SamplerRewardInstDisc.class, vars);
 		map.put(SamplerRewardInstCont.class, vars);
 	}

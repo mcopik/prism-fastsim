@@ -75,6 +75,7 @@ import simulator.opencl.kernel.memory.PointerType;
 import simulator.opencl.kernel.memory.StdVariableType;
 import simulator.opencl.kernel.memory.StdVariableType.StdType;
 import simulator.opencl.kernel.memory.StructureType;
+import simulator.opencl.kernel.memory.VariableTypeInterface;
 import simulator.sampler.Sampler;
 import simulator.sampler.SamplerBoolean;
 import simulator.sampler.SamplerBoundedUntilCont;
@@ -221,6 +222,11 @@ public abstract class KernelGenerator
 	protected KernelMethod mainMethod = null;
 
 	/**
+	 * Reward properties for this kernel.
+	 */
+	protected List<SamplerDouble> rewardProperties = null;
+
+	/**
 	 * Helper class used to generate code for computation of rewards and evaluation of their properties.
 	 */
 	protected RewardGenerator rewardGenerator = null;
@@ -277,8 +283,6 @@ public abstract class KernelGenerator
 		this.config = config;
 		this.prngType = config.prngType;
 		this.properties = properties;
-		this.hasRewardProperties = rewardProperties.size() != 0;
-		this.rewardGenerator = hasRewardProperties ? RewardGenerator.createGenerator(config, model.getType(), rewardProperties) : null;
 
 		importStateVector();
 		int synSize = model.synchCmdsNumber();
@@ -333,6 +337,9 @@ public abstract class KernelGenerator
 			additionalDeclarations.add(PROPERTY_STATE_STRUCTURE.getDefinition());
 		}
 
+		this.hasRewardProperties = rewardProperties.size() != 0;
+		this.rewardProperties = rewardProperties;
+		this.rewardGenerator = hasRewardProperties ? RewardGenerator.createGenerator(this, model.getType()) : null;
 		if (hasRewardProperties) {
 			additionalDeclarations.addAll(rewardGenerator.getDefinitions());
 		}
@@ -386,6 +393,9 @@ public abstract class KernelGenerator
 		}
 		if (additionalMethods != null) {
 			ret.addAll(additionalMethods);
+		}
+		if (hasRewardProperties) {
+			ret.addAll(rewardGenerator.getAdditionalMethods());
 		}
 		return ret;
 	}
@@ -1057,7 +1067,7 @@ public abstract class KernelGenerator
 		guardsMethodCreateLocalVars(currentMethod);
 
 		for (int i = 0; i < commands.length; ++i) {
-			guardsMethodCreateCondition(currentMethod, i, convertPrismGuard(svPtrTranslations, commands[i].getGuard().toString()));
+			guardsMethodCreateCondition(currentMethod, i, convertPrismGuard(svPtrTranslations, commands[i].getGuard()));
 		}
 
 		//TODO: disable writing last guard, should not change anything
@@ -1089,7 +1099,7 @@ public abstract class KernelGenerator
 	 * @param position
 	 * @param guard
 	 */
-	protected abstract void guardsMethodCreateCondition(Method currentMethod, int position, String guard);
+	protected abstract void guardsMethodCreateCondition(Method currentMethod, int position, Expression guard);
 
 	/**
 	 * Returns counter of evaluated guards (integer) for DTMC or sum of rates (float) for CTMC.
@@ -2043,5 +2053,30 @@ public abstract class KernelGenerator
 
 			savedVariables.put(var.name, savedVar);
 		}
+	}
+
+	public RuntimeConfig getRuntimeConfig()
+	{
+		return config;
+	}
+
+	public Collection<SamplerDouble> getRewardProperties()
+	{
+		return rewardProperties;
+	}
+
+	public VariableTypeInterface getStateVectorType()
+	{
+		return stateVectorType;
+	}
+
+	public AbstractAutomaton getModel()
+	{
+		return model;
+	}
+
+	public Map<String, String> getSVTranslations()
+	{
+		return svPtrTranslations;
 	}
 }
