@@ -30,7 +30,6 @@ import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 
-import prism.Preconditions;
 import simulator.opencl.kernel.expression.Expression;
 import simulator.opencl.kernel.expression.Include;
 
@@ -90,7 +89,7 @@ public class StructureType implements VariableTypeInterface, UDType
 	 * Structure fields. The order can't change!
 	 */
 	private LinkedHashMap<String, CLVariable> fields = new LinkedHashMap<>();
-	
+
 	/**
 	 * Structure type name.
 	 */
@@ -127,7 +126,7 @@ public class StructureType implements VariableTypeInterface, UDType
 	{
 		return fields.size();
 	}
-	
+
 	@Override
 	public Expression getDeclaration()
 	{
@@ -236,9 +235,8 @@ public class StructureType implements VariableTypeInterface, UDType
 	@Override
 	public CLVariable accessField(String varName, String fieldName)
 	{
-		Preconditions.checkCondition(containsField(fieldName), String.format("StructureType %s does not contain field %s", typeName, fieldName));
 		CLVariable var = fields.get(fieldName);
-		return new CLVariable(var.varType, varName + "." + fieldName);
+		return var != null ? new CLVariable(var.varType, varName + "." + fieldName) : null;
 	}
 
 	@Override
