@@ -25,10 +25,18 @@
 //==============================================================================
 package simulator.opencl.kernel;
 
+import static simulator.opencl.kernel.expression.ExpressionGenerator.addParentheses;
+import static simulator.opencl.kernel.expression.ExpressionGenerator.createBinaryExpression;
+
 import java.util.Collection;
 import java.util.Map;
 
+import simulator.opencl.kernel.expression.Expression;
+import simulator.opencl.kernel.expression.ExpressionGenerator.Operator;
 import simulator.opencl.kernel.expression.Method;
+import simulator.opencl.kernel.memory.CLVariable;
+import simulator.opencl.kernel.memory.StdVariableType;
+import simulator.opencl.kernel.memory.StdVariableType.StdType;
 import simulator.sampler.SamplerDouble;
 import simulator.sampler.SamplerRewardCumulCont;
 import simulator.sampler.SamplerRewardCumulDisc;
@@ -37,6 +45,18 @@ import simulator.sampler.SamplerRewardInstDisc;
 
 public class RewardGeneratorCTMC extends RewardGenerator
 {
+	/**
+	 * Two additional args used by state reward functions.
+	 * Keeps time of entering and leaving state.
+	 */
+	static final CLVariable PREVIOUS_TIME_ARG = new CLVariable(new StdVariableType(StdType.FLOAT), "previous_time");
+	static final CLVariable NEW_TIME_ARG = new CLVariable(new StdVariableType(StdType.FLOAT), "time");
+	/**
+	 * Reuse this expression for all updates:
+	 * (time - previous_time)
+	 */
+	static final Expression TIME_SPENT_STATE = addParentheses(createBinaryExpression(NEW_TIME_ARG.getSource(), Operator.SUB, PREVIOUS_TIME_ARG.getSource()));
+
 	public RewardGeneratorCTMC(KernelGenerator generator) throws KernelException
 	{
 		super(generator);
@@ -66,4 +86,21 @@ public class RewardGeneratorCTMC extends RewardGenerator
 		map.put(SamplerRewardInstCont.class, vars);
 	}
 
+	@Override
+	protected void stateRewardFunctionAdditionalArgs(Method function) throws KernelException
+	{
+		function.addArg(PREVIOUS_TIME_ARG);
+		function.addArg(NEW_TIME_ARG);
+	}
+
+	@Override
+	protected Expression stateRewardFunctionComputeCumulRw(Expression cumulReward, Expression stateReward, Expression transitionReward) throws KernelException
+	{
+		/**
+		 * More complex update: add transition and state rewards, but the second one needs to be multiplied by time spent in state.
+		 */
+		Expression newValue = createBinaryExpression(stateReward, Operator.MUL, TIME_SPENT_STATE);
+		newValue = createBinaryExpression(newValue, Operator.ADD, transitionReward);
+		return createBinaryExpression(cumulReward, Operator.ADD_AUGM, newValue);
+	}
 }

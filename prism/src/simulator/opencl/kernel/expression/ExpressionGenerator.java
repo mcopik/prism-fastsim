@@ -309,7 +309,7 @@ public class ExpressionGenerator
 	 * @param rate
 	 * @return rate of update with replaced all references to model variable
 	 */
-	static public String convertPrismRate(Map<String, String> translations, Map<String, CLVariable> savedVariables, Rate rate)
+	static public Expression convertPrismRate(Map<String, String> translations, Map<String, CLVariable> savedVariables, Rate rate)
 	{
 		StringBuilder builder = new StringBuilder(rate.toString());
 		for (Map.Entry<String, String> entry : translations.entrySet()) {
@@ -326,7 +326,7 @@ public class ExpressionGenerator
 			}
 		}
 
-		return builder.toString();
+		return new Expression(builder.toString());
 	}
 
 	/**

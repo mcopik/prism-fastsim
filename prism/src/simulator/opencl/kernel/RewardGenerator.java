@@ -47,6 +47,7 @@ import simulator.opencl.automaton.AbstractAutomaton.AutomatonType;
 import simulator.opencl.automaton.command.SynchronizedCommand;
 import simulator.opencl.kernel.expression.Expression;
 import simulator.opencl.kernel.expression.ExpressionGenerator;
+import simulator.opencl.kernel.expression.ExpressionGenerator.Operator;
 import simulator.opencl.kernel.expression.IfElse;
 import simulator.opencl.kernel.expression.KernelComponent;
 import simulator.opencl.kernel.expression.Method;
@@ -61,9 +62,21 @@ import simulator.opencl.kernel.memory.StructureType;
 import simulator.sampler.SamplerDouble;
 import simulator.sampler.SamplerRewardReach;
 
+/**
+ * This class generates code responsible for verification of reward properties.
+ * 
+ * The general algorithm is:
+ * 1) Update transition and cumulative rewards, using previous state rewards <- Generate functions!
+ * Depends on selected update (unsychronized/synchronized) which requires that the function call will be injected directly
+ * before updating state vector when the chosen transition is known.
+ * For CTMC, requires new and old time.
+ * 2) Process the state vector update
+ * 3) Compute new state rewards <- Generate functions!
+ * Requires only new state vector.
+ * 4) Recheck reward properties.
+ */
 public abstract class RewardGenerator implements KernelComponentGenerator
 {
-
 	/**
 	 * Structure contains two fields:
 	 * - a boolean "valueKnown" which marks whether the property has been already computed.
@@ -89,12 +102,6 @@ public abstract class RewardGenerator implements KernelComponentGenerator
 	protected final static String REWARD_STRUCTURE_VAR_CUMULATIVE_TOTAL = "cumulativeTotalReward";
 
 	/**
-	 * Name of structure field used to temporarily save currently computed transition/state reward.
-	 * It's needed to update total reward in each step.
-	 */
-	protected final static String REWARD_STRUCTURE_VAR_CUMULATIVE_TOTAL_CUR = "cumulativeTotalReward_CurReward";
-
-	/**
 	 * Name of structure field corresponding to current state reward.
 	 */
 	protected final static String REWARD_STRUCTURE_VAR_CURRENT_STATE = "currentStateReward";
@@ -115,6 +122,11 @@ public abstract class RewardGenerator implements KernelComponentGenerator
 	protected final static String TRANSITION_REWARD_UPDATE_FUNCTION_NAME = "transitionRewardUpdate";
 
 	/**
+	 * Generic name of function which updates state rewards.
+	 */
+	protected final static String STATE_REWARD_UPDATE_FUNCTION_NAME = "stateRewardUpdate";
+
+	/**
 	 * Variables required to save the state of reward in a C structure.
 	 * The key is the class object of Sampler.
 	 */
@@ -126,7 +138,7 @@ public abstract class RewardGenerator implements KernelComponentGenerator
 	protected Map<Integer, StructureType> rewardStructures = new TreeMap<>();
 
 	/**
-	 * Methods used to compute transition rewards.
+	 * Functions used to compute transition rewards.
 	 * Key is the synchronization label or "" for non-synchronous update. Keeping an integer index would be nicer, but PRISM
 	 * reward structure use strings unfortunately.
 	 * Template:
@@ -136,7 +148,15 @@ public abstract class RewardGenerator implements KernelComponentGenerator
 	 * 
 	 * The second element contains indices of reward structures used by this method.
 	 */
-	protected Map<String, Pair<Collection<Integer>, Method>> transitionUpdateMethods = new TreeMap<>();
+	protected Map<String, Pair<Collection<Integer>, Method>> transitionUpdateFunctions = new TreeMap<>();
+
+	/**
+	 * Functions used to compute state rewards.
+	 * 
+	 * For each reward structure, generate a separate method:
+	 * stateRewardUpdate_$(reward_index)(StateVector * sv, REWARD_STRUCTURE_$(reward_index) *);
+	 */
+	protected Map<Integer, Method> stateUpdateFunctions = new TreeMap<>();
 
 	/**
 	 * Keep all helper methods - transition & state updates, property checking.
@@ -246,7 +266,7 @@ public abstract class RewardGenerator implements KernelComponentGenerator
 		 */
 		Map<String, List<Pair<Integer, RewardStructItem>>> transitionRewards = new HashMap<>();
 		/**
-		 * For every reward structure, group state rewards.
+		 * For every reward structure, group state rewards indexed by reward structure.
 		 */
 		Map<Integer, List<RewardStructItem>> stateRewards = new HashMap<>();
 
@@ -267,7 +287,17 @@ public abstract class RewardGenerator implements KernelComponentGenerator
 		/**
 		 * Now create functions.
 		 */
-		transitionUpdateMethods = new TreeMap<>();
+		createTransitionRewardFunction(transitionRewards);
+		createStateRewardFunction(stateRewards);
+	}
+
+	/**
+	 * For each synchronization label, create a function which updates all needed transition rewards.
+	 * @param transitionRewards synchronization label -> list of: reward & index of reward structure
+	 * @throws KernelException
+	 */
+	private void createTransitionRewardFunction(Map<String, List<Pair<Integer, RewardStructItem>>> transitionRewards) throws KernelException
+	{
 		CLVariable pointerSV = new CLVariable(new PointerType(generator.getStateVectorType()), "sv");
 		Map<String, String> stateVectorTranslations = generator.getSVTranslations();
 		for (Map.Entry<String, List<Pair<Integer, RewardStructItem>>> item : transitionRewards.entrySet()) {
@@ -305,17 +335,10 @@ public abstract class RewardGenerator implements KernelComponentGenerator
 				}
 
 				/**
-				 * We need to compute the transition reward in two cases
-				 * 1) we store the transition reward directly
-				 * 2) we compute the transition reward for cumulative reward and it's kept in a temporary var
-				 * 
-				 * Otherwise - nothing to do.
+				 * Check if we need to compute the transition reward.
 				 */
 				CLVariable structureField = null;
 				structureField = pointer.accessField(REWARD_STRUCTURE_VAR_PREVIOUS_TRANSITION);
-				if (structureField == null) {
-					structureField = pointer.accessField(REWARD_STRUCTURE_VAR_CUMULATIVE_TOTAL_CUR);
-				}
 				if (structureField == null)
 					continue;
 
@@ -336,11 +359,129 @@ public abstract class RewardGenerator implements KernelComponentGenerator
 			}
 
 			// put method with indices of reward structures
-			transitionUpdateMethods.put(item.getKey(), new Pair<Collection<Integer>, Method>(rewardArgs.keySet(), method));
+			transitionUpdateFunctions.put(item.getKey(), new Pair<Collection<Integer>, Method>(rewardArgs.keySet(), method));
 			helperMethods.add(method);
 		}
 	}
 
+	private void createStateRewardFunction(Map<Integer, List<RewardStructItem>> stateRewards) throws KernelException
+	{
+		CLVariable pointerSV = new CLVariable(new PointerType(generator.getStateVectorType()), "sv");
+		Map<String, String> stateVectorTranslations = generator.getSVTranslations();
+
+		for (Map.Entry<Integer, List<RewardStructItem>> item : stateRewards.entrySet()) {
+
+			/**
+			 * Method args:
+			 * 1) pointer to state vector
+			 * 2) pointer to reward structure which is going to be updated
+			 */
+			Method method = new Method(String.format("%s_%d", STATE_REWARD_UPDATE_FUNCTION_NAME, item.getKey()), new StdVariableType(StdType.VOID));
+			method.addArg(pointerSV);
+
+			/**
+			 * Update the transition reward only IFF it's used by some property!
+			 */
+			StructureType rewardStruct = rewardStructures.get(item.getKey());
+			if (rewardStruct == null)
+				continue;
+			CLVariable rwStructPointer = new CLVariable(new PointerType(rewardStruct), String.format("rewardStructure_%d", item.getKey()));
+			method.addArg(rwStructPointer);
+
+			stateRewardFunctionAdditionalArgs(method);
+
+			CLVariable transitionRw = rwStructPointer.accessField(REWARD_STRUCTURE_VAR_PREVIOUS_TRANSITION);
+			CLVariable prevStateRw = rwStructPointer.accessField(REWARD_STRUCTURE_VAR_PREVIOUS_STATE);
+			CLVariable curStateRw = rwStructPointer.accessField(REWARD_STRUCTURE_VAR_CURRENT_STATE);
+
+			/**
+			 * Compute the cumulative reward - it always requires keeping rewards from previous state (new state should not be included
+			 * if the property is validated in current state).
+			 * "current state" contains rewards from previous state (we haven't touched it yet!)
+			 * Implementation is different for both DTMC and CTMC.
+			 */
+			CLVariable cumulRw = rwStructPointer.accessField(REWARD_STRUCTURE_VAR_CUMULATIVE_TOTAL);
+			if (cumulRw != null) {
+				method.addExpression(stateRewardFunctionComputeCumulRw(cumulRw.getSource(), prevStateRw.getSource(), transitionRw.getSource()));
+			}
+
+			/**
+			 * Save the previous state if there is a field in structure for it.
+			 */
+			if (prevStateRw != null && curStateRw != null) {
+				method.addExpression(ExpressionGenerator.createBinaryExpression(prevStateRw.getSource(), Operator.AS, curStateRw.getSource()));
+			}
+
+			/**
+			 * Mark first write (assignment), later augmented addition.
+			 */
+			boolean firstWrite = true;
+			for (RewardStructItem rwItem : item.getValue()) {
+
+				/**
+				 * First, process the guard.
+				 */
+				Expression guard = ExpressionGenerator.convertPrismGuard(stateVectorTranslations, rwItem.getStates());
+				IfElse condition = new IfElse(guard);
+				Expression rw = ExpressionGenerator.convertPrismUpdate(pointerSV, rwItem.getReward(), stateVectorTranslations, null);
+
+				Operator writeOp = firstWrite ? Operator.AS : Operator.ADD_AUGM;
+				firstWrite = false;
+				/**
+				 * Then write the results:
+				 * 1) if there is a field for current state -> write there
+				 * 2) if there is a field for previous state -> it's an optimization for cumulative reward,
+				 * store the current state there
+				 * This is only possible BECAUSE currently there's no sampler which requires only previous, but no current state.
+				 */
+				Expression stateRewardDest = null;
+				// store state reward
+				if (curStateRw != null) {
+					stateRewardDest = curStateRw.getSource();
+				} else {
+					stateRewardDest = prevStateRw.getSource();
+				}
+				condition.addExpression(ExpressionGenerator.createBinaryExpression(stateRewardDest, writeOp, rw));
+
+				method.addExpression(condition);
+			}
+
+			stateUpdateFunctions.put(item.getKey(), method);
+			helperMethods.add(method);
+		}
+	}
+
+	/**
+	 * Add additional arguments for state reward update function.
+	 * DTMC:
+	 * None
+	 * CTMC:
+	 * Time spent in time, i.e. new and old time (entering state before update and leaving it).
+	 * @param function
+	 */
+	protected abstract void stateRewardFunctionAdditionalArgs(Method function) throws KernelException;
+
+	/**
+	 * Update the cumulative reward kept at destination.
+	 * DTMC:
+	 * dest += stateReward + transitionReward;
+	 * CTMC:
+	 * dest += stateReward + timeSpentState * transitionReward;
+	 * @param cumulReward
+	 * @param stateReward
+	 * @param transitionReward
+	 * @returns update expression
+	 */
+	protected abstract Expression stateRewardFunctionComputeCumulRw(Expression cumulReward, Expression stateReward, Expression transitionReward)
+			throws KernelException;
+
+	/**
+	 * Utility method - insert a value for a map keeping lists of objects.
+	 * Checks for existence of a key and creates a new list automatically.
+	 * @param map
+	 * @param item
+	 * @param key
+	 */
 	private <T, V> void insertIntoMultiMap(Map<T, List<V>> map, V item, T key)
 	{
 		List<V> list = map.get(key);
@@ -391,14 +532,13 @@ public abstract class RewardGenerator implements KernelComponentGenerator
 
 		/**
 		 * reachability - same for both CTMC and DTMC
-		 * doesn't use the reward/transition fields, but requires an additional temporary to save the rewards
+		 * doesn't use the reward/transition fields, but requires an additional temporary to save the rewards.
 		 * transition is computed before the update, state after the update and:
 		 * cumulative += transition * time + state;
-		 * In our case:=
-		 * cumulative += temporary * time + state;
 		 */
 		map.put(SamplerRewardReach.class, new String[] { REWARD_STRUCTURE_VAR_CUMULATIVE_TOTAL });
-		map.put(SamplerRewardReach.class, new String[] { REWARD_STRUCTURE_VAR_CUMULATIVE_TOTAL_CUR });
+		map.put(SamplerRewardReach.class, new String[] { REWARD_STRUCTURE_VAR_PREVIOUS_TRANSITION });
+		map.put(SamplerRewardReach.class, new String[] { REWARD_STRUCTURE_VAR_PREVIOUS_STATE });
 		// cumulative and instantaneous - different variables for different automata
 		initializeRewardRequiredVarsCumulative(map);
 		initializeRewardRequiredVarsInstantaneous(map);

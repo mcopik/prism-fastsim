@@ -26,10 +26,11 @@
 package simulator.opencl.kernel;
 
 import java.util.Collection;
-import java.util.List;
 import java.util.Map;
 
-import simulator.opencl.RuntimeConfig;
+import simulator.opencl.kernel.expression.Expression;
+import simulator.opencl.kernel.expression.ExpressionGenerator;
+import simulator.opencl.kernel.expression.ExpressionGenerator.Operator;
 import simulator.opencl.kernel.expression.Method;
 import simulator.sampler.SamplerDouble;
 import simulator.sampler.SamplerRewardCumulCont;
@@ -67,4 +68,21 @@ public class RewardGeneratorDTMC extends RewardGenerator
 		map.put(SamplerRewardInstDisc.class, vars);
 	}
 
+	@Override
+	protected void stateRewardFunctionAdditionalArgs(Method function) throws KernelException
+	{
+		/**
+		 * DTMC implementation doesn't require additional arguments.
+		 */
+	}
+
+	@Override
+	protected Expression stateRewardFunctionComputeCumulRw(Expression cumulReward, Expression stateReward, Expression transitionReward) throws KernelException
+	{
+		/**
+		 * Simple update: just add transition and state reward.
+		 */
+		Expression newValue = ExpressionGenerator.createBinaryExpression(stateReward, Operator.ADD, transitionReward);
+		return ExpressionGenerator.createBinaryExpression(cumulReward, Operator.ADD_AUGM, newValue);
+	}
 }

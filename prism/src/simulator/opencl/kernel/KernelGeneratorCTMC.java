@@ -385,7 +385,7 @@ public class KernelGeneratorCTMC extends KernelGenerator
 		for (int i = 0; i < commands.length; ++i) {
 			Rate rateSum = commands[i].getRateSum();
 			_switch.addCase(new Expression(Integer.toString(i)));
-			_switch.addExpression(i, ExpressionGenerator.createAssignment(newSum, fromString(convertPrismRate(svPtrTranslations, null, rateSum))));
+			_switch.addExpression(i, ExpressionGenerator.createAssignment(newSum, convertPrismRate(svPtrTranslations, null, rateSum)));
 		}
 		loop.addExpression(_switch);
 		// if(sum + newSum > selectionSum)
@@ -629,8 +629,9 @@ public class KernelGeneratorCTMC extends KernelGenerator
 			Switch _switch = new Switch(guard);
 			for (int i = 0; i < cmd.getCommandNumber(moduleNumber); ++i) {
 				Rate rateSum = cmd.getCommand(moduleNumber, i).getRateSum();
+				Expression convertedRate = ExpressionGenerator.convertPrismRate(svPtrTranslations, null, rateSum);
 				_switch.addCase(new Expression(Integer.toString(i)));
-				_switch.addExpression(i, ExpressionGenerator.createAssignment(newSum, fromString(rateSum)));
+				_switch.addExpression(i, ExpressionGenerator.createAssignment(newSum, convertedRate));
 			}
 			guardSelectionLoop.addExpression(_switch);
 			/**
