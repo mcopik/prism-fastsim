@@ -291,19 +291,18 @@ public abstract class RewardGenerator implements KernelComponentGenerator
 			Map<Integer, CLVariable> rewardArgs = new LinkedHashMap<>();
 			for (Pair<Integer, RewardStructItem> rwItem : item.getValue()) {
 
-				CLVariable pointer = rewardArgs.get(rwItem.first);
-				if (pointer == null) {
-					pointer = new CLVariable(new PointerType(rewardStructures.get(rwItem.first)), String.format("rewardStructure_%d", rwItem.first));
-					method.addArg(pointer);
-					rewardArgs.put(rwItem.first, pointer);
-				}
-
 				/**
 				 * Update the transition reward only IFF it's used by some property!
 				 */
 				StructureType rewardStruct = rewardStructures.get(rwItem.first);
 				if (rewardStruct == null)
 					continue;
+				CLVariable pointer = rewardArgs.get(rwItem.first);
+				if (pointer == null) {
+					pointer = new CLVariable(new PointerType(rewardStruct), String.format("rewardStructure_%d", rwItem.first));
+					method.addArg(pointer);
+					rewardArgs.put(rwItem.first, pointer);
+				}
 
 				/**
 				 * We need to compute the transition reward in two cases
