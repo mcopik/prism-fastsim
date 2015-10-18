@@ -319,6 +319,7 @@ public abstract class RewardGenerator implements KernelComponentGenerator
 			 * LinkedHashSet is necessary to preserve the insert order - it will keep the order of arguments in function.
 			 */
 			Map<Integer, CLVariable> rewardArgs = new LinkedHashMap<>();
+			boolean nonEmptyFunc = false;
 			for (Pair<Integer, RewardStructItem> rwItem : item.getValue()) {
 
 				/**
@@ -355,12 +356,16 @@ public abstract class RewardGenerator implements KernelComponentGenerator
 				Expression assignment = createAssignment(structureField, rw);
 				condition.addExpression(assignment);
 
+				// otherwise, we would get empty functions for rewards which are not needed
+				nonEmptyFunc = true;
 				method.addExpression(condition);
 			}
 
 			// put method with indices of reward structures
-			transitionUpdateFunctions.put(item.getKey(), new Pair<Collection<Integer>, Method>(rewardArgs.keySet(), method));
-			helperMethods.add(method);
+			if (nonEmptyFunc) {
+				transitionUpdateFunctions.put(item.getKey(), new Pair<Collection<Integer>, Method>(rewardArgs.keySet(), method));
+				helperMethods.add(method);
+			}
 		}
 	}
 
@@ -413,9 +418,23 @@ public abstract class RewardGenerator implements KernelComponentGenerator
 			}
 
 			/**
-			 * Mark first write (assignment), later augmented addition.
+			 * Then write the results:
+			 * 1) if there is a field for current state -> write there
+			 * 2) if there is a field for previous state -> it's an optimization for cumulative reward,
+			 * store the current state there
+			 * This is only possible BECAUSE currently there's no sampler which requires only previous, but no current state.
 			 */
-			boolean firstWrite = true;
+			Expression stateRewardDest = null;
+			if (curStateRw != null) {
+				stateRewardDest = curStateRw.getSource();
+			} else {
+				stateRewardDest = prevStateRw.getSource();
+			}
+			/**
+			 * 'Restart' the state rewards by writing zero (we take a sum over the whole reward structure). 
+			 */
+			method.addExpression(ExpressionGenerator.createBinaryExpression(stateRewardDest, Operator.AS, fromString(0.0)));
+
 			for (RewardStructItem rwItem : item.getValue()) {
 
 				/**
@@ -424,24 +443,7 @@ public abstract class RewardGenerator implements KernelComponentGenerator
 				Expression guard = ExpressionGenerator.convertPrismGuard(stateVectorTranslations, rwItem.getStates());
 				IfElse condition = new IfElse(guard);
 				Expression rw = ExpressionGenerator.convertPrismUpdate(pointerSV, rwItem.getReward(), stateVectorTranslations, null);
-
-				Operator writeOp = firstWrite ? Operator.AS : Operator.ADD_AUGM;
-				firstWrite = false;
-				/**
-				 * Then write the results:
-				 * 1) if there is a field for current state -> write there
-				 * 2) if there is a field for previous state -> it's an optimization for cumulative reward,
-				 * store the current state there
-				 * This is only possible BECAUSE currently there's no sampler which requires only previous, but no current state.
-				 */
-				Expression stateRewardDest = null;
-				// store state reward
-				if (curStateRw != null) {
-					stateRewardDest = curStateRw.getSource();
-				} else {
-					stateRewardDest = prevStateRw.getSource();
-				}
-				condition.addExpression(ExpressionGenerator.createBinaryExpression(stateRewardDest, writeOp, rw));
+				condition.addExpression(ExpressionGenerator.createBinaryExpression(stateRewardDest, Operator.ADD_AUGM, rw));
 
 				method.addExpression(condition);
 			}
