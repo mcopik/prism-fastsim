@@ -158,6 +158,24 @@ public abstract class RewardGenerator implements KernelComponentGenerator
 	 */
 	protected Map<Integer, Method> stateUpdateFunctions = new TreeMap<>();
 
+	/*
+	 * Functions used to verify reward properties.
+	 * 
+	 * Template:
+	 * checkRewardProperty_$(type)(StateVector * sv, ARGS, RewardState *, ..., REWARD_STRUCTURE...)
+	 * There will be N structures keeping reward state and M <= N structures keeping corresponding reward structures;
+	 * M may be smaller then N, because different properties may use the same reward structure.
+	 * For reachability, ARGS is empty (no additional args). For other samplers - current time.
+	 * 
+	 * Pair:
+	 * a) method
+	 * b) N + M + 1 integers:
+	 * value of N, N integers containing properties indices, M 
+	 * It's ugly, but I want to keep everything in one map and it's not my fault that Java doesn't have tuple
+	 * or variadic generics to properly implement it (equivalence of C++ variadic templates).
+	 */
+	protected Map<Class<? extends SamplerDouble>, Pair<Method, Integer[]>> propertyMethods = new TreeMap<>();
+
 	/**
 	 * Keep all helper methods - transition & state updates, property checking.
 	 */
@@ -204,7 +222,7 @@ public abstract class RewardGenerator implements KernelComponentGenerator
 
 		createRewardStructures();
 		createRewardFunctions();
-
+		createPropertyFunctions();
 	}
 
 	/**
@@ -495,6 +513,56 @@ public abstract class RewardGenerator implements KernelComponentGenerator
 	}
 
 	/**
+	 * Create functions for direct computation of reward properties.
+	 * - Reachability (common for DTMC, CTMC)
+	 * - Instantaneous 
+	 * - Cumulative 
+	 * @throws KernelException
+	 */
+	protected void createPropertyFunctions() throws KernelException
+	{
+		/**
+		 * For each type of sampler, keep indices for future processing: sampler index in list rewardProperties.
+		 */
+		Map<Class<? extends SamplerDouble>, List<SamplerDouble>> sortedSamplers = new HashMap<>();
+		for (SamplerDouble sampler : rewardProperties) {
+			insertIntoMultiMap(sortedSamplers, sampler, sampler.getClass());
+		}
+
+		List<SamplerDouble> samplers = sortedSamplers.get(SamplerRewardReach.class);
+		if (samplers != null) {
+			createPropertyFunctionReachability(samplers);
+		}
+
+		//createPropertyFunctionCumul(sortedSamplers);
+		//createPropertyFunctionInst(sortedSamplers);
+	}
+
+	/**
+	 * Implementation is very simple:
+	 * if the target expression is true, then take the total cumulative reward and stop.
+	 * 
+	 * @param samplers
+	 * @throws KernelException
+	 */
+	protected void createPropertyFunctionReachability(List<SamplerDouble> samplers) throws KernelException
+	{
+
+	}
+
+	/**
+	 * Implementation is different in discrete and continuous-time:
+	 * a) 
+	 * 
+	 * 
+	 * @param samplers
+	 * @throws KernelException
+	 */
+	//protected abstract void createPropertyFunctionCumul(Map<Class<? extends SamplerDouble>, List<SamplerDouble>> samplers) throws KernelException;
+
+	//protected abstract void createPropertyFunctionInst(Map<Class<? extends SamplerDouble>, List<SamplerDouble>> samplers) throws KernelException;
+
+	/**
 	 * @return structure type keeping the evaluation of a reward property
 	 */
 	protected StructureType createPropertyStateType()
@@ -666,9 +734,10 @@ public abstract class RewardGenerator implements KernelComponentGenerator
 
 			CLVariable property = propertiesStateVar.accessElement(fromString(i)).accessField("propertyState");
 			CLVariable valueKnown = propertiesStateVar.accessElement(fromString(i)).accessField("valueKnown");
-			Expression assignment = ExpressionGenerator.createConditionalAssignment(
-					createBinaryExpression(valueKnown.getSource(), ExpressionGenerator.Operator.LOR, loopDetectionVariable.getSource()), property.getSource()
-							.toString(), "NAN");
+			Expression succesfullComputation = createBinaryExpression(valueKnown.getSource(), ExpressionGenerator.Operator.LOR,
+					loopDetectionVariable.getSource());
+			Expression assignment = ExpressionGenerator.createConditionalAssignment(ExpressionGenerator.addParentheses(succesfullComputation), property
+					.getSource().toString(), "NAN");
 
 			mainMethod.addExpression(createAssignment(result, assignment));
 		}
