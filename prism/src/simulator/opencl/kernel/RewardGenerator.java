@@ -606,9 +606,9 @@ public abstract class RewardGenerator implements KernelComponentGenerator
 		 * transition is computed before the update, state after the update and:
 		 * cumulative += transition * time + state;
 		 */
-		map.put(SamplerRewardReach.class, new String[] { REWARD_STRUCTURE_VAR_CUMULATIVE_TOTAL });
-		map.put(SamplerRewardReach.class, new String[] { REWARD_STRUCTURE_VAR_PREVIOUS_TRANSITION });
-		map.put(SamplerRewardReach.class, new String[] { REWARD_STRUCTURE_VAR_PREVIOUS_STATE });
+		map.put(SamplerRewardReach.class, new String[] { REWARD_STRUCTURE_VAR_CUMULATIVE_TOTAL, 
+						REWARD_STRUCTURE_VAR_PREVIOUS_TRANSITION,
+						REWARD_STRUCTURE_VAR_PREVIOUS_STATE });
 		// cumulative and instantaneous - different variables for different automata
 		initializeRewardRequiredVarsCumulative(map);
 		initializeRewardRequiredVarsInstantaneous(map);
