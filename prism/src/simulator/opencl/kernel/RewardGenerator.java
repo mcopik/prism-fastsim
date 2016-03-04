@@ -25,8 +25,10 @@
 //==============================================================================
 package simulator.opencl.kernel;
 
+import static simulator.opencl.kernel.expression.ExpressionGenerator.convertPrismProperty;
 import static simulator.opencl.kernel.expression.ExpressionGenerator.createAssignment;
 import static simulator.opencl.kernel.expression.ExpressionGenerator.createBinaryExpression;
+import static simulator.opencl.kernel.expression.ExpressionGenerator.createNegation;
 import static simulator.opencl.kernel.expression.ExpressionGenerator.fromString;
 
 import java.util.ArrayList;
@@ -37,6 +39,7 @@ import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 
 import parser.ast.RewardStruct;
@@ -59,8 +62,13 @@ import simulator.opencl.kernel.memory.PointerType;
 import simulator.opencl.kernel.memory.StdVariableType;
 import simulator.opencl.kernel.memory.StdVariableType.StdType;
 import simulator.opencl.kernel.memory.StructureType;
+import simulator.sampler.SamplerBoolean;
 import simulator.sampler.SamplerDouble;
+import simulator.sampler.SamplerNext;
+import simulator.sampler.SamplerRewardInstCont;
+import simulator.sampler.SamplerRewardInstDisc;
 import simulator.sampler.SamplerRewardReach;
+import simulator.sampler.SamplerUntil;
 
 /**
  * This class generates code responsible for verification of reward properties.
@@ -125,6 +133,11 @@ public abstract class RewardGenerator implements KernelComponentGenerator
 	 * Generic name of function which updates state rewards.
 	 */
 	protected final static String STATE_REWARD_UPDATE_FUNCTION_NAME = "stateRewardUpdate";
+	
+	/**
+	 * Generic name of function which updates state rewards.
+	 */
+	protected final static String CHECK_REWARD_PROPERTY_FUNCTION_NAME = "checkRewardProperty";
 
 	/**
 	 * Variables required to save the state of reward in a C structure.
@@ -522,14 +535,88 @@ public abstract class RewardGenerator implements KernelComponentGenerator
 	protected void createPropertyFunctions() throws KernelException
 	{
 		/**
-		 * For each type of sampler, keep indices for future processing: sampler index in list rewardProperties.
+		 * For each type of sampler, keep indices of properties for future processing;
+		 * they are necessary for correct passing of arguments.
 		 */
-		Map<Class<? extends SamplerDouble>, List<SamplerDouble>> sortedSamplers = new HashMap<>();
-		for (SamplerDouble sampler : rewardProperties) {
-			insertIntoMultiMap(sortedSamplers, sampler, sampler.getClass());
+//		Map<Class<? extends SamplerDouble>, List< Pair<Integer, SamplerDouble> > > sortedSamplers = new HashMap<>();
+//		int idx = 0;
+//		for (SamplerDouble sampler : rewardProperties) {
+//			insertIntoMultiMap(sortedSamplers, new Pair<>(idx++, sampler), sampler.getClass());
+//		}
+		//checkRewardProperty_$(type)(StateVector * sv, RewardState *, ..., REWARD_STRUCTURE...)
+		CLVariable pointerSV = new CLVariable(new PointerType(generator.getStateVectorType()), "sv");
+		Method method = new Method(String.format("%s_Reachability", CHECK_REWARD_PROPERTY_FUNCTION_NAME),
+				new StdVariableType(StdType.BOOL));
+		method.addArg(pointerSV);
+
+		// Pointer to array of properties
+		CLVariable propertyStatesVar = new CLVariable( REWARD_PROPERTY_STATE_ARRAY_TYPE, "propertyStates" );
+		method.addArg(propertyStatesVar);
+		
+		// return value
+		CLVariable allKnown = new CLVariable(new StdVariableType(StdType.BOOL), "allKnown");
+		allKnown.setInitValue(StdVariableType.initialize(1));
+		method.addLocalVar(allKnown);
+
+		Map<Integer, CLVariable> rewardStructuresArgs = new HashMap<>();
+		
+		int index = 0;
+		for(SamplerDouble sampler : rewardProperties) {
+			
+			// pointer to reward structure - add iff it hasn't been already added by other property
+			int rewardIndex = sampler.getRewardIndex();
+			if( !rewardStructures.containsKey(rewardIndex) ) {
+				CLVariable rewardStatePointer = new CLVariable(
+						new PointerType(rewardStructures.get(rewardIndex)), String.format("rewardState_%d", rewardIndex));
+				rewardStructuresArgs.put( rewardIndex, rewardStatePointer);
+			}
+			
+			/**
+			 * Generates OpenCL source code for i-th reward property:
+			 * 
+			 * if( !propertyState[i].valueKnown ){
+			 *  if( property_condition is true ) {
+			 *    propertyState[i].valueKnown = true;
+			 *    compute property value;
+			 *  } else {
+			 * 	  allKnown = false;
+			 *  }
+			 * }
+			 */
+			CLVariable currentProperty = propertyStatesVar.accessElement( fromString(index) );
+			CLVariable valueKnown = currentProperty.accessField("valueKnown");
+			IfElse ifElse = new IfElse(createNegation(valueKnown.getSource()));
+			
+			/**
+			 * Reachability reward.
+			 */
+			if (sampler instanceof SamplerRewardReach) {
+				createPropertyReachability(ifElse, (SamplerRewardReach) property, currentProperty);
+			}
+			/**
+			 * state_formulae U state_formulae
+			 */
+			else if (sampler instanceof SamplerRewardInstCont || sampler instanceof SamplerRewardInstDisc) {
+				//propertiesMethodAddUntil(ifElse, (SamplerUntil) property, currentProperty);
+			}
+			/**
+			 * state_formulae U[k1,k2] state_formulae
+			 * Requires additional timing args.
+			 */
+			else {
+				//propertiesMethodAddBoundedUntil(currentMethod, ifElse, (SamplerBoolean) property, currentProperty);
+			}
+			ifElse.addExpression(0, createAssignment(allKnown, valueKnown));
+			
+			method.addExpression(ifElse);
+			
 		}
 
-		List<SamplerDouble> samplers = sortedSamplers.get(SamplerRewardReach.class);
+		method.addArg( rewardStructuresArgs.values() );
+		method.addReturn(allKnown);
+		
+
+		List< Pair<Integer, SamplerDouble> > samplers = sortedSamplers.get(SamplerRewardReach.class);
 		if (samplers != null) {
 			createPropertyFunctionReachability(samplers);
 		}
@@ -545,11 +632,40 @@ public abstract class RewardGenerator implements KernelComponentGenerator
 	 * @param samplers
 	 * @throws KernelException
 	 */
-	protected void createPropertyFunctionReachability(List<SamplerDouble> samplers) throws KernelException
+	protected void createPropertyReachability(IfElse ifElse, SamplerRewardReach property, 
+			CLVariable propertyState, CLVariable rewardState) throws KernelException
 	{
-
+		
 	}
 
+	/**
+	 * TODO: copied directly from KernelGenerator. it should be in a parent class for property/reward
+	 * Creates IfElse for property.
+	 * @param propertyVar
+	 * @param negation
+	 * @param condition
+	 * @param propertyValue
+	 * @return property verification in conditional - write results to property structure
+	 */
+	protected IfElse createPropertyCondition(CLVariable propertyVar, boolean negation, String condition, boolean propertyValue)
+	{
+		IfElse ifElse = null;
+		if (!negation) {
+			ifElse = new IfElse(convertPrismProperty(svPtrTranslations, condition));
+		} else {
+			ifElse = new IfElse(createNegation(convertPrismProperty(svPtrTranslations, condition)));
+		}
+		CLVariable valueKnown = propertyVar.accessField("valueKnown");
+		CLVariable propertyState = propertyVar.accessField("propertyState");
+		if (propertyValue) {
+			ifElse.addExpression(0, createAssignment(propertyState, fromString("true")));
+		} else {
+			ifElse.addExpression(0, createAssignment(propertyState, fromString("false")));
+		}
+		ifElse.addExpression(0, createAssignment(valueKnown, fromString("true")));
+		return ifElse;
+	}
+	
 	/**
 	 * Implementation is different in discrete and continuous-time:
 	 * a) 
