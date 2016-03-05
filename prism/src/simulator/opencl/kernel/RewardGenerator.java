@@ -41,10 +41,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.TreeSet;
 
 import parser.ast.RewardStruct;
 import parser.ast.RewardStructItem;
 import prism.Pair;
+import prism.PrismLangException;
 import simulator.opencl.RuntimeConfig;
 import simulator.opencl.automaton.AbstractAutomaton.AutomatonType;
 import simulator.opencl.automaton.command.SynchronizedCommand;
@@ -159,7 +161,7 @@ public abstract class RewardGenerator implements KernelComponentGenerator
 	 * OR
 	 * transitionRewardUpdate_$synchlabel(StateVector * sv, REWARD_STRUCTURE_0 * ...);
 	 * 
-	 * The second element contains indices of reward structures used by this method.
+	 * The first element contains indices of reward structures used by this method.
 	 */
 	protected Map<String, Pair<Collection<Integer>, Method>> transitionUpdateFunctions = new TreeMap<>();
 
@@ -187,7 +189,8 @@ public abstract class RewardGenerator implements KernelComponentGenerator
 	 * It's ugly, but I want to keep everything in one map and it's not my fault that Java doesn't have tuple
 	 * or variadic generics to properly implement it (equivalence of C++ variadic templates).
 	 */
-	protected Map<Class<? extends SamplerDouble>, Pair<Method, Integer[]>> propertyMethods = new TreeMap<>();
+	//protected Map<Class<? extends SamplerDouble>, Pair<Method, Integer[]>> propertyMethods = new TreeMap<>();
+	protected Method propertyMethod = null;
 
 	/**
 	 * Keep all helper methods - transition & state updates, property checking.
@@ -224,7 +227,7 @@ public abstract class RewardGenerator implements KernelComponentGenerator
 	 */
 	protected KernelGenerator generator = null;
 
-	public RewardGenerator(KernelGenerator generator) throws KernelException
+	public RewardGenerator(KernelGenerator generator) throws KernelException, PrismLangException
 	{
 		this.generator = generator;
 		this.config = generator.getRuntimeConfig();
@@ -531,8 +534,9 @@ public abstract class RewardGenerator implements KernelComponentGenerator
 	 * - Instantaneous 
 	 * - Cumulative 
 	 * @throws KernelException
+	 * @throws PrismLangException 
 	 */
-	protected void createPropertyFunctions() throws KernelException
+	protected void createPropertyFunctions() throws KernelException, PrismLangException
 	{
 		/**
 		 * For each type of sampler, keep indices of properties for future processing;
@@ -565,10 +569,13 @@ public abstract class RewardGenerator implements KernelComponentGenerator
 			
 			// pointer to reward structure - add iff it hasn't been already added by other property
 			int rewardIndex = sampler.getRewardIndex();
-			if( !rewardStructures.containsKey(rewardIndex) ) {
-				CLVariable rewardStatePointer = new CLVariable(
+			CLVariable rewardStatePointer;
+			if( !rewardStructuresArgs.containsKey(rewardIndex) ) {
+				rewardStatePointer = new CLVariable(
 						new PointerType(rewardStructures.get(rewardIndex)), String.format("rewardState_%d", rewardIndex));
 				rewardStructuresArgs.put( rewardIndex, rewardStatePointer);
+			} else {
+				rewardStatePointer = rewardStructuresArgs.get( rewardIndex );
 			}
 			
 			/**
@@ -591,22 +598,22 @@ public abstract class RewardGenerator implements KernelComponentGenerator
 			 * Reachability reward.
 			 */
 			if (sampler instanceof SamplerRewardReach) {
-				createPropertyReachability(ifElse, (SamplerRewardReach) property, currentProperty);
+				createPropertyReachability(ifElse, (SamplerRewardReach) sampler, currentProperty, rewardStatePointer);
 			}
 			/**
-			 * state_formulae U state_formulae
+			 * DTMC/CTMC instanteous reward
 			 */
 			else if (sampler instanceof SamplerRewardInstCont || sampler instanceof SamplerRewardInstDisc) {
 				//propertiesMethodAddUntil(ifElse, (SamplerUntil) property, currentProperty);
 			}
 			/**
-			 * state_formulae U[k1,k2] state_formulae
-			 * Requires additional timing args.
+			 * DTMC/CTMC cumulative reward
 			 */
 			else {
 				//propertiesMethodAddBoundedUntil(currentMethod, ifElse, (SamplerBoolean) property, currentProperty);
 			}
-			ifElse.addExpression(0, createAssignment(allKnown, valueKnown));
+			ifElse.addExpression(0, createBinaryExpression(allKnown.getSource(), 
+					ExpressionGenerator.Operator.LAND_AUGM, valueKnown.getSource()));
 			
 			method.addExpression(ifElse);
 			
@@ -614,15 +621,8 @@ public abstract class RewardGenerator implements KernelComponentGenerator
 
 		method.addArg( rewardStructuresArgs.values() );
 		method.addReturn(allKnown);
-		
-
-		List< Pair<Integer, SamplerDouble> > samplers = sortedSamplers.get(SamplerRewardReach.class);
-		if (samplers != null) {
-			createPropertyFunctionReachability(samplers);
-		}
-
-		//createPropertyFunctionCumul(sortedSamplers);
-		//createPropertyFunctionInst(sortedSamplers);
+		helperMethods.add(method);
+		propertyMethod = method;
 	}
 
 	/**
@@ -631,11 +631,14 @@ public abstract class RewardGenerator implements KernelComponentGenerator
 	 * 
 	 * @param samplers
 	 * @throws KernelException
+	 * @throws PrismLangException 
 	 */
 	protected void createPropertyReachability(IfElse ifElse, SamplerRewardReach property, 
-			CLVariable propertyState, CLVariable rewardState) throws KernelException
+			CLVariable propertyState, CLVariable rewardState) throws KernelException, PrismLangException
 	{
-		
+		CLVariable cumulativeReward = rewardState.accessField(REWARD_STRUCTURE_VAR_CUMULATIVE_TOTAL);
+		String propertyCondition = visitPropertyExpression( property.getTarget() ).toString();
+		ifElse.addExpression( createPropertyCondition(propertyState, propertyCondition, cumulativeReward.getSource()) );
 	}
 
 	/**
@@ -647,23 +650,25 @@ public abstract class RewardGenerator implements KernelComponentGenerator
 	 * @param propertyValue
 	 * @return property verification in conditional - write results to property structure
 	 */
-	protected IfElse createPropertyCondition(CLVariable propertyVar, boolean negation, String condition, boolean propertyValue)
+	protected IfElse createPropertyCondition(CLVariable propertyVar, String condition, Expression propertyValue)
 	{
 		IfElse ifElse = null;
-		if (!negation) {
-			ifElse = new IfElse(convertPrismProperty(svPtrTranslations, condition));
-		} else {
-			ifElse = new IfElse(createNegation(convertPrismProperty(svPtrTranslations, condition)));
-		}
+		ifElse = new IfElse(convertPrismProperty(generator.svPtrTranslations, condition));
 		CLVariable valueKnown = propertyVar.accessField("valueKnown");
 		CLVariable propertyState = propertyVar.accessField("propertyState");
-		if (propertyValue) {
-			ifElse.addExpression(0, createAssignment(propertyState, fromString("true")));
-		} else {
-			ifElse.addExpression(0, createAssignment(propertyState, fromString("false")));
-		}
+		ifElse.addExpression(0, createAssignment(propertyState, propertyValue));
 		ifElse.addExpression(0, createAssignment(valueKnown, fromString("true")));
 		return ifElse;
+	}
+	
+	/**
+	 * @param prop
+	 * @return translate property: add parentheses, cast to float in division etc
+	 * @throws PrismLangException
+	 */
+	protected parser.ast.Expression visitPropertyExpression(parser.ast.Expression prop) throws PrismLangException
+	{
+		return (parser.ast.Expression) prop.accept(generator.treeVisitor);
 	}
 	
 	/**
@@ -761,8 +766,9 @@ public abstract class RewardGenerator implements KernelComponentGenerator
 	 * @param rewardProperties
 	 * @return propert intance of reward generator
 	 * @throws KernelException 
+	 * @throws PrismLangException 
 	 */
-	public static RewardGenerator createGenerator(KernelGenerator generator, AutomatonType type) throws KernelException
+	public static RewardGenerator createGenerator(KernelGenerator generator, AutomatonType type) throws KernelException, PrismLangException
 	{
 		if (type == AutomatonType.DTMC) {
 			return new RewardGeneratorDTMC(generator);
@@ -861,11 +867,26 @@ public abstract class RewardGenerator implements KernelComponentGenerator
 
 	/**
 	 * Before the state update, evaluate transition rewards for a non-synchronized update.
+	 * 
+	 * Args state vector structure, N reward structures
+	 * 
 	 * @param stateVector
 	 */
 	public Expression beforeUpdate(CLVariable stateVector)
 	{
-		return new Expression("");
+		Pair<Collection<Integer>, Method> transitionUpdate = transitionUpdateFunctions.get("");
+		List<CLValue> args = new ArrayList<>();
+		args.add( stateVector.convertToPointer() );
+		
+		if( transitionUpdate != null ) {
+			for(Integer rewardIndex : transitionUpdate.first ) {
+				args.add( rewardStructuresVars.get(rewardIndex).convertToPointer() );
+			}
+			return transitionUpdate.second.callMethod( args );
+		}
+		else {
+			return fromString("");
+		}
 	}
 
 	/**
