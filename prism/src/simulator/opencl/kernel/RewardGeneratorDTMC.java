@@ -28,6 +28,7 @@ package simulator.opencl.kernel;
 import java.util.Collection;
 import java.util.Map;
 
+import prism.PrismLangException;
 import simulator.opencl.kernel.expression.Expression;
 import simulator.opencl.kernel.expression.ExpressionGenerator;
 import simulator.opencl.kernel.expression.ExpressionGenerator.Operator;
@@ -40,7 +41,7 @@ import simulator.sampler.SamplerRewardInstDisc;
 
 public class RewardGeneratorDTMC extends RewardGenerator
 {
-	public RewardGeneratorDTMC(KernelGenerator generator) throws KernelException
+	public RewardGeneratorDTMC(KernelGenerator generator) throws KernelException, PrismLangException
 	{
 		super(generator);
 	}

@@ -275,9 +275,10 @@ public abstract class KernelGenerator
 	 * @param properties
 	 * @param rewardProperties
 	 * @param config
+	 * @throws PrismLangException 
 	 */
 	public KernelGenerator(AbstractAutomaton model, List<SamplerBoolean> properties, List<SamplerDouble> rewardProperties, RuntimeConfig config)
-			throws KernelException
+			throws KernelException, PrismLangException
 	{
 		this.model = model;
 		this.config = config;
@@ -648,7 +649,7 @@ public abstract class KernelGenerator
 		 * Update reward-based properties.
 		 */
 		if (hasRewardProperties) {
-			//rewardGenerator.updateProperties(loop, varStateVector);
+			loop.addExpression( rewardGenerator.updateProperties(varStateVector) );
 		}
 
 		/**
@@ -1283,11 +1284,11 @@ public abstract class KernelGenerator
 		 */
 		for (int i = 0; i < properties.size(); ++i) {
 			Sampler property = properties.get(i);
+			
 			CLVariable currentProperty = propertyState.accessElement(counter.getSource());
 			CLVariable valueKnown = currentProperty.accessField("valueKnown");
 
 			IfElse ifElse = new IfElse(createNegation(valueKnown.getSource()));
-			ifElse.addExpression(0, createAssignment(allKnown, fromString("false")));
 			/**
 			 * X state_formulae
 			 * I don't think that this will be used in future.
@@ -1308,7 +1309,8 @@ public abstract class KernelGenerator
 			else {
 				propertiesMethodAddBoundedUntil(currentMethod, ifElse, (SamplerBoolean) property, currentProperty);
 			}
-			ifElse.addExpression(0, createAssignment(allKnown, valueKnown));
+			ifElse.addExpression(0, createBinaryExpression( allKnown.getSource(), 
+					ExpressionGenerator.Operator.LAND_AUGM, valueKnown.getSource()));
 			currentMethod.addExpression(ifElse);
 		}
 		currentMethod.addReturn(allKnown);

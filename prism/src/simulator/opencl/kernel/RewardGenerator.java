@@ -53,6 +53,8 @@ import simulator.opencl.automaton.command.SynchronizedCommand;
 import simulator.opencl.kernel.expression.Expression;
 import simulator.opencl.kernel.expression.ExpressionGenerator;
 import simulator.opencl.kernel.expression.ExpressionGenerator.Operator;
+import simulator.opencl.kernel.expression.ComplexKernelComponent;
+import simulator.opencl.kernel.expression.ExpressionList;
 import simulator.opencl.kernel.expression.IfElse;
 import simulator.opencl.kernel.expression.KernelComponent;
 import simulator.opencl.kernel.expression.Method;
@@ -190,7 +192,7 @@ public abstract class RewardGenerator implements KernelComponentGenerator
 	 * or variadic generics to properly implement it (equivalence of C++ variadic templates).
 	 */
 	//protected Map<Class<? extends SamplerDouble>, Pair<Method, Integer[]>> propertyMethods = new TreeMap<>();
-	protected Method propertyMethod = null;
+	protected Pair<Method, Collection<Integer>> propertyMethod = null;
 
 	/**
 	 * Keep all helper methods - transition & state updates, property checking.
@@ -203,9 +205,9 @@ public abstract class RewardGenerator implements KernelComponentGenerator
 	protected List<CLVariable> kernelArgs = null;
 
 	/**
-	 * For each reward structure, add a structure instance keeping data.
+	 * For each reward structure, create a local structure instance keeping data.
 	 */
-	protected List<CLVariable> rewardStructuresVars = null;
+	protected Map<Integer, CLVariable> rewardStructuresVars = null;
 
 	/**
 	 * Variable keeping state of all properties.
@@ -357,7 +359,7 @@ public abstract class RewardGenerator implements KernelComponentGenerator
 			for (Pair<Integer, RewardStructItem> rwItem : item.getValue()) {
 
 				/**
-				 * Update the transition reward only IFF it's used by some property!
+				 * Update the transition reward IFF it's used by some property!
 				 */
 				StructureType rewardStruct = rewardStructures.get(rwItem.first);
 				if (rewardStruct == null)
@@ -387,7 +389,7 @@ public abstract class RewardGenerator implements KernelComponentGenerator
 				/**
 				 * If the guard is true, then write new transition reward.
 				 */
-				Expression assignment = createAssignment(structureField, rw);
+				Expression assignment = createBinaryExpression(structureField.getSource(), Operator.ADD_AUGM, rw);
 				condition.addExpression(assignment);
 
 				// otherwise, we would get empty functions for rewards which are not needed
@@ -419,7 +421,7 @@ public abstract class RewardGenerator implements KernelComponentGenerator
 			method.addArg(pointerSV);
 
 			/**
-			 * Update the transition reward only IFF it's used by some property!
+			 * Update the transition reward IFF it's used by some property!
 			 */
 			StructureType rewardStruct = rewardStructures.get(item.getKey());
 			if (rewardStruct == null)
@@ -482,6 +484,14 @@ public abstract class RewardGenerator implements KernelComponentGenerator
 				method.addExpression(condition);
 			}
 
+			/**
+			 * If we have a transition reward - restart it, because in next iteration we may not enter
+			 * the appropriate transition reward, e.g. by taking a different synchronization label
+			 */
+			if ( transitionRw != null ) {
+				method.addExpression( createAssignment(transitionRw, fromString(0)) );
+			}
+			
 			stateUpdateFunctions.put(item.getKey(), method);
 			helperMethods.add(method);
 		}
@@ -622,7 +632,7 @@ public abstract class RewardGenerator implements KernelComponentGenerator
 		method.addArg( rewardStructuresArgs.values() );
 		method.addReturn(allKnown);
 		helperMethods.add(method);
-		propertyMethod = method;
+		propertyMethod = new Pair<Method, Collection<Integer>>( method, rewardStructuresArgs.keySet() );
 	}
 
 	/**
@@ -813,7 +823,7 @@ public abstract class RewardGenerator implements KernelComponentGenerator
 	public Collection<CLVariable> getLocalVars()
 	{
 		List<CLVariable> localVars = new ArrayList<>(2 * rewardProperties.size());
-		rewardStructuresVars = new ArrayList<>(rewardProperties.size());
+		rewardStructuresVars = new TreeMap<>();
 
 		/**
 		 * Declarations of structures containing necessary variables corresponding to given rewards.
@@ -824,7 +834,7 @@ public abstract class RewardGenerator implements KernelComponentGenerator
 			Arrays.fill(initValues, 0.0f);
 			CLValue initValue = reward.getValue().initializeStdStructure(initValues);
 			var.setInitValue(initValue);
-			rewardStructuresVars.add(var);
+			rewardStructuresVars.put(reward.getKey(), var);
 			localVars.add(var);
 		}
 
@@ -865,16 +875,18 @@ public abstract class RewardGenerator implements KernelComponentGenerator
 		}
 	}
 
+	
 	/**
 	 * Before the state update, evaluate transition rewards for a non-synchronized update.
 	 * 
 	 * Args state vector structure, N reward structures
 	 * 
 	 * @param stateVector
+	 * @param commandLabel
 	 */
-	public Expression beforeUpdate(CLVariable stateVector)
+	private Expression callTransitionReward(CLVariable stateVector, String commandLabel)
 	{
-		Pair<Collection<Integer>, Method> transitionUpdate = transitionUpdateFunctions.get("");
+		Pair<Collection<Integer>, Method> transitionUpdate = transitionUpdateFunctions.get(commandLabel);
 		List<CLValue> args = new ArrayList<>();
 		args.add( stateVector.convertToPointer() );
 		
@@ -888,6 +900,11 @@ public abstract class RewardGenerator implements KernelComponentGenerator
 			return fromString("");
 		}
 	}
+	
+	public Expression beforeUpdate(CLVariable stateVector)
+	{
+		return callTransitionReward(stateVector, "");
+	}
 
 	/**
 	 * Before the state update, evaluate transition rewards for a synchronized update.
@@ -896,17 +913,39 @@ public abstract class RewardGenerator implements KernelComponentGenerator
 	 */
 	public Expression beforeUpdate(CLVariable stateVector, SynchronizedCommand cmd)
 	{
-		return new Expression("");
+		return callTransitionReward(stateVector, cmd.synchLabel);
 	}
 
 	/**
-	 * Before the state update, evaluate state rewards.
+	 * After the state update, evaluate state rewards.
 	 * @param component
 	 * @param stateVector
 	 */
-	public Expression afterUpdate(CLVariable stateVector)
+	public KernelComponent afterUpdate(CLVariable stateVector)
 	{
-		return new Expression("");
+		ExpressionList list = new ExpressionList();
+		CLValue svPtr = stateVector.convertToPointer();
+		for(Map.Entry<Integer, Method> stateMethod : stateUpdateFunctions.entrySet()) {
+			CLValue rwPtr = rewardStructuresVars.get( stateMethod.getKey() ).convertToPointer();
+			list.addExpression( stateMethod.getValue().callMethod(svPtr, rwPtr) );
+		}
+		return list;
+	}
+	
+	/**
+	 * TODO: do we need a special case of checking at time 0 for CTMC?
+	 * @param sourceCode
+	 * @param stateVector
+	 */
+	public KernelComponent updateProperties(CLVariable stateVector)
+	{
+		List<CLValue> args = new ArrayList<>();
+		args.add( stateVector.convertToPointer());
+		args.add( propertiesStateVar );
+		for(Integer idx : propertyMethod.second) {
+			args.add( rewardStructuresVars.get(idx).convertToPointer() );
+		}
+		return propertyMethod.first.callMethod( args );
 	}
 
 	/**

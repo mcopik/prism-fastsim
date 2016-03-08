@@ -76,9 +76,10 @@ public class KernelGeneratorDTMC extends KernelGenerator
 	 * @param properties
 	 * @param rewardProperties
 	 * @param config
+	 * @throws PrismLangException 
 	 */
 	public KernelGeneratorDTMC(AbstractAutomaton model, List<SamplerBoolean> properties, List<SamplerDouble> rewardProperties, RuntimeConfig config)
-			throws KernelException
+			throws KernelException, PrismLangException
 	{
 		super(model, properties, rewardProperties, config);
 	}

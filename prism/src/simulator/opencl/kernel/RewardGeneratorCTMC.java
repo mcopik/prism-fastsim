@@ -31,6 +31,7 @@ import static simulator.opencl.kernel.expression.ExpressionGenerator.createBinar
 import java.util.Collection;
 import java.util.Map;
 
+import prism.PrismLangException;
 import simulator.opencl.kernel.expression.Expression;
 import simulator.opencl.kernel.expression.ExpressionGenerator.Operator;
 import simulator.opencl.kernel.expression.Method;
@@ -57,7 +58,7 @@ public class RewardGeneratorCTMC extends RewardGenerator
 	 */
 	static final Expression TIME_SPENT_STATE = addParentheses(createBinaryExpression(NEW_TIME_ARG.getSource(), Operator.SUB, PREVIOUS_TIME_ARG.getSource()));
 
-	public RewardGeneratorCTMC(KernelGenerator generator) throws KernelException
+	public RewardGeneratorCTMC(KernelGenerator generator) throws KernelException, PrismLangException
 	{
 		super(generator);
 	}
