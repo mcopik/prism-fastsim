@@ -39,10 +39,7 @@ import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.TreeMap;
-import java.util.TreeSet;
-
 import parser.ast.RewardStruct;
 import parser.ast.RewardStructItem;
 import prism.Pair;
@@ -53,7 +50,6 @@ import simulator.opencl.automaton.command.SynchronizedCommand;
 import simulator.opencl.kernel.expression.Expression;
 import simulator.opencl.kernel.expression.ExpressionGenerator;
 import simulator.opencl.kernel.expression.ExpressionGenerator.Operator;
-import simulator.opencl.kernel.expression.ComplexKernelComponent;
 import simulator.opencl.kernel.expression.ExpressionList;
 import simulator.opencl.kernel.expression.IfElse;
 import simulator.opencl.kernel.expression.KernelComponent;
@@ -66,13 +62,10 @@ import simulator.opencl.kernel.memory.PointerType;
 import simulator.opencl.kernel.memory.StdVariableType;
 import simulator.opencl.kernel.memory.StdVariableType.StdType;
 import simulator.opencl.kernel.memory.StructureType;
-import simulator.sampler.SamplerBoolean;
 import simulator.sampler.SamplerDouble;
-import simulator.sampler.SamplerNext;
 import simulator.sampler.SamplerRewardInstCont;
 import simulator.sampler.SamplerRewardInstDisc;
 import simulator.sampler.SamplerRewardReach;
-import simulator.sampler.SamplerUntil;
 
 /**
  * This class generates code responsible for verification of reward properties.
@@ -301,6 +294,7 @@ public abstract class RewardGenerator implements KernelComponentGenerator
 		 * For every synchronization label, group rewards with corresponding reward index.
 		 */
 		Map<String, List<Pair<Integer, RewardStructItem>>> transitionRewards = new HashMap<>();
+
 		/**
 		 * For every reward structure, group state rewards indexed by reward structure.
 		 */
@@ -324,7 +318,7 @@ public abstract class RewardGenerator implements KernelComponentGenerator
 		 * Now create functions.
 		 */
 		createTransitionRewardFunction(transitionRewards);
-		createStateRewardFunction(stateRewards);
+		createStateRewardFunction(rwdIdx, stateRewards);
 	}
 
 	/**
@@ -405,36 +399,39 @@ public abstract class RewardGenerator implements KernelComponentGenerator
 		}
 	}
 
-	private void createStateRewardFunction(Map<Integer, List<RewardStructItem>> stateRewards) throws KernelException
+	private void createStateRewardFunction(int rewardsCount, Map<Integer, List<RewardStructItem>> stateRewards) throws KernelException
 	{
 		CLVariable pointerSV = new CLVariable(new PointerType(generator.getStateVectorType()), "sv");
 		Map<String, String> stateVectorTranslations = generator.getSVTranslations();
 
-		for (Map.Entry<Integer, List<RewardStructItem>> item : stateRewards.entrySet()) {
+		/**
+		 * For each reward structure:
+		 * - if there is at least one state reward: create full function evaluating state reward
+		 * - otherwise - create a function updating the cumulative reward, based only on transition rewards
+		 */
+		for (int i = 0; i < rewardsCount; ++i) {
+			
+		//for (Map.Entry<Integer, List<RewardStructItem>> item : stateRewards.entrySet()) {
 
 			/**
 			 * Method args:
 			 * 1) pointer to state vector
 			 * 2) pointer to reward structure which is going to be updated
 			 */
-			Method method = new Method(String.format("%s_%d", STATE_REWARD_UPDATE_FUNCTION_NAME, item.getKey()), new StdVariableType(StdType.VOID));
+			Method method = new Method(String.format("%s_%d", STATE_REWARD_UPDATE_FUNCTION_NAME, i), new StdVariableType(StdType.VOID));
 			method.addArg(pointerSV);
 
 			/**
 			 * Update the transition reward IFF it's used by some property!
 			 */
-			StructureType rewardStruct = rewardStructures.get(item.getKey());
+			StructureType rewardStruct = rewardStructures.get( i );
 			if (rewardStruct == null)
 				continue;
-			CLVariable rwStructPointer = new CLVariable(new PointerType(rewardStruct), String.format("rewardStructure_%d", item.getKey()));
+			CLVariable rwStructPointer = new CLVariable(new PointerType(rewardStruct), String.format("rewardStructure_%d", i));
 			method.addArg(rwStructPointer);
-
-			stateRewardFunctionAdditionalArgs(method);
-
 			CLVariable transitionRw = rwStructPointer.accessField(REWARD_STRUCTURE_VAR_PREVIOUS_TRANSITION);
 			CLVariable prevStateRw = rwStructPointer.accessField(REWARD_STRUCTURE_VAR_PREVIOUS_STATE);
-			CLVariable curStateRw = rwStructPointer.accessField(REWARD_STRUCTURE_VAR_CURRENT_STATE);
-
+			
 			/**
 			 * Compute the cumulative reward - it always requires keeping rewards from previous state (new state should not be included
 			 * if the property is validated in current state).
@@ -443,45 +440,55 @@ public abstract class RewardGenerator implements KernelComponentGenerator
 			 */
 			CLVariable cumulRw = rwStructPointer.accessField(REWARD_STRUCTURE_VAR_CUMULATIVE_TOTAL);
 			if (cumulRw != null) {
-				method.addExpression(stateRewardFunctionComputeCumulRw(cumulRw.getSource(), prevStateRw.getSource(), transitionRw.getSource()));
+				method.addExpression(stateRewardFunctionComputeCumulRw(cumulRw.getSource(), prevStateRw, transitionRw.getSource()));
 			}
 
 			/**
-			 * Save the previous state if there is a field in structure for it.
+			 * And now proceed with state rewards, but only if there are state rewards for this index
 			 */
-			if (prevStateRw != null && curStateRw != null) {
-				method.addExpression(ExpressionGenerator.createBinaryExpression(prevStateRw.getSource(), Operator.AS, curStateRw.getSource()));
-			}
-
-			/**
-			 * Then write the results:
-			 * 1) if there is a field for current state -> write there
-			 * 2) if there is a field for previous state -> it's an optimization for cumulative reward,
-			 * store the current state there
-			 * This is only possible BECAUSE currently there's no sampler which requires only previous, but no current state.
-			 */
-			Expression stateRewardDest = null;
-			if (curStateRw != null) {
-				stateRewardDest = curStateRw.getSource();
-			} else {
-				stateRewardDest = prevStateRw.getSource();
-			}
-			/**
-			 * 'Restart' the state rewards by writing zero (we take a sum over the whole reward structure). 
-			 */
-			method.addExpression(ExpressionGenerator.createBinaryExpression(stateRewardDest, Operator.AS, fromString(0.0)));
-
-			for (RewardStructItem rwItem : item.getValue()) {
-
+			List<RewardStructItem> stateRw = stateRewards.get(i);
+			if (stateRw != null) {
+				stateRewardFunctionAdditionalArgs(method);
+	
+				CLVariable curStateRw = rwStructPointer.accessField(REWARD_STRUCTURE_VAR_CURRENT_STATE);
+	
 				/**
-				 * First, process the guard.
+				 * Save the previous state if there is a field in structure for it.
 				 */
-				Expression guard = ExpressionGenerator.convertPrismGuard(stateVectorTranslations, rwItem.getStates());
-				IfElse condition = new IfElse(guard);
-				Expression rw = ExpressionGenerator.convertPrismUpdate(pointerSV, rwItem.getReward(), stateVectorTranslations, null);
-				condition.addExpression(ExpressionGenerator.createBinaryExpression(stateRewardDest, Operator.ADD_AUGM, rw));
-
-				method.addExpression(condition);
+				if (prevStateRw != null && curStateRw != null) {
+					method.addExpression(ExpressionGenerator.createBinaryExpression(prevStateRw.getSource(), Operator.AS, curStateRw.getSource()));
+				}
+	
+				/**
+				 * Then write the results:
+				 * 1) if there is a field for current state -> write there
+				 * 2) if there is a field for previous state -> it's an optimization for cumulative reward,
+				 * store the current state there
+				 * This is only possible BECAUSE currently there's no sampler which requires only previous, but no current state.
+				 */
+				Expression stateRewardDest = null;
+				if (curStateRw != null) {
+					stateRewardDest = curStateRw.getSource();
+				} else {
+					stateRewardDest = prevStateRw.getSource();
+				}
+				/**
+				 * 'Restart' the state rewards by writing zero (we take a sum over the whole reward structure). 
+				 */
+				method.addExpression(ExpressionGenerator.createBinaryExpression(stateRewardDest, Operator.AS, fromString(0.0)));
+	
+				for (RewardStructItem rwItem : stateRw) {
+	
+					/**
+					 * First, process the guard.
+					 */
+					Expression guard = ExpressionGenerator.convertPrismGuard(stateVectorTranslations, rwItem.getStates());
+					IfElse condition = new IfElse(guard);
+					Expression rw = ExpressionGenerator.convertPrismUpdate(pointerSV, rwItem.getReward(), stateVectorTranslations, null);
+					condition.addExpression(ExpressionGenerator.createBinaryExpression(stateRewardDest, Operator.ADD_AUGM, rw));
+	
+					method.addExpression(condition);
+				}
 			}
 
 			/**
@@ -492,7 +499,7 @@ public abstract class RewardGenerator implements KernelComponentGenerator
 				method.addExpression( createAssignment(transitionRw, fromString(0)) );
 			}
 			
-			stateUpdateFunctions.put(item.getKey(), method);
+			stateUpdateFunctions.put(i, method);
 			helperMethods.add(method);
 		}
 	}
@@ -513,12 +520,14 @@ public abstract class RewardGenerator implements KernelComponentGenerator
 	 * dest += stateReward + transitionReward;
 	 * CTMC:
 	 * dest += stateReward + timeSpentState * transitionReward;
+	 * 
+	 * State reward may be null for a case when the reward structure contains only transition rewards.
 	 * @param cumulReward
 	 * @param stateReward
 	 * @param transitionReward
 	 * @returns update expression
 	 */
-	protected abstract Expression stateRewardFunctionComputeCumulRw(Expression cumulReward, Expression stateReward, Expression transitionReward)
+	protected abstract Expression stateRewardFunctionComputeCumulRw(Expression cumulReward, CLVariable stateReward, Expression transitionReward)
 			throws KernelException;
 
 	/**

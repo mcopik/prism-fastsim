@@ -95,13 +95,18 @@ public class RewardGeneratorCTMC extends RewardGenerator
 	}
 
 	@Override
-	protected Expression stateRewardFunctionComputeCumulRw(Expression cumulReward, Expression stateReward, Expression transitionReward) throws KernelException
+	protected Expression stateRewardFunctionComputeCumulRw(Expression cumulReward, CLVariable stateReward, Expression transitionReward) throws KernelException
 	{
 		/**
 		 * More complex update: add transition and state rewards, but the second one needs to be multiplied by time spent in state.
 		 */
-		Expression newValue = createBinaryExpression(stateReward, Operator.MUL, TIME_SPENT_STATE);
-		newValue = createBinaryExpression(newValue, Operator.ADD, transitionReward);
+		Expression newValue = null;
+		if (stateReward != null) {
+			newValue = createBinaryExpression(stateReward.getSource(), Operator.MUL, TIME_SPENT_STATE);
+			newValue = createBinaryExpression(newValue, Operator.ADD, transitionReward);
+		} else {
+			newValue = transitionReward;
+		}
 		return createBinaryExpression(cumulReward, Operator.ADD_AUGM, newValue);
 	}
 }

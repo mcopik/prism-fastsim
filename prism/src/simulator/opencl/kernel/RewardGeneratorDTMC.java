@@ -33,6 +33,7 @@ import simulator.opencl.kernel.expression.Expression;
 import simulator.opencl.kernel.expression.ExpressionGenerator;
 import simulator.opencl.kernel.expression.ExpressionGenerator.Operator;
 import simulator.opencl.kernel.expression.Method;
+import simulator.opencl.kernel.memory.CLVariable;
 import simulator.sampler.SamplerDouble;
 import simulator.sampler.SamplerRewardCumulCont;
 import simulator.sampler.SamplerRewardCumulDisc;
@@ -78,12 +79,17 @@ public class RewardGeneratorDTMC extends RewardGenerator
 	}
 
 	@Override
-	protected Expression stateRewardFunctionComputeCumulRw(Expression cumulReward, Expression stateReward, Expression transitionReward) throws KernelException
+	protected Expression stateRewardFunctionComputeCumulRw(Expression cumulReward, CLVariable stateReward, Expression transitionReward) throws KernelException
 	{
 		/**
 		 * Simple update: just add transition and state reward.
 		 */
-		Expression newValue = ExpressionGenerator.createBinaryExpression(stateReward, Operator.ADD, transitionReward);
+		Expression newValue = null;
+		if( stateReward != null ) {
+			newValue = ExpressionGenerator.createBinaryExpression(stateReward.getSource(), Operator.ADD, transitionReward);
+		} else {
+			newValue = transitionReward;
+		}
 		return ExpressionGenerator.createBinaryExpression(cumulReward, Operator.ADD_AUGM, newValue);
 	}
 }
