@@ -1,0 +1,25 @@
+// Expected number of messages from B that A needs to knows a pair once B knows a pair
+
+// RESULT(N=5,L=2): 1.1513671875
+// RESULT(N=10,L=3): 1.0195121765136719
+"messagesA1": R{"messages_A_needs1"}=? [ F phase=4 ];
+
+// RESULT(N=5,L=2): 3.4541015625
+// RESULT(N=10,L=3): 3.0585365295410156
+"messagesA2": R{"messages_A_needs2"}=? [ F phase=4 ];
+
+// RESULT(N=5,L=2): 3.9248046875
+// RESULT(N=10,L=3): 1.3025341033935547
+"messagesA3": R{"messages_A_needs3"}=? [ F phase=4 ];
+
+// RESULT(N=5,L=2): 5.00048828125
+// RESULT(N=10,L=3): 3.6673502922058105
+"messagesA4": R{"messages_A_needs4"}=? [ F phase=4 ];
+
+// RESULT(N=5,L=2): 108.39736328124995
+// RESULT(N=10,L=3): 302.81119794845586
+"messagesA5": R{"messages_A_needs5"}=? [ F phase=4 ];
+
+// RESULT(N=5,L=2): 112.32216796874997
+// RESULT(N=10,L=3): 304.1137320518494
+"messagesA6": R{"messages_A_needs6"}=? [ F phase=4 ];

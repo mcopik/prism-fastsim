@@ -216,13 +216,49 @@ label "knowA" = kA;
 
 // reward structures
 
+// Test cases
+// All properties should be executed in the same run! It ensures that all generated methods does not influence each other.
+// 1) Reward with one transition. Checks if cumulative reward is properly updated
+// 2) Reward with two transitions, same label. Checks correct accumulation in one update function.
+// 3) Reward with two transitions, different labels.
+// 4) Reward with one state reward
+// 5) Reward with two state rewardss - correct accumulation of state rewards. Conditions should not be exclusive (multiple evaluation)
+// 6) Reward with two state rewards and one (or more) transition reward - correct computation of cumulative rewards.
+
 // messages from B that A needs to knows a pair once B knows a pair
-rewards "messages_A_needs"
+rewards "messages_A_needs1"
 	// CHANGE: 1 as log(3.65,2.71) ~= 1.3
 	[receiveA] kB & !kA : ceil( log(3.65,2.71) ) - 1;
+endrewards
+
+rewards "messages_A_needs2"
+	[receiveA] kB & !kA : ceil( log(3.65,2.71) ) - 1;
+	[receiveA] kB & !kA : 2;
+endrewards
+
+rewards "messages_A_needs3"
+	[receiveA] kB & !kA : ceil( log(3.65,2.71) ) - 1;
+	[receiveB] kB & !kA : 10;
+endrewards
+
+rewards "messages_A_needs4"
+	kB & !kA : 3.5;
+endrewards
+
+rewards "messages_A_needs5"
+	kB & !kA : 3.5;
+	kB : 4.1;
+endrewards
+
+rewards "messages_A_needs6"
+	kB & !kA : 3.5;
+	kB : 4.1;
+	[receiveA] kB & !kA : ceil( log(3.65,2.71) ) - 1;
+	[receiveB] kB & !kA : 10;
 endrewards
 
 // messages from A that B needs to knows a pair once A knows a pair
 rewards "messages_B_needs"
 	[receiveA] kA & !kB : 1;
 endrewards
+
