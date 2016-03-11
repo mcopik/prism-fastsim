@@ -28,12 +28,17 @@ package simulator.opencl.kernel;
 import java.util.Collection;
 import java.util.Map;
 
+import static simulator.opencl.kernel.expression.ExpressionGenerator.createBinaryExpression;
+import static simulator.opencl.kernel.expression.ExpressionGenerator.fromString;
 import prism.PrismLangException;
 import simulator.opencl.kernel.expression.Expression;
 import simulator.opencl.kernel.expression.ExpressionGenerator;
+import simulator.opencl.kernel.expression.IfElse;
 import simulator.opencl.kernel.expression.ExpressionGenerator.Operator;
 import simulator.opencl.kernel.expression.Method;
 import simulator.opencl.kernel.memory.CLVariable;
+import simulator.opencl.kernel.memory.StdVariableType;
+import simulator.opencl.kernel.memory.StdVariableType.StdType;
 import simulator.sampler.SamplerDouble;
 import simulator.sampler.SamplerRewardCumulCont;
 import simulator.sampler.SamplerRewardCumulDisc;
@@ -92,4 +97,14 @@ public class RewardGeneratorDTMC extends RewardGenerator
 		}
 		return ExpressionGenerator.createBinaryExpression(cumulReward, Operator.ADD_AUGM, newValue);
 	}
+	
+	@Override
+	protected void createPropertyInst(IfElse ifElse, SamplerDouble property, CLVariable propertyState, CLVariable rewardState)
+	{
+		CLVariable stateReward = rewardState.accessField(REWARD_STRUCTURE_VAR_CURRENT_STATE);
+		Expression propertyCondition = createBinaryExpression( fromString( ((SamplerRewardInstDisc) property).getTime() ),
+				Operator.EQ, argPropertyTime.getSource());
+		ifElse.addExpression( createPropertyCondition(propertyState, propertyCondition, stateReward.getSource()) );
+	}
+	
 }

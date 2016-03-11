@@ -60,6 +60,7 @@ import simulator.opencl.kernel.memory.ArrayType;
 import simulator.opencl.kernel.memory.CLValue;
 import simulator.opencl.kernel.memory.CLVariable;
 import simulator.opencl.kernel.memory.StdVariableType;
+import simulator.opencl.kernel.memory.VariableTypeInterface;
 import simulator.opencl.kernel.memory.StdVariableType.StdType;
 import simulator.opencl.kernel.memory.StructureType;
 import simulator.sampler.SamplerBoolean;
@@ -85,6 +86,12 @@ public class KernelGeneratorCTMC extends KernelGenerator
 			throws KernelException, PrismLangException
 	{
 		super(model, properties, rewardProperties, config);
+	}
+	
+	@Override
+	protected VariableTypeInterface timeVariableType()
+	{
+		return new StdVariableType(StdType.FLOAT);
 	}
 
 	@Override
@@ -112,7 +119,7 @@ public class KernelGeneratorCTMC extends KernelGenerator
 	public void mainMethodDefineLocalVars(Method currentMethod) throws KernelException
 	{
 		//time
-		varTime = new CLVariable(new StdVariableType(StdType.FLOAT), "time");
+		varTime = new CLVariable(varTimeType, "time");
 		varTime.setInitValue(StdVariableType.initialize(0.0f));
 		currentMethod.addLocalVar(varTime);
 		//updated time
@@ -131,6 +138,12 @@ public class KernelGeneratorCTMC extends KernelGenerator
 			varSynSelectionSize.setInitValue(StdVariableType.initialize(0));
 			currentMethod.addLocalVar(varSynSelectionSize);
 		}
+	}
+	
+	@Override
+	protected CLVariable mainMethodTimeVariable()
+	{
+		return varTime;
 	}
 
 	@Override

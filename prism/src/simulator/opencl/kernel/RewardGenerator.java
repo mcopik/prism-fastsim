@@ -206,6 +206,12 @@ public abstract class RewardGenerator implements KernelComponentGenerator
 	 * Variable keeping state of all properties.
 	 */
 	protected CLVariable propertiesStateVar = null;
+	
+	/**
+	 * An argument of property verification function containing current time.
+	 * DTMC - integer, CTMC - floating-point type.
+	 */
+	protected CLVariable argPropertyTime = null;
 
 	/**
 	 * Reward generator uses only the type of reward variable.
@@ -221,12 +227,30 @@ public abstract class RewardGenerator implements KernelComponentGenerator
 	 * Parent generator - access data
 	 */
 	protected KernelGenerator generator = null;
+	
+	/**
+	 * Set to true if there is a property which needs to know the current time for verification.
+	 * Used to generate arguments for property methods.
+	 * 
+	 * Currently only reachability reward doesn't need a time argument. 
+	 */
+	protected boolean timedReward = false;
 
 	public RewardGenerator(KernelGenerator generator) throws KernelException, PrismLangException
 	{
 		this.generator = generator;
 		this.config = generator.getRuntimeConfig();
 		this.rewardProperties = generator.getRewardProperties();
+	
+		/**
+		 * Set to true when there's at least one reward which needs to know the current time.
+		 */
+		for(SamplerDouble sampler : rewardProperties) {
+			if( !(sampler instanceof SamplerRewardReach) ) {
+				timedReward = true;
+			}
+		}
+		
 		REWARD_REQUIRED_VARIABLES = initializeRewardRequiredVars();
 		REWARD_PROPERTY_STATE_STRUCTURE = createPropertyStateType();
 		REWARD_PROPERTY_STATE_ARRAY_TYPE = new ArrayType(REWARD_PROPERTY_STATE_STRUCTURE, rewardProperties.size());
@@ -571,7 +595,11 @@ public abstract class RewardGenerator implements KernelComponentGenerator
 		Method method = new Method(String.format("%s_Reachability", CHECK_REWARD_PROPERTY_FUNCTION_NAME),
 				new StdVariableType(StdType.BOOL));
 		method.addArg(pointerSV);
-
+		if (timedReward) {
+			// Type of time inherited from the main generator
+			argPropertyTime = new CLVariable(generator.varTimeType, "current_time");
+			method.addArg(argPropertyTime);
+		}
 		// Pointer to array of properties
 		CLVariable propertyStatesVar = new CLVariable( REWARD_PROPERTY_STATE_ARRAY_TYPE, "propertyStates" );
 		method.addArg(propertyStatesVar);
@@ -623,7 +651,7 @@ public abstract class RewardGenerator implements KernelComponentGenerator
 			 * DTMC/CTMC instanteous reward
 			 */
 			else if (sampler instanceof SamplerRewardInstCont || sampler instanceof SamplerRewardInstDisc) {
-				//propertiesMethodAddUntil(ifElse, (SamplerUntil) property, currentProperty);
+				createPropertyInst(ifElse, sampler, currentProperty, rewardStatePointer);
 			}
 			/**
 			 * DTMC/CTMC cumulative reward
@@ -643,7 +671,7 @@ public abstract class RewardGenerator implements KernelComponentGenerator
 		helperMethods.add(method);
 		propertyMethod = new Pair<Method, Collection<Integer>>( method, rewardStructuresArgs.keySet() );
 	}
-
+	
 	/**
 	 * Implementation is very simple:
 	 * if the target expression is true, then take the total cumulative reward and stop.
@@ -662,7 +690,7 @@ public abstract class RewardGenerator implements KernelComponentGenerator
 
 	/**
 	 * TODO: copied directly from KernelGenerator. it should be in a parent class for property/reward
-	 * Creates IfElse for property.
+	 * Creates IfElse for property in PRISM language.
 	 * @param propertyVar
 	 * @param negation
 	 * @param condition
@@ -678,6 +706,31 @@ public abstract class RewardGenerator implements KernelComponentGenerator
 		ifElse.addExpression(0, createAssignment(propertyState, propertyValue));
 		ifElse.addExpression(0, createAssignment(valueKnown, fromString("true")));
 		return ifElse;
+	}
+	
+	/**
+	 * TODO: copied directly from KernelGenerator. it should be in a parent class for property/reward
+	 * Creates IfElse for property in OpaenCL C.
+	 * @param propertyVar
+	 * @param negation
+	 * @param condition
+	 * @param propertyValue
+	 * @return property verification in conditional - write results to property structure
+	 */
+	protected IfElse createPropertyCondition(CLVariable propertyVar, Expression condition, Expression propertyValue)
+	{
+		IfElse ifElse = null;
+		ifElse = new IfElse(condition);
+		createPropertyCondition(propertyVar, ifElse, propertyValue);
+		return ifElse;
+	}
+	
+	private void createPropertyCondition(CLVariable propertyVar, IfElse ifElse, Expression propertyValue)
+	{
+		CLVariable valueKnown = propertyVar.accessField("valueKnown");
+		CLVariable propertyState = propertyVar.accessField("propertyState");
+		ifElse.addExpression(0, createAssignment(propertyState, propertyValue));
+		ifElse.addExpression(0, createAssignment(valueKnown, fromString("true")));
 	}
 	
 	/**
@@ -700,8 +753,15 @@ public abstract class RewardGenerator implements KernelComponentGenerator
 	 */
 	//protected abstract void createPropertyFunctionCumul(Map<Class<? extends SamplerDouble>, List<SamplerDouble>> samplers) throws KernelException;
 
-	//protected abstract void createPropertyFunctionInst(Map<Class<? extends SamplerDouble>, List<SamplerDouble>> samplers) throws KernelException;
-
+	/**
+	 * 
+	 * @param ifElse
+	 * @param property
+	 * @param propertyState
+	 * @param rewardState
+	 */
+	protected abstract void createPropertyInst(IfElse ifElse, SamplerDouble property, CLVariable propertyState, CLVariable rewardState);
+	
 	/**
 	 * @return structure type keeping the evaluation of a reward property
 	 */
@@ -943,13 +1003,16 @@ public abstract class RewardGenerator implements KernelComponentGenerator
 	
 	/**
 	 * TODO: do we need a special case of checking at time 0 for CTMC?
-	 * @param sourceCode
 	 * @param stateVector
+	 * @param currentTime
 	 */
-	public KernelComponent updateProperties(CLVariable stateVector)
+	public KernelComponent updateProperties(CLVariable stateVector, CLVariable currentTime)
 	{
 		List<CLValue> args = new ArrayList<>();
 		args.add( stateVector.convertToPointer());
+		if (timedReward) {
+			args.add( generator.varTime );	
+		}
 		args.add( propertiesStateVar );
 		for(Integer idx : propertyMethod.second) {
 			args.add( rewardStructuresVars.get(idx).convertToPointer() );
@@ -963,5 +1026,14 @@ public abstract class RewardGenerator implements KernelComponentGenerator
 	public Collection<Method> getAdditionalMethods()
 	{
 		return helperMethods;
+	}
+	
+	/**
+	 * TODO: update to looping rewards
+	 * @return
+	 */
+	public boolean canDetectLoops()
+	{
+		return !timedReward;
 	}
 }

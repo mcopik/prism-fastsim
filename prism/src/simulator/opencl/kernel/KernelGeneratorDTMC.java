@@ -56,6 +56,7 @@ import simulator.opencl.kernel.memory.CLValue;
 import simulator.opencl.kernel.memory.CLVariable;
 import simulator.opencl.kernel.memory.RValue;
 import simulator.opencl.kernel.memory.StdVariableType;
+import simulator.opencl.kernel.memory.VariableTypeInterface;
 import simulator.opencl.kernel.memory.StdVariableType.StdType;
 import simulator.opencl.kernel.memory.StructureType;
 import simulator.sampler.SamplerBoolean;
@@ -84,6 +85,12 @@ public class KernelGeneratorDTMC extends KernelGenerator
 		super(model, properties, rewardProperties, config);
 	}
 
+	@Override
+	protected VariableTypeInterface timeVariableType()
+	{
+		return new StdVariableType(0, config.maxPathLength);
+	}
+	
 	@Override
 	protected void createSynchronizedStructures()
 	{
@@ -125,7 +132,7 @@ public class KernelGeneratorDTMC extends KernelGenerator
 	public void mainMethodDefineLocalVars(Method currentMethod) throws KernelException
 	{
 		//time
-		varTime = new CLVariable(new StdVariableType(0, config.maxPathLength), "time");
+		varTime = new CLVariable(varTimeType, "time");
 		varTime.setInitValue(StdVariableType.initialize(0));
 		currentMethod.addLocalVar(varTime);
 		//number of transitions
@@ -143,6 +150,12 @@ public class KernelGeneratorDTMC extends KernelGenerator
 		}
 	}
 
+	@Override
+	protected CLVariable mainMethodTimeVariable()
+	{
+		return varTime;
+	}
+	
 	@Override
 	protected void mainMethodUpdateTimeBefore(Method currentMethod, ComplexKernelComponent parent)
 	{

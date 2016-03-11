@@ -27,12 +27,14 @@ package simulator.opencl.kernel;
 
 import static simulator.opencl.kernel.expression.ExpressionGenerator.addParentheses;
 import static simulator.opencl.kernel.expression.ExpressionGenerator.createBinaryExpression;
+import static simulator.opencl.kernel.expression.ExpressionGenerator.fromString;
 
 import java.util.Collection;
 import java.util.Map;
 
 import prism.PrismLangException;
 import simulator.opencl.kernel.expression.Expression;
+import simulator.opencl.kernel.expression.IfElse;
 import simulator.opencl.kernel.expression.ExpressionGenerator.Operator;
 import simulator.opencl.kernel.expression.Method;
 import simulator.opencl.kernel.memory.CLVariable;
@@ -52,6 +54,7 @@ public class RewardGeneratorCTMC extends RewardGenerator
 	 */
 	static final CLVariable PREVIOUS_TIME_ARG = new CLVariable(new StdVariableType(StdType.FLOAT), "previous_time");
 	static final CLVariable NEW_TIME_ARG = new CLVariable(new StdVariableType(StdType.FLOAT), "time");
+	
 	/**
 	 * Reuse this expression for all updates:
 	 * (time - previous_time)
@@ -108,5 +111,10 @@ public class RewardGeneratorCTMC extends RewardGenerator
 			newValue = transitionReward;
 		}
 		return createBinaryExpression(cumulReward, Operator.ADD_AUGM, newValue);
+	}
+	
+	@Override
+	protected void createPropertyInst(IfElse ifElse, SamplerDouble property, CLVariable propertyState, CLVariable rewardState)
+	{
 	}
 }

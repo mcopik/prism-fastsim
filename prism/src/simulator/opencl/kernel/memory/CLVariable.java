@@ -67,6 +67,7 @@ public class CLVariable implements CLValue
 	 */
 	public CLVariable(VariableTypeInterface varType, String varName)
 	{
+		Preconditions.checkNotNull(varType);
 		this.varName = varName;
 		this.varType = varType;
 	}

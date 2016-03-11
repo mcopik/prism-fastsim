@@ -87,6 +87,8 @@ import simulator.sampler.SamplerUntil;
 public abstract class KernelGenerator
 {
 	protected CLVariable varTime = null;
+	//TODO: move to parent
+	public VariableTypeInterface varTimeType = null;
 	protected CLVariable varSelectionSize = null;
 	protected CLVariable varStateVector = null;
 	protected CLVariable varPathLength = null;
@@ -286,6 +288,7 @@ public abstract class KernelGenerator
 		this.properties = properties;
 
 		importStateVector();
+		varTimeType = timeVariableType();
 		int synSize = model.synchCmdsNumber();
 		int size = model.commandsNumber();
 
@@ -350,6 +353,11 @@ public abstract class KernelGenerator
 			additionalDeclarations.addAll(prngType.getAdditionalDefinitions());
 		}
 	}
+	
+	/**
+	 * @return type (integer/floating-point) of variable keeping current time
+	 */
+	protected abstract VariableTypeInterface timeVariableType();
 
 	/**
 	 * Create structures for synchronized commands.
@@ -649,7 +657,7 @@ public abstract class KernelGenerator
 		 * Update reward-based properties.
 		 */
 		if (hasRewardProperties) {
-			loop.addExpression( rewardGenerator.updateProperties(varStateVector) );
+			loop.addExpression( rewardGenerator.updateProperties(varStateVector, mainMethodTimeVariable()) );
 		}
 
 		/**
@@ -758,6 +766,11 @@ public abstract class KernelGenerator
 	 */
 	protected abstract void mainMethodDefineLocalVars(Method currentMethod) throws KernelException;
 
+	/**
+	 * @return the local kernel variable keeping current time
+	 */
+	protected abstract CLVariable mainMethodTimeVariable();
+	
 	/**
 	 * Generate a call to the non-synchronized update method.
 	 * There are two major steps:
@@ -934,7 +947,7 @@ public abstract class KernelGenerator
 	protected void mainMethodLoopDetection(ComplexKernelComponent parent)
 	{
 		//TODO: loop detection right now implemented only for non-timed properties
-		if (!timingProperty) {
+		if (!timingProperty && (rewardGenerator == null || rewardGenerator.canDetectLoops())) {
 			// no change?
 			Expression updateFlag = createBinaryExpression(varLoopDetection.getSource(), Operator.EQ, fromString("true"));
 
