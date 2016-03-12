@@ -35,11 +35,16 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
+import java.util.Set;
 import java.util.TreeMap;
+
 import parser.ast.RewardStruct;
 import parser.ast.RewardStructItem;
 import prism.Pair;
@@ -203,6 +208,21 @@ public abstract class RewardGenerator implements KernelComponentGenerator
 	protected Map<Integer, CLVariable> rewardStructuresVars = null;
 
 	/**
+	 * For every synchronization label, group rewards with corresponding reward index.
+	 */
+	Map<String, List<Pair<Integer, RewardStructItem>>> transitionRewards = new HashMap<>();
+	
+	/**
+	 * Contains indices of all reward structures which have at least one transition reward.
+	 */
+	Set<Integer> rewardsWithTransition = new HashSet<>();
+	
+	/**
+	 * For every reward structure, group state rewards indexed by reward structure.
+	 */
+	Map<Integer, List<RewardStructItem>> stateRewards = new HashMap<>();
+	
+	/**
 	 * Variable keeping state of all properties.
 	 */
 	protected CLVariable propertiesStateVar = null;
@@ -255,8 +275,23 @@ public abstract class RewardGenerator implements KernelComponentGenerator
 		REWARD_PROPERTY_STATE_STRUCTURE = createPropertyStateType();
 		REWARD_PROPERTY_STATE_ARRAY_TYPE = new ArrayType(REWARD_PROPERTY_STATE_STRUCTURE, rewardProperties.size());
 
+		int rwdIdx = 0;
+		for (RewardStruct struct : generator.getModel().getPrismRewards()) {
+			int size = struct.getNumItems();
+			for (int i = 0; i < size; ++i) {
+				RewardStructItem item = struct.getRewardStructItem(i);
+				if (item.isTransitionReward()) {
+					insertIntoMultiMap(transitionRewards, new Pair<>(rwdIdx, item), item.getSynch());
+					rewardsWithTransition.add(rwdIdx);
+				} else {
+					insertIntoMultiMap(stateRewards, item, rwdIdx);
+				}
+			}
+			++rwdIdx;
+		}
+		
 		createRewardStructures();
-		createRewardFunctions();
+		createRewardFunctions(rwdIdx);
 		createPropertyFunctions();
 	}
 
@@ -287,9 +322,30 @@ public abstract class RewardGenerator implements KernelComponentGenerator
 			Arrays.fill(flags, true);
 			StructureType type = rewardStructures.get(index);
 
+			/**
+			 * Do not add transition/state rewards if they are not provided by current reward (given by an index)
+			 * They will always be zero in this reward structure and should be removed from OpenCL kernel.
+			 */
+			boolean hasStateReward = stateRewards.containsKey(index);
+			boolean hasTransReward = rewardsWithTransition.contains(index);
+			for(int i = 0; i < vars.length; ++i) {
+				if (vars[i] == REWARD_STRUCTURE_VAR_CURRENT_STATE || vars[i] == REWARD_STRUCTURE_VAR_PREVIOUS_STATE) {
+					if( !hasStateReward ) {
+						flags[i] = false;
+					}
+				} else if (vars[i] == REWARD_STRUCTURE_VAR_PREVIOUS_TRANSITION) {
+					if( !hasTransReward ) {
+						flags[i] = false;
+					}
+				}
+			}
+			
+			/**
+			 * Do not read for already existing type (shared by different samplers).
+			 */
 			if (type != null) {
 				for (int i = 0; i < vars.length; ++i) {
-					flags[i] = type.containsField(vars[i]);
+					flags[i] &= !type.containsField(vars[i]);
 				}
 			} else {
 				type = new StructureType(String.format("REWARD_STRUCTURE_%d", index));
@@ -302,6 +358,21 @@ public abstract class RewardGenerator implements KernelComponentGenerator
 				}
 			}
 		}
+		
+		/**
+		 * It may happen, e.g. due to an error in the model, that some property uses a reward
+		 * which doesn't contribute any information. For example, an instantaneous reward uses
+		 * a reward structure providing only transition rewards.
+		 * 
+		 * Result is quite simple - we get an empty structure which is invalid in C99. We can't declare nor
+		 * use them.
+		 */
+		for(Iterator<Entry<Integer, StructureType>> it = rewardStructures.entrySet().iterator(); it.hasNext();) {
+			Entry<Integer, StructureType> entry = it.next();
+			if(entry.getValue().getFields().size() == 0) {
+				it.remove();
+			}
+		}
 	}
 
 	/**
@@ -310,39 +381,16 @@ public abstract class RewardGenerator implements KernelComponentGenerator
 	 * b) updating state-based rewards 
 	 * c) checking properties
 	 * d) writing output
+	 * @param rewardsCount number of rewards in PRISM model
 	 * @throws KernelException 
 	 */
-	protected void createRewardFunctions() throws KernelException
+	protected void createRewardFunctions(int rewardsCount) throws KernelException
 	{
-		/**
-		 * For every synchronization label, group rewards with corresponding reward index.
-		 */
-		Map<String, List<Pair<Integer, RewardStructItem>>> transitionRewards = new HashMap<>();
-
-		/**
-		 * For every reward structure, group state rewards indexed by reward structure.
-		 */
-		Map<Integer, List<RewardStructItem>> stateRewards = new HashMap<>();
-
-		int rwdIdx = 0;
-		for (RewardStruct struct : generator.getModel().getPrismRewards()) {
-			int size = struct.getNumItems();
-			for (int i = 0; i < size; ++i) {
-				RewardStructItem item = struct.getRewardStructItem(i);
-				if (item.isTransitionReward()) {
-					insertIntoMultiMap(transitionRewards, new Pair<>(rwdIdx, item), item.getSynch());
-				} else {
-					insertIntoMultiMap(stateRewards, item, rwdIdx);
-				}
-			}
-			++rwdIdx;
-		}
-
 		/**
 		 * Now create functions.
 		 */
 		createTransitionRewardFunction(transitionRewards);
-		createStateRewardFunction(rwdIdx, stateRewards);
+		createStateRewardFunction(rewardsCount, stateRewards);
 	}
 
 	/**
@@ -455,17 +503,7 @@ public abstract class RewardGenerator implements KernelComponentGenerator
 			method.addArg(rwStructPointer);
 			CLVariable transitionRw = rwStructPointer.accessField(REWARD_STRUCTURE_VAR_PREVIOUS_TRANSITION);
 			CLVariable prevStateRw = rwStructPointer.accessField(REWARD_STRUCTURE_VAR_PREVIOUS_STATE);
-			
-			/**
-			 * Compute the cumulative reward - it always requires keeping rewards from previous state (new state should not be included
-			 * if the property is validated in current state).
-			 * "current state" contains rewards from previous state (we haven't touched it yet!)
-			 * Implementation is different for both DTMC and CTMC.
-			 */
-			CLVariable cumulRw = rwStructPointer.accessField(REWARD_STRUCTURE_VAR_CUMULATIVE_TOTAL);
-			if (cumulRw != null) {
-				method.addExpression(stateRewardFunctionComputeCumulRw(cumulRw.getSource(), prevStateRw, transitionRw.getSource()));
-			}
+			CLVariable curStateRw = rwStructPointer.accessField(REWARD_STRUCTURE_VAR_CURRENT_STATE);
 
 			/**
 			 * And now proceed with state rewards, but only if there are state rewards for this index
@@ -473,8 +511,6 @@ public abstract class RewardGenerator implements KernelComponentGenerator
 			List<RewardStructItem> stateRw = stateRewards.get(i);
 			if (stateRw != null) {
 				stateRewardFunctionAdditionalArgs(method);
-	
-				CLVariable curStateRw = rwStructPointer.accessField(REWARD_STRUCTURE_VAR_CURRENT_STATE);
 	
 				/**
 				 * Save the previous state if there is a field in structure for it.
@@ -516,6 +552,17 @@ public abstract class RewardGenerator implements KernelComponentGenerator
 			}
 
 			/**
+			 * Compute the cumulative reward - it always requires keeping rewards from previous state (new state should not be included
+			 * if the property is validated in current state).
+			 * "current state" contains rewards from previous state (we haven't touched it yet!)
+			 * Implementation is different for both DTMC and CTMC.
+			 */
+			CLVariable cumulRw = rwStructPointer.accessField(REWARD_STRUCTURE_VAR_CUMULATIVE_TOTAL);
+			if (cumulRw != null) {
+				method.addExpression(stateRewardFunctionComputeCumulRw(cumulRw.getSource(), curStateRw, transitionRw));
+			}
+			
+			/**
 			 * If we have a transition reward - restart it, because in next iteration we may not enter
 			 * the appropriate transition reward, e.g. by taking a different synchronization label
 			 */
@@ -545,13 +592,13 @@ public abstract class RewardGenerator implements KernelComponentGenerator
 	 * CTMC:
 	 * dest += stateReward + timeSpentState * transitionReward;
 	 * 
-	 * State reward may be null for a case when the reward structure contains only transition rewards.
+	 * State/transition reward may be null for a case when the reward structure contains only transition/state rewards.
 	 * @param cumulReward
 	 * @param stateReward
 	 * @param transitionReward
 	 * @returns update expression
 	 */
-	protected abstract Expression stateRewardFunctionComputeCumulRw(Expression cumulReward, CLVariable stateReward, Expression transitionReward)
+	protected abstract Expression stateRewardFunctionComputeCumulRw(Expression cumulReward, CLVariable stateReward, CLVariable transitionReward)
 			throws KernelException;
 
 	/**
@@ -613,17 +660,8 @@ public abstract class RewardGenerator implements KernelComponentGenerator
 		
 		int index = 0;
 		for(SamplerDouble sampler : rewardProperties) {
-			
-			// pointer to reward structure - add iff it hasn't been already added by other property
+
 			int rewardIndex = sampler.getRewardIndex();
-			CLVariable rewardStatePointer;
-			if( !rewardStructuresArgs.containsKey(rewardIndex) ) {
-				rewardStatePointer = new CLVariable(
-						new PointerType(rewardStructures.get(rewardIndex)), String.format("rewardState_%d", rewardIndex));
-				rewardStructuresArgs.put( rewardIndex, rewardStatePointer);
-			} else {
-				rewardStatePointer = rewardStructuresArgs.get( rewardIndex );
-			}
 			
 			/**
 			 * Generates OpenCL source code for i-th reward property:
@@ -642,22 +680,44 @@ public abstract class RewardGenerator implements KernelComponentGenerator
 			IfElse ifElse = new IfElse(createNegation(valueKnown.getSource()));
 			
 			/**
-			 * Reachability reward.
+			 * If there is no reward structure then it means that there's no point of iterating through this property
+			 * - optimization has showed that this reward will always be zero.
+			 * But we add a simple code to write the result only once.
 			 */
-			if (sampler instanceof SamplerRewardReach) {
-				createPropertyReachability(ifElse, (SamplerRewardReach) sampler, currentProperty, rewardStatePointer);
-			}
-			/**
-			 * DTMC/CTMC instanteous reward
-			 */
-			else if (sampler instanceof SamplerRewardInstCont || sampler instanceof SamplerRewardInstDisc) {
-				createPropertyInst(ifElse, sampler, currentProperty, rewardStatePointer);
-			}
-			/**
-			 * DTMC/CTMC cumulative reward
-			 */
-			else {
-				//propertiesMethodAddBoundedUntil(currentMethod, ifElse, (SamplerBoolean) property, currentProperty);
+			if ( rewardStructures.containsKey(rewardIndex) ) {
+				
+				// pointer to reward structure - add iff it hasn't been already added by other property
+				CLVariable rewardStatePointer;
+				if( !rewardStructuresArgs.containsKey(rewardIndex) ) {
+					rewardStatePointer = new CLVariable(
+							new PointerType(rewardStructures.get(rewardIndex)), String.format("rewardState_%d", rewardIndex));
+					rewardStructuresArgs.put( rewardIndex, rewardStatePointer);
+				} else {
+					rewardStatePointer = rewardStructuresArgs.get( rewardIndex );
+				}
+			
+				/**
+				 * Reachability reward.
+				 */
+				if (sampler instanceof SamplerRewardReach) {
+					createPropertyReachability(ifElse, (SamplerRewardReach) sampler, currentProperty, rewardStatePointer);
+				}
+				/**
+				 * DTMC/CTMC instanteous reward
+				 */
+				else if (sampler instanceof SamplerRewardInstCont || sampler instanceof SamplerRewardInstDisc) {
+					createPropertyInst(ifElse, sampler, currentProperty, rewardStatePointer);
+				}
+				/**
+				 * DTMC/CTMC cumulative reward
+				 */
+				else {
+					createPropertyCumul(ifElse, sampler, currentProperty, rewardStatePointer);
+				}
+			} else {
+				CLVariable propertyState = currentProperty.accessField("propertyState");
+				ifElse.addExpression(0, createAssignment(propertyState, fromString(0.0)));
+				ifElse.addExpression(0, createAssignment(valueKnown, fromString("true")));
 			}
 			ifElse.addExpression(0, createBinaryExpression(allKnown.getSource(), 
 					ExpressionGenerator.Operator.LAND_AUGM, valueKnown.getSource()));
@@ -747,12 +807,17 @@ public abstract class RewardGenerator implements KernelComponentGenerator
 	 * Implementation is different in discrete and continuous-time:
 	 * a) 
 	 * 
+	 */ 
+	
+	/**
 	 * 
-	 * @param samplers
-	 * @throws KernelException
+	 * @param ifElse
+	 * @param property
+	 * @param propertyState
+	 * @param rewardState
 	 */
-	//protected abstract void createPropertyFunctionCumul(Map<Class<? extends SamplerDouble>, List<SamplerDouble>> samplers) throws KernelException;
-
+	protected abstract void createPropertyCumul(IfElse ifElse, SamplerDouble property, CLVariable propertyState, CLVariable rewardState);
+	
 	/**
 	 * 
 	 * @param ifElse
@@ -808,7 +873,7 @@ public abstract class RewardGenerator implements KernelComponentGenerator
 		 */
 		map.put(SamplerRewardReach.class, new String[] { REWARD_STRUCTURE_VAR_CUMULATIVE_TOTAL, 
 						REWARD_STRUCTURE_VAR_PREVIOUS_TRANSITION,
-						REWARD_STRUCTURE_VAR_PREVIOUS_STATE });
+						REWARD_STRUCTURE_VAR_CURRENT_STATE });
 		// cumulative and instantaneous - different variables for different automata
 		initializeRewardRequiredVarsCumulative(map);
 		initializeRewardRequiredVarsInstantaneous(map);
@@ -1017,7 +1082,9 @@ public abstract class RewardGenerator implements KernelComponentGenerator
 		for(Integer idx : propertyMethod.second) {
 			args.add( rewardStructuresVars.get(idx).convertToPointer() );
 		}
-		return propertyMethod.first.callMethod( args );
+		IfElse ifElse = new IfElse( propertyMethod.first.callMethod( args ) );
+		ifElse.addExpression(0, new Expression("break;\n"));
+		return ifElse;
 	}
 
 	/**

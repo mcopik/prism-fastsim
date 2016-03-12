@@ -73,7 +73,8 @@ public class StructureType implements VariableTypeInterface, UDType
 		@Override
 		public Expression getSource()
 		{
-			StringBuilder builder = new StringBuilder("{\n");
+			StringBuilder builder = new StringBuilder();
+			builder.append("{\n");
 			for (CLValue value : fieldsValue) {
 				builder.append(value.getSource().toString());
 				builder.append(",\n");

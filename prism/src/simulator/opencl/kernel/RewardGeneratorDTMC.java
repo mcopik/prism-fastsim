@@ -62,8 +62,8 @@ public class RewardGeneratorDTMC extends RewardGenerator
 	@Override
 	protected void initializeRewardRequiredVarsCumulative(Map<Class<? extends SamplerDouble>, String[]> map)
 	{
-		String[] vars = new String[] { REWARD_STRUCTURE_VAR_CUMULATIVE_TOTAL };
-		map.put(SamplerRewardCumulCont.class, vars);
+		String[] vars = new String[] { REWARD_STRUCTURE_VAR_CUMULATIVE_TOTAL, REWARD_STRUCTURE_VAR_PREVIOUS_TRANSITION, 
+				REWARD_STRUCTURE_VAR_CURRENT_STATE };
 		map.put(SamplerRewardCumulDisc.class, vars);
 	}
 
@@ -71,7 +71,6 @@ public class RewardGeneratorDTMC extends RewardGenerator
 	protected void initializeRewardRequiredVarsInstantaneous(Map<Class<? extends SamplerDouble>, String[]> map)
 	{
 		String[] vars = new String[] { REWARD_STRUCTURE_VAR_CURRENT_STATE };
-		map.put(SamplerRewardInstCont.class, vars);
 		map.put(SamplerRewardInstDisc.class, vars);
 	}
 
@@ -84,16 +83,18 @@ public class RewardGeneratorDTMC extends RewardGenerator
 	}
 
 	@Override
-	protected Expression stateRewardFunctionComputeCumulRw(Expression cumulReward, CLVariable stateReward, Expression transitionReward) throws KernelException
+	protected Expression stateRewardFunctionComputeCumulRw(Expression cumulReward, CLVariable stateReward, CLVariable transitionReward) throws KernelException
 	{
 		/**
 		 * Simple update: just add transition and state reward.
 		 */
 		Expression newValue = null;
-		if( stateReward != null ) {
-			newValue = ExpressionGenerator.createBinaryExpression(stateReward.getSource(), Operator.ADD, transitionReward);
+		if (stateReward != null && transitionReward != null) {
+			newValue = ExpressionGenerator.createBinaryExpression(stateReward.getSource(), Operator.ADD, transitionReward.getSource());
+		} else if (stateReward != null ){
+			newValue = stateReward.getSource();
 		} else {
-			newValue = transitionReward;
+			newValue = transitionReward.getSource();
 		}
 		return ExpressionGenerator.createBinaryExpression(cumulReward, Operator.ADD_AUGM, newValue);
 	}
@@ -104,7 +105,22 @@ public class RewardGeneratorDTMC extends RewardGenerator
 		CLVariable stateReward = rewardState.accessField(REWARD_STRUCTURE_VAR_CURRENT_STATE);
 		Expression propertyCondition = createBinaryExpression( fromString( ((SamplerRewardInstDisc) property).getTime() ),
 				Operator.EQ, argPropertyTime.getSource());
-		ifElse.addExpression( createPropertyCondition(propertyState, propertyCondition, stateReward.getSource()) );
+		/**
+		 * If there's no state reward for a this reward structure - the reward will always be zero.
+		 * 
+		 * Very unlikely case (mostly a user error), but we want to be safe and avoid a nullptr exception.
+		 */
+		ifElse.addExpression( createPropertyCondition(propertyState, propertyCondition, 
+				stateReward != null ? stateReward.getSource() : fromString(0.0)) );
+	}	
+	
+	@Override
+	protected void createPropertyCumul(IfElse ifElse, SamplerDouble property, CLVariable propertyState, CLVariable rewardState)
+	{
+		CLVariable cumulReward = rewardState.accessField(REWARD_STRUCTURE_VAR_CUMULATIVE_TOTAL);
+		Expression propertyCondition = createBinaryExpression( fromString( ((SamplerRewardCumulDisc) property).getTime() ),
+				Operator.EQ, argPropertyTime.getSource());
+		ifElse.addExpression( createPropertyCondition(propertyState, propertyCondition, cumulReward.getSource()) );
 	}
 	
 }

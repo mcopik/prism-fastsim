@@ -98,7 +98,7 @@ public class RewardGeneratorCTMC extends RewardGenerator
 	}
 
 	@Override
-	protected Expression stateRewardFunctionComputeCumulRw(Expression cumulReward, CLVariable stateReward, Expression transitionReward) throws KernelException
+	protected Expression stateRewardFunctionComputeCumulRw(Expression cumulReward, CLVariable stateReward, CLVariable transitionReward) throws KernelException
 	{
 		/**
 		 * More complex update: add transition and state rewards, but the second one needs to be multiplied by time spent in state.
@@ -106,15 +106,22 @@ public class RewardGeneratorCTMC extends RewardGenerator
 		Expression newValue = null;
 		if (stateReward != null) {
 			newValue = createBinaryExpression(stateReward.getSource(), Operator.MUL, TIME_SPENT_STATE);
-			newValue = createBinaryExpression(newValue, Operator.ADD, transitionReward);
+			if(transitionReward != null) {
+				newValue = createBinaryExpression(newValue, Operator.ADD, transitionReward.getSource());
+			}
 		} else {
-			newValue = transitionReward;
+			newValue = transitionReward.getSource();
 		}
 		return createBinaryExpression(cumulReward, Operator.ADD_AUGM, newValue);
 	}
 	
 	@Override
 	protected void createPropertyInst(IfElse ifElse, SamplerDouble property, CLVariable propertyState, CLVariable rewardState)
+	{
+	}	
+	
+	@Override
+	protected void createPropertyCumul(IfElse ifElse, SamplerDouble property, CLVariable propertyState, CLVariable rewardState)
 	{
 	}
 }
