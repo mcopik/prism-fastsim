@@ -1071,7 +1071,7 @@ public abstract class RewardGenerator implements KernelComponentGenerator
 	 * @param stateVector
 	 * @param currentTime
 	 */
-	public KernelComponent updateProperties(CLVariable stateVector, CLVariable currentTime)
+	public Expression updateProperties(CLVariable stateVector, CLVariable currentTime)
 	{
 		List<CLValue> args = new ArrayList<>();
 		args.add( stateVector.convertToPointer());
@@ -1082,9 +1082,7 @@ public abstract class RewardGenerator implements KernelComponentGenerator
 		for(Integer idx : propertyMethod.second) {
 			args.add( rewardStructuresVars.get(idx).convertToPointer() );
 		}
-		IfElse ifElse = new IfElse( propertyMethod.first.callMethod( args ) );
-		ifElse.addExpression(0, new Expression("break;\n"));
-		return ifElse;
+		return propertyMethod.first.callMethod( args );
 	}
 
 	/**

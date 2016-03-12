@@ -268,17 +268,13 @@ public class KernelGeneratorDTMC extends KernelGenerator
 	}
 
 	@Override
-	protected void mainMethodUpdateProperties(ComplexKernelComponent parent)
+	protected Expression mainMethodUpdateProperties()
 	{
-		Expression call = null;
 		if (timingProperty) {
-			call = helperMethods.get(KernelMethods.UPDATE_PROPERTIES).callMethod(varStateVector.convertToPointer(), varPropertiesArray, varTime);
+			return helperMethods.get(KernelMethods.UPDATE_PROPERTIES).callMethod(varStateVector.convertToPointer(), varPropertiesArray, varTime);
 		} else {
-			call = helperMethods.get(KernelMethods.UPDATE_PROPERTIES).callMethod(varStateVector.convertToPointer(), varPropertiesArray);
+			return helperMethods.get(KernelMethods.UPDATE_PROPERTIES).callMethod(varStateVector.convertToPointer(), varPropertiesArray);
 		}
-		IfElse ifElse = new IfElse(call);
-		ifElse.addExpression(0, new Expression("break;\n"));
-		parent.addExpression(ifElse);
 	}
 
 	/*********************************

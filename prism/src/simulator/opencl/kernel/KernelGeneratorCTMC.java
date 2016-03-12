@@ -318,18 +318,14 @@ public class KernelGeneratorCTMC extends KernelGenerator
 	}
 
 	@Override
-	protected void mainMethodUpdateProperties(ComplexKernelComponent parent)
+	protected Expression mainMethodUpdateProperties()
 	{
-		Expression call = null;
 		if (timingProperty) {
-			call = helperMethods.get(KernelMethods.UPDATE_PROPERTIES)
+			return helperMethods.get(KernelMethods.UPDATE_PROPERTIES)
 					.callMethod(varStateVector.convertToPointer(), varPropertiesArray, varTime, varUpdatedTime);
 		} else {
-			call = helperMethods.get(KernelMethods.UPDATE_PROPERTIES).callMethod(varStateVector.convertToPointer(), varPropertiesArray, varTime);
+			return helperMethods.get(KernelMethods.UPDATE_PROPERTIES).callMethod(varStateVector.convertToPointer(), varPropertiesArray, varTime);
 		}
-		IfElse ifElse = new IfElse(call);
-		ifElse.addExpression(0, new Expression("break;\n"));
-		parent.addExpression(ifElse);
 	}
 
 	/*********************************

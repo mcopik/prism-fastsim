@@ -251,7 +251,12 @@ public abstract class KernelGenerator
 	/**
 	 * True when there are some reward properties to evaluate.
 	 */
-	protected boolean hasRewardProperties = false;
+	protected boolean hasRewardProperties = false;	
+	
+	/**
+	 * True when there are some probabilistic properties to evaluate.
+	 */
+	protected boolean hasProbProperties = false;
 
 	/**
 	 * True when one of processed properties has timing constraints.
@@ -337,11 +342,12 @@ public abstract class KernelGenerator
 		/**
 		 * Add definitions of structures for properties.
 		 */
-		if (hasProbProperties()) {
+		if (hasProbProperties) {
 			additionalDeclarations.add(PROPERTY_STATE_STRUCTURE.getDefinition());
 		}
 
 		this.hasRewardProperties = rewardProperties.size() != 0;
+		this.hasProbProperties = properties.size() != 0;
 		this.rewardProperties = rewardProperties;
 		this.rewardGenerator = hasRewardProperties ? RewardGenerator.createGenerator(this, model.getType()) : null;
 		if (hasRewardProperties) {
@@ -647,18 +653,20 @@ public abstract class KernelGenerator
 		mainMethodUpdateTimeBefore(currentMethod, loop);
 
 		/**
-		 * if all properties are known, then we can end iterating
+		 * if all properties and reward properties are known, then we can end iterating
 		 */
-		if (properties.size() != 0) {
-			mainMethodUpdateProperties(loop);
+		Expression propertyCall = null;
+		if (hasProbProperties && hasRewardProperties) {
+			propertyCall = createBinaryExpression(mainMethodUpdateProperties(), Operator.LAND, 
+				rewardGenerator.updateProperties(varStateVector, mainMethodTimeVariable()));
+		} else if (hasRewardProperties) {
+			propertyCall = rewardGenerator.updateProperties(varStateVector, mainMethodTimeVariable());
+		} else {
+			propertyCall = mainMethodUpdateProperties();
 		}
-
-		/**
-		 * Update reward-based properties.
-		 */
-		if (hasRewardProperties) {
-			loop.addExpression( rewardGenerator.updateProperties(varStateVector, mainMethodTimeVariable()) );
-		}
+		IfElse ifElse = new IfElse(propertyCall);
+		ifElse.addExpression(0, new Expression("break;\n"));
+		loop.addExpression(ifElse);
 
 		/**
 		 * if(selectionSize + synSelectionSize == 0) -> deadlock, break
@@ -965,8 +973,12 @@ public abstract class KernelGenerator
 			updateSize = createBinaryExpression(updateSize, Operator.EQ, fromString("1"));
 			IfElse loop = new IfElse(createBinaryExpression(updateFlag, Operator.LAND, updateSize));
 			loop.setConditionNumber(0);
-			if (properties.size() != 0) {
-				mainMethodUpdateProperties(loop);
+			
+			if (hasProbProperties) {
+				loop.addExpression( mainMethodUpdateProperties() );
+			}
+			if (hasRewardProperties) {
+				loop.addExpression( rewardGenerator.updateProperties(varStateVector, mainMethodTimeVariable()) );
 			}
 			loop.addExpression(new Expression("break;\n"));
 			parent.addExpression(loop);
@@ -1030,10 +1042,9 @@ public abstract class KernelGenerator
 	protected abstract void mainMethodFirstUpdateProperties(ComplexKernelComponent parent);
 
 	/**
-	 * Create call to property update method.
-	 * @param currentMethod
+	 * Create call to probabilistic property update method.
 	 */
-	protected abstract void mainMethodUpdateProperties(ComplexKernelComponent currentMethod);
+	protected abstract Expression mainMethodUpdateProperties();
 
 	/**
 	 * DTMC: increment time (previous time is obvious)
@@ -1954,14 +1965,6 @@ public abstract class KernelGenerator
 	/*********************************
 	 * OTHER METHODS
 	 ********************************/
-
-	/**
-	 * @return true iff kernel has some probabilistic properties
-	 */
-	private boolean hasProbProperties()
-	{
-		return properties.size() != 0;
-	}
 
 	/**
 	 * @param varName variable name
