@@ -256,7 +256,7 @@ public abstract class RewardGenerator implements KernelComponentGenerator
 	 */
 	protected boolean timedReward = false;
 
-	public RewardGenerator(KernelGenerator generator) throws KernelException, PrismLangException
+	public RewardGenerator(KernelGenerator generator) throws KernelException
 	{
 		this.generator = generator;
 		this.config = generator.getRuntimeConfig();
@@ -290,8 +290,18 @@ public abstract class RewardGenerator implements KernelComponentGenerator
 			++rwdIdx;
 		}
 		
+	}
+	
+	/**
+	 * Split between constructor and generation function allows for a proper initialization of fields
+	 * in child classes.
+	 * @throws KernelException
+	 * @throws PrismLangException
+	 */
+	protected void generateRewardCode() throws KernelException, PrismLangException
+	{
 		createRewardStructures();
-		createRewardFunctions(rwdIdx);
+		createRewardFunctions(generator.getModel().getPrismRewards().size());
 		createPropertyFunctions();
 	}
 
@@ -341,7 +351,7 @@ public abstract class RewardGenerator implements KernelComponentGenerator
 			}
 			
 			/**
-			 * Do not read for already existing type (shared by different samplers).
+			 * Do not add an already existing variable (shared by different samplers).
 			 */
 			if (type != null) {
 				for (int i = 0; i < vars.length; ++i) {
@@ -364,7 +374,7 @@ public abstract class RewardGenerator implements KernelComponentGenerator
 		 * which doesn't contribute any information. For example, an instantaneous reward uses
 		 * a reward structure providing only transition rewards.
 		 * 
-		 * Result is quite simple - we get an empty structure which is invalid in C99. We can't declare nor
+		 * Result is quite simple - we get an empty structure which is invalid in C99. We can neither declare nor
 		 * use them.
 		 */
 		for(Iterator<Entry<Integer, StructureType>> it = rewardStructures.entrySet().iterator(); it.hasNext();) {
@@ -521,7 +531,8 @@ public abstract class RewardGenerator implements KernelComponentGenerator
 			 */
 			List<RewardStructItem> stateRw = stateRewards.get(i);
 			if (stateRw != null) {
-				stateRewardFunctionAdditionalArgs(method);
+
+				stateRewardFunctionAdditionalArgs(method, rewardStruct);
 	
 				/**
 				 * Save the previous state if there is a field in structure for it.
@@ -543,6 +554,7 @@ public abstract class RewardGenerator implements KernelComponentGenerator
 				} else {
 					stateRewardDest = prevStateRw.getSource();
 				}
+				
 				/**
 				 * 'Restart' the state rewards by writing zero (we take a sum over the whole reward structure). 
 				 */
@@ -582,8 +594,9 @@ public abstract class RewardGenerator implements KernelComponentGenerator
 	 * CTMC:
 	 * Time spent in time, i.e. new and old time (entering state before update and leaving it).
 	 * @param function
+	 * @param rewardStructure
 	 */
-	protected abstract void stateRewardFunctionAdditionalArgs(Method function) throws KernelException;
+	protected abstract void stateRewardFunctionAdditionalArgs(Method function, StructureType rewardStructure) throws KernelException;
 
 	/**
 	 * Update the cumulative reward kept at destination.
@@ -1058,13 +1071,22 @@ public abstract class RewardGenerator implements KernelComponentGenerator
 	public KernelComponent afterUpdate(CLVariable stateVector)
 	{
 		ExpressionList list = new ExpressionList();
-		CLValue svPtr = stateVector.convertToPointer();
 		for(Map.Entry<Integer, Method> stateMethod : stateUpdateFunctions.entrySet()) {
-			CLValue rwPtr = rewardStructuresVars.get( stateMethod.getKey() ).convertToPointer();
-			list.addExpression( stateMethod.getValue().callMethod(svPtr, rwPtr) );
+			CLVariable rewardStructure = rewardStructuresVars.get( stateMethod.getKey() );
+			list.addExpression( callStateRewardFunction(stateMethod.getValue(), stateVector, rewardStructure) );
 		}
 		return list;
 	}
+	
+	/**
+	 * DTMC: call stateReward(svPtr, rewardPtr)
+	 * CTMC: either as above or stateReward(svPtr, rewardPtr, time, updatedTime)
+	 * @param method
+	 * @param stateVector
+	 * @param rewardStructure
+	 * @return
+	 */
+	protected abstract Expression callStateRewardFunction(Method method, CLVariable stateVector, CLVariable rewardStructure);
 	
 	/**
 	 * TODO: do we need a special case of checking at time 0 for CTMC?
@@ -1101,4 +1123,11 @@ public abstract class RewardGenerator implements KernelComponentGenerator
 	{
 		return !timedReward;
 	}
+	
+	/**
+	 * DTMC - always false, time step is always 1
+	 * CTMC - both time and updated_time are required only for computing cumulative state rewards 
+	 * @return true iff at least one function needs to know both times of entering and leaving a state
+	 */
+	public abstract boolean needsTimeDifference();
 }

@@ -39,6 +39,7 @@ import simulator.opencl.kernel.expression.ExpressionGenerator.Operator;
 import simulator.opencl.kernel.expression.Method;
 import simulator.opencl.kernel.memory.CLVariable;
 import simulator.opencl.kernel.memory.StdVariableType;
+import simulator.opencl.kernel.memory.StructureType;
 import simulator.opencl.kernel.memory.StdVariableType.StdType;
 import simulator.sampler.SamplerDouble;
 import simulator.sampler.SamplerRewardCumulCont;
@@ -60,10 +61,16 @@ public class RewardGeneratorCTMC extends RewardGenerator
 	 * (time - previous_time)
 	 */
 	static final Expression TIME_SPENT_STATE = addParentheses(createBinaryExpression(NEW_TIME_ARG.getSource(), Operator.SUB, PREVIOUS_TIME_ARG.getSource()));
-
+	
+	/**
+	 * True iff there is at least one reward structure with cumulative reward.
+	 */
+	protected boolean computesCumulativeReward = false;
+	
 	public RewardGeneratorCTMC(KernelGenerator generator) throws KernelException, PrismLangException
 	{
 		super(generator);
+		generateRewardCode();
 	}
 
 	@Override
@@ -78,7 +85,6 @@ public class RewardGeneratorCTMC extends RewardGenerator
 	{
 		String[] vars = new String[] { REWARD_STRUCTURE_VAR_CUMULATIVE_TOTAL, REWARD_STRUCTURE_VAR_PREVIOUS_STATE, REWARD_STRUCTURE_VAR_PREVIOUS_TRANSITION,
 				REWARD_STRUCTURE_VAR_CURRENT_STATE };
-		map.put(SamplerRewardCumulDisc.class, vars);
 		map.put(SamplerRewardCumulCont.class, vars);
 	}
 
@@ -86,15 +92,19 @@ public class RewardGeneratorCTMC extends RewardGenerator
 	protected void initializeRewardRequiredVarsInstantaneous(Map<Class<? extends SamplerDouble>, String[]> map)
 	{
 		String[] vars = new String[] { REWARD_STRUCTURE_VAR_PREVIOUS_STATE, REWARD_STRUCTURE_VAR_CURRENT_STATE };
-		map.put(SamplerRewardInstDisc.class, vars);
 		map.put(SamplerRewardInstCont.class, vars);
 	}
 
 	@Override
-	protected void stateRewardFunctionAdditionalArgs(Method function) throws KernelException
+	protected void stateRewardFunctionAdditionalArgs(Method function, StructureType rewardStructure) throws KernelException
 	{
-		function.addArg(PREVIOUS_TIME_ARG);
-		function.addArg(NEW_TIME_ARG);
+		if ( rewardStructure.containsField(REWARD_STRUCTURE_VAR_CUMULATIVE_TOTAL) && 
+				rewardStructure.containsField(REWARD_STRUCTURE_VAR_CURRENT_STATE)) {
+			function.addArg(PREVIOUS_TIME_ARG);
+			function.addArg(NEW_TIME_ARG);
+			
+			computesCumulativeReward = true;
+		}
 	}
 
 	@Override
@@ -123,5 +133,30 @@ public class RewardGeneratorCTMC extends RewardGenerator
 	@Override
 	protected void createPropertyCumul(IfElse ifElse, SamplerDouble property, CLVariable propertyState, CLVariable rewardState)
 	{
+	}
+	
+	@Override
+	public boolean needsTimeDifference()
+	{
+		return computesCumulativeReward;
+	}
+	
+	@Override
+	protected Expression callStateRewardFunction(Method method, CLVariable stateVector, CLVariable rewardStructure)
+	{
+		/**
+		 * Cumulative reward with current state? Requires both current and new time.
+		 */
+		if (rewardStructure.accessField(REWARD_STRUCTURE_VAR_CUMULATIVE_TOTAL) != null
+				&& rewardStructure.accessField(REWARD_STRUCTURE_VAR_CURRENT_STATE) != null) {
+			CLVariable[] timeVars = generator.mainMethodTimeVariable();
+			return method.callMethod(stateVector.convertToPointer(), rewardStructure.convertToPointer(), timeVars[0], timeVars[1]);
+		}
+		/**
+		 * Otherwise time is not needed.
+		 */
+		else {
+			return method.callMethod(stateVector.convertToPointer(), rewardStructure.convertToPointer());
+		}
 	}
 }

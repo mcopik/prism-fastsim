@@ -36,8 +36,10 @@ import simulator.opencl.kernel.expression.ExpressionGenerator;
 import simulator.opencl.kernel.expression.IfElse;
 import simulator.opencl.kernel.expression.ExpressionGenerator.Operator;
 import simulator.opencl.kernel.expression.Method;
+import simulator.opencl.kernel.memory.CLValue;
 import simulator.opencl.kernel.memory.CLVariable;
 import simulator.opencl.kernel.memory.StdVariableType;
+import simulator.opencl.kernel.memory.StructureType;
 import simulator.opencl.kernel.memory.StdVariableType.StdType;
 import simulator.sampler.SamplerDouble;
 import simulator.sampler.SamplerRewardCumulCont;
@@ -50,6 +52,7 @@ public class RewardGeneratorDTMC extends RewardGenerator
 	public RewardGeneratorDTMC(KernelGenerator generator) throws KernelException, PrismLangException
 	{
 		super(generator);
+		generateRewardCode();
 	}
 
 	@Override
@@ -75,7 +78,7 @@ public class RewardGeneratorDTMC extends RewardGenerator
 	}
 
 	@Override
-	protected void stateRewardFunctionAdditionalArgs(Method function) throws KernelException
+	protected void stateRewardFunctionAdditionalArgs(Method function, StructureType rewardStructure) throws KernelException
 	{
 		/**
 		 * DTMC implementation doesn't require additional arguments.
@@ -123,4 +126,15 @@ public class RewardGeneratorDTMC extends RewardGenerator
 		ifElse.addExpression( createPropertyCondition(propertyState, propertyCondition, cumulReward.getSource()) );
 	}
 	
+	@Override
+	public boolean needsTimeDifference()
+	{
+		return false;
+	}
+	
+	@Override
+	protected Expression callStateRewardFunction(Method method, CLVariable stateVector, CLVariable rewardStructure)
+	{
+		return method.callMethod(stateVector.convertToPointer(), rewardStructure.convertToPointer());
+	}
 }
