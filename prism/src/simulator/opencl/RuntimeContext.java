@@ -453,7 +453,7 @@ public class RuntimeContext
 		protected void updateSampling()
 		{
 			Preconditions.checkNotNull(queue);
-			int samplesProcessed = 0;
+			
 			while (samplesProcessed < numberOfSamples) {
 				//determine how many samples allocate
 				int currentGWSize = (int) Math.min(globalWorkSize, numberOfSamples - samplesProcessed);
