@@ -159,13 +159,13 @@ public class KernelGeneratorDTMC extends KernelGenerator
 	@Override
 	protected void mainMethodUpdateTimeBefore(Method currentMethod, ComplexKernelComponent parent)
 	{
-		parent.addExpression(addComma(postIncrement(currentMethod.getLocalVar("time"))));
+		//don't need to do anything!
 	}
 
 	@Override
 	protected void mainMethodUpdateTimeAfter(Method currentMethod, ComplexKernelComponent parent)
 	{
-		//don't need to do anything!
+		parent.addExpression(addComma(postIncrement(currentMethod.getLocalVar("time"))));
 	}
 
 	@Override

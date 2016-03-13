@@ -475,7 +475,7 @@ public abstract class RewardGenerator implements KernelComponentGenerator
 	{
 		CLVariable pointerSV = new CLVariable(new PointerType(generator.getStateVectorType()), "sv");
 		Map<String, String> stateVectorTranslations = generator.getSVTranslations();
-
+		
 		/**
 		 * For each reward structure:
 		 * - if there is at least one state reward: create full function evaluating state reward
@@ -505,6 +505,17 @@ public abstract class RewardGenerator implements KernelComponentGenerator
 			CLVariable prevStateRw = rwStructPointer.accessField(REWARD_STRUCTURE_VAR_PREVIOUS_STATE);
 			CLVariable curStateRw = rwStructPointer.accessField(REWARD_STRUCTURE_VAR_CURRENT_STATE);
 
+			/**
+			 * Compute the cumulative reward - it always requires keeping rewards from previous state (new state should not be included
+			 * if the property is validated in current state).
+			 * "current state" contains rewards from previous state (we haven't touched it yet!)
+			 * Implementation is different for both DTMC and CTMC.
+			 */
+			CLVariable cumulRw = rwStructPointer.accessField(REWARD_STRUCTURE_VAR_CUMULATIVE_TOTAL);
+			if (cumulRw != null) {
+				method.addExpression(stateRewardFunctionComputeCumulRw(cumulRw.getSource(), curStateRw, transitionRw));
+			}
+			
 			/**
 			 * And now proceed with state rewards, but only if there are state rewards for this index
 			 */
@@ -549,17 +560,6 @@ public abstract class RewardGenerator implements KernelComponentGenerator
 	
 					method.addExpression(condition);
 				}
-			}
-
-			/**
-			 * Compute the cumulative reward - it always requires keeping rewards from previous state (new state should not be included
-			 * if the property is validated in current state).
-			 * "current state" contains rewards from previous state (we haven't touched it yet!)
-			 * Implementation is different for both DTMC and CTMC.
-			 */
-			CLVariable cumulRw = rwStructPointer.accessField(REWARD_STRUCTURE_VAR_CUMULATIVE_TOTAL);
-			if (cumulRw != null) {
-				method.addExpression(stateRewardFunctionComputeCumulRw(cumulRw.getSource(), curStateRw, transitionRw));
 			}
 			
 			/**

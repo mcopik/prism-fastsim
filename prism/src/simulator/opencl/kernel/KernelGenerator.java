@@ -291,6 +291,8 @@ public abstract class KernelGenerator
 		this.config = config;
 		this.prngType = config.prngType;
 		this.properties = properties;
+		this.hasRewardProperties = rewardProperties.size() != 0;
+		this.hasProbProperties = properties.size() != 0;
 
 		importStateVector();
 		varTimeType = timeVariableType();
@@ -346,8 +348,6 @@ public abstract class KernelGenerator
 			additionalDeclarations.add(PROPERTY_STATE_STRUCTURE.getDefinition());
 		}
 
-		this.hasRewardProperties = rewardProperties.size() != 0;
-		this.hasProbProperties = properties.size() != 0;
 		this.rewardProperties = rewardProperties;
 		this.rewardGenerator = hasRewardProperties ? RewardGenerator.createGenerator(this, model.getType()) : null;
 		if (hasRewardProperties) {
@@ -642,16 +642,17 @@ public abstract class KernelGenerator
 				loop.addExpression(createBinaryExpression(varSynSelectionSize.getSource(), Operator.ADD_AUGM, callMethod));
 			}
 		}
-
+		
 		/**
 		 * update time -> in case of CTMC and bounded until we need two time values:
 		 * 1) entering state
 		 * 2) leaving state
 		 * so current time is updated in After method()
-		 * other cases: compute time in Before method() 
+		 * other cases: compute current time in After method(), 
+		 * because the time is updated *after* making a transition
 		 */
 		mainMethodUpdateTimeBefore(currentMethod, loop);
-
+		
 		/**
 		 * if all properties and reward properties are known, then we can end iterating
 		 */
@@ -730,7 +731,9 @@ public abstract class KernelGenerator
 		 */
 		//sampleNumber + globalID
 		Expression position = createBinaryExpression(globalID.getSource(), Operator.ADD, pathOffset.getSource());
-		//path length
+		//TODO: path length; add 1 because we start at zero
+		//Expression pathLength = createBinaryExpression(pathLengths.accessElement(position).getSource(), Operator.ADD, fromString(1));
+		//currentMethod.addExpression(createAssignment(pathLength.getSource(), varPathLength));
 		CLVariable pathLength = pathLengths.accessElement(position);
 		currentMethod.addExpression(createAssignment(pathLength, varPathLength));
 		position = createBinaryExpression(globalID.getSource(), Operator.ADD, resultsOffset.getSource());
