@@ -151,9 +151,9 @@ public class KernelGeneratorDTMC extends KernelGenerator
 	}
 
 	@Override
-	protected CLVariable mainMethodTimeVariable()
+	protected CLVariable[] mainMethodTimeVariable()
 	{
-		return varTime;
+		return new CLVariable[] { varTime };
 	}
 	
 	@Override

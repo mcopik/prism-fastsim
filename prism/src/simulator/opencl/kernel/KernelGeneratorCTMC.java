@@ -122,8 +122,9 @@ public class KernelGeneratorCTMC extends KernelGenerator
 		varTime = new CLVariable(varTimeType, "time");
 		varTime.setInitValue(StdVariableType.initialize(0.0f));
 		currentMethod.addLocalVar(varTime);
-		//updated time
-		if (timingProperty) {
+		//updated time - it's needed for time bounded property and CTMC state reward
+		//TODO: update after introducing property generator
+		if (timingProperty || rewardGenerator.needsTimeDifference()) {
 			varUpdatedTime = new CLVariable(new StdVariableType(StdType.FLOAT), "updatedTime");
 			varUpdatedTime.setInitValue(StdVariableType.initialize(0.0f));
 			currentMethod.addLocalVar(varUpdatedTime);
@@ -141,9 +142,13 @@ public class KernelGeneratorCTMC extends KernelGenerator
 	}
 	
 	@Override
-	protected CLVariable mainMethodTimeVariable()
+	protected CLVariable[] mainMethodTimeVariable()
 	{
-		return varTime;
+		if (varUpdatedTime != null) {
+			return new CLVariable[] { varTime, varUpdatedTime };
+		} else {
+			return new CLVariable[] { varTime };
+		}
 	}
 
 	@Override
@@ -167,7 +172,7 @@ public class KernelGeneratorCTMC extends KernelGenerator
 		substrRng = createBinaryExpression(substrRng, Operator.DIV, sum);
 		// updated = time - new value
 		// OR time -= new value
-		if (timingProperty) {
+		if (varUpdatedTime != null) {
 			substrRng = createBinaryExpression(varTime.getSource(), Operator.SUB, substrRng);
 			parent.addExpression(createAssignment(varUpdatedTime, substrRng));
 		} else {
@@ -179,7 +184,7 @@ public class KernelGeneratorCTMC extends KernelGenerator
 	protected void mainMethodUpdateTimeAfter(Method currentMethod, ComplexKernelComponent parent)
 	{
 		// time = updated_time;
-		if (timingProperty) {
+		if (varUpdatedTime != null) {
 			parent.addExpression(createAssignment(varTime, varUpdatedTime));
 		}
 	}

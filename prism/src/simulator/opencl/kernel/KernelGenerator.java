@@ -597,6 +597,13 @@ public abstract class KernelGenerator
 		 * Initial check of properties, before making any computations.
 		 */
 		mainMethodFirstUpdateProperties(currentMethod);
+		
+		/**
+		 * Computate state rewards for the initial state.
+		 */
+		if (hasRewardProperties) {
+			currentMethod.addExpression(rewardGenerator.afterUpdate(varStateVector));
+		}
 
 		/**
 		 * Main processing loop.
@@ -659,9 +666,9 @@ public abstract class KernelGenerator
 		Expression propertyCall = null;
 		if (hasProbProperties && hasRewardProperties) {
 			propertyCall = createBinaryExpression(mainMethodUpdateProperties(), Operator.LAND, 
-				rewardGenerator.updateProperties(varStateVector, mainMethodTimeVariable()));
+				rewardGenerator.updateProperties(varStateVector, mainMethodTimeVariable()[0]));
 		} else if (hasRewardProperties) {
-			propertyCall = rewardGenerator.updateProperties(varStateVector, mainMethodTimeVariable());
+			propertyCall = rewardGenerator.updateProperties(varStateVector, mainMethodTimeVariable()[0]);
 		} else {
 			propertyCall = mainMethodUpdateProperties();
 		}
@@ -707,18 +714,20 @@ public abstract class KernelGenerator
 		else {
 			mainMethodCallNonsynUpdate(loop);
 		}
-
-		/**
-		 * For CTMC&bounded until -> update current time.
-		 */
-		mainMethodUpdateTimeAfter(currentMethod, loop);
-
+		
 		/**
 		 * Necessary recomputations after state update.
+		 * For CTMC may require current and new time which means that we have to
+		 * do it before updating current time.
 		 */
 		if (hasRewardProperties) {
 			loop.addExpression(rewardGenerator.afterUpdate(varStateVector));
 		}
+		
+		/**
+		 * For CTMC&bounded until -> update current time.
+		 */
+		mainMethodUpdateTimeAfter(currentMethod, loop);
 
 		/**
 		 * Loop detection procedure - end computations in case of a loop.
@@ -778,9 +787,11 @@ public abstract class KernelGenerator
 	protected abstract void mainMethodDefineLocalVars(Method currentMethod) throws KernelException;
 
 	/**
+	 * DTMC: one time variable
+	 * CTMC: one time variable or both time and updatedTime
 	 * @return the local kernel variable keeping current time
 	 */
-	protected abstract CLVariable mainMethodTimeVariable();
+	protected abstract CLVariable[] mainMethodTimeVariable();
 	
 	/**
 	 * Generate a call to the non-synchronized update method.
@@ -981,7 +992,7 @@ public abstract class KernelGenerator
 				loop.addExpression( mainMethodUpdateProperties() );
 			}
 			if (hasRewardProperties) {
-				loop.addExpression( rewardGenerator.updateProperties(varStateVector, mainMethodTimeVariable()) );
+				loop.addExpression( rewardGenerator.updateProperties(varStateVector, mainMethodTimeVariable()[0]) );
 			}
 			loop.addExpression(new Expression("break;\n"));
 			parent.addExpression(loop);
