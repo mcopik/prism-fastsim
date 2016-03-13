@@ -177,7 +177,14 @@ public abstract class CIMethod extends SimulationMethod
 	{
 		Preconditions.checkCondition(prOp == 0, "The method checkAgainstExpectedResult doesn't apply to non-quantitative properties");
 
-		if ( !PrismUtils.doublesAreCloseRel(result, expectedResult, width) ) {
+		/**
+		 * Each sample returned the same value (usually 1.0 or 0.0), we expect an accuracy up to 
+		 * machine precision. Choose 1e-7 which is close to single-precision float (~2^-23).
+		 * Otherwise - compare the distance with interval length.
+		 */
+		boolean widthZero = Math.abs(width) < 1e-7;
+		if ( (widthZero && !PrismUtils.doublesAreCloseAbs(result, expectedResult, 1e-7)) ||
+				(!widthZero && !PrismUtils.doublesAreCloseAbs(result, expectedResult, width)) ) {
 			throw new PrismException(String.format("Expected result %g doesn't lie within the confidence interval [%g,%g]", expectedResult, Math.max(0.0, result - width),
 					result + width));
 		}

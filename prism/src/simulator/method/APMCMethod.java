@@ -186,7 +186,7 @@ public abstract class APMCMethod extends SimulationMethod
 	public void checkAgainstExpectedResult(double expectedResult, double result) throws PrismException
 	{
 		Preconditions.checkCondition(prOp == 0, "The method checkAgainstExpectedResult doesn't apply to non-quantitative properties");
-		if ( !PrismUtils.doublesAreCloseRel(result, expectedResult, approximation) ) {
+		if ( !PrismUtils.doublesAreCloseAbs(result, expectedResult, approximation) ) {
 			throw new PrismException(String.format("Expected result %g doesn't lie within the confidence interval [%g,%g]", expectedResult, 
 					Math.max(0.0, result - approximation), result + approximation));
 		}
