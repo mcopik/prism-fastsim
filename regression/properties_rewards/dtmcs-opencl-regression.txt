@@ -1,0 +1,6 @@
+../models/dtmcs/opencl, messagesA_reach.pctl
+../models/dtmcs/opencl, messagesA_inst_loop.pctl
+../models/dtmcs/opencl, messagesA_inst_nonloop.pctl
+../models/dtmcs/opencl, messagesA_cumul_loop.pctl
+../models/dtmcs/opencl, messagesA_cumul_nonloop.pctl
+
