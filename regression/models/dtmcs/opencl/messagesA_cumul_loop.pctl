@@ -1,0 +1,27 @@
+// Expected number of messages from B that A needs to knows a pair once B knows a pair
+
+const int T = 1000;
+
+// RESULT(N=5,L=2): 1.1513671875
+// RESULT(N=10,L=3): 1.0195121765136719
+"messagesA1": R{"messages_A_needs1"}=? [ C <= T ];
+
+// RESULT(N=5,L=2): 3.4541015625
+// RESULT(N=10,L=3): 3.0585365295410156
+"messagesA2": R{"messages_A_needs2"}=? [ C <= T ];
+
+// RESULT(N=5,L=2): 3.9248046875
+// RESULT(N=10,L=3): 1.3025341033935547
+"messagesA3": R{"messages_A_needs3"}=? [ C <= T ];
+
+// RESULT(N=5,L=2): 5.00048828125
+// RESULT(N=10,L=3): 3.6673502922058105
+"messagesA4": R{"messages_A_needs4"}=? [ C <= T ];
+
+// RESULT(N=5,L=2): 4064.0004882811872
+// RESULT(N=10,L=3): 4021.667350292144
+"messagesA5": R{"messages_A_needs5"}=? [ C <= T ];
+
+// RESULT(N=5,L=2): 4174.000488281195
+// RESULT(N=10,L=3): 4351.667350292171
+"messagesA6": R{"messages_A_needs6"}=? [ C <= T ];

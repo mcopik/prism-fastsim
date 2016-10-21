@@ -4,23 +4,23 @@ const int T = 50;
 
 // RESULT(N=5,L=2): 0
 // RESULT(N=10,L=3): 0
-//"messagesA1": R{"messages_A_needs1"}=? [ I=T ];
+"messagesA1": R{"messages_A_needs1"}=? [ I=T ];
 
 // RESULT(N=5,L=2): 0
 // RESULT(N=10,L=3): 0
-//"messagesA2": R{"messages_A_needs2"}=? [ I=T ];
+"messagesA2": R{"messages_A_needs2"}=? [ I=T ];
 
 // RESULT(N=5,L=2): 0
 // RESULT(N=10,L=3): 0
-//"messagesA3": R{"messages_A_needs3"}=? [ I=T ];
+"messagesA3": R{"messages_A_needs3"}=? [ I=T ];
 
 // RESULT(N=5,L=2): 0
 // RESULT(N=10,L=3): 0
-//"messagesA4": R{"messages_A_needs4"}=? [ I=T ];
+"messagesA4": R{"messages_A_needs4"}=? [ I=T ];
 
 // RESULT(N=5,L=2): 4.1
 // RESULT(N=10,L=3): 4.1
-//"messagesA5": R{"messages_A_needs5"}=? [ I=T ];
+"messagesA5": R{"messages_A_needs5"}=? [ I=T ];
 
 // RESULT(N=5,L=2): 4.1
 // RESULT(N=10,L=3): 4.1

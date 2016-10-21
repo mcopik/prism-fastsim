@@ -247,14 +247,14 @@ endrewards
 
 rewards "messages_A_needs5"
 	kB & !kA : 3.5;
-	kB : 4.1;
+	phase > 1 : 4.1;
 endrewards
 
 rewards "messages_A_needs6"
-	kB & !kA : 3.5;
-	kB : 4.1;
-	[receiveA] kB & !kA : ceil( log(3.65,2.71) ) - 1;
-	[receiveB] kB & !kA : 10;
+	kB & !kA : 3.5;	
+	phase > 1 : 4.1;
+	[receiveA] phase > 2 : ceil( log(3.65,2.71) ) - 1;
+	[receiveB] phase > 2 : 10;
 endrewards
 
 // messages from A that B needs to knows a pair once A knows a pair

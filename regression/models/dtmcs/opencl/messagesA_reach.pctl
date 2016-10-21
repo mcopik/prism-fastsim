@@ -16,10 +16,10 @@
 // RESULT(N=10,L=3): 3.6673502922058105
 "messagesA4": R{"messages_A_needs4"}=? [ F phase=4 ];
 
-// RESULT(N=5,L=2): 108.39736328124995
-// RESULT(N=10,L=3): 302.81119794845586
+// RESULT(N=5,L=2): 169.0004882812499
+// RESULT(N=10,L=3): 495.66735029220695
 "messagesA5": R{"messages_A_needs5"}=? [ F phase=4 ];
 
-// RESULT(N=5,L=2): 112.32216796874997
-// RESULT(N=10,L=3): 304.1137320518494
+// RESULT(N=5,L=2): 279.00048828125
+// RESULT(N=10,L=3): 825.6673502922079
 "messagesA6": R{"messages_A_needs6"}=? [ F phase=4 ];
