@@ -41,7 +41,7 @@ module multiplex
 	y : [0..1]; // value of second input
 	
 	[] s=0 & (c<N) -> (s'=1); // do next nand if have not done N yet
-	[] s=0 & (c=N) & (u<M) -> (s'=1) & (zx'=z) & (zy'=z) & (z'=0) & (u'=u+1) & (c'=0); // move on to next u if not finished
+	[] s=0 & (c=N) & (u<M) -> (s'=1) & (z'=0) & (zx'=z) & (zy'=z) & (u'=u+1) & (c'=0); // move on to next u if not finished
 	[] s=0 & (c=N) & (u=M) -> (s'=4) & (zx'=0) & (zy'=0) & (x'=0) & (y'=0); // finished (so reset variables not needed to reduce state space)
 
 	// choose x permute selection (have zx stimulated inputs)
