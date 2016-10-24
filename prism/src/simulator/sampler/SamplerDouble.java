@@ -41,9 +41,12 @@ public abstract class SamplerDouble extends Sampler
 	protected double value;
 	// Stats over all paths
 	protected double valueSum;
+	protected double valueSumShifted;
 	protected double valueSumSq;
 	protected int numSamples;
 	protected int rewardStructIndex;
+	
+	double K;
 
 	@Override
 	public void reset()
@@ -77,8 +80,11 @@ public abstract class SamplerDouble extends Sampler
 	@Override
 	public void updateStats()
 	{
+		if(numSamples == 0)
+			K = value;
 		valueSum += value;
-		valueSumSq += value * value;
+		valueSumShifted += value - K;
+		valueSumSq += (value - K) * (value - K);
 		numSamples++;
 	}
 
@@ -101,7 +107,7 @@ public abstract class SamplerDouble extends Sampler
 		if (numSamples <= 1) {
 			return 0.0;
 		} else {
-			double mean = valueSum / numSamples;
+			double mean = valueSumShifted / numSamples;
 			return (valueSumSq - numSamples * mean * mean) / (numSamples - 1.0);
 		}
 
@@ -121,7 +127,7 @@ public abstract class SamplerDouble extends Sampler
 		if (valueSumSq == 0)
 			throw new PrismException("Cannot compute likelihood ratio with null variance");
 		// Compute maximum likelihood estimator of variance
-		double MLE = valueSumSq / numSamples - (valueSum * valueSum) / numSamples / numSamples;
+		double MLE = valueSumSq / numSamples - (valueSumShifted * valueSumShifted) / numSamples / numSamples;
 		double lr = (-1 / (2 * MLE)) * (numSamples * (p1 * p1 - p0 * p0) - 2 * valueSum * (p1 - p0));
 		if (Double.isNaN(lr)) {
 			throw new PrismException("Error computing likelihood ratio");
