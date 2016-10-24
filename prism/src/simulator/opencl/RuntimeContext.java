@@ -331,6 +331,10 @@ public class RuntimeContext
 			if( rewardResultsF != null) {
 				readResultsReward(rewardResultsF, periodityOfSamplerCheck);
 			}
+
+			if( rewardResultsD != null) {
+				readResultsReward(rewardResultsD, periodityOfSamplerCheck);
+			}
 		}
 		
 		protected <T extends Number> void readResultsReward(List<Pair<SamplerDouble, Pointer<T>>> data, int periodityOfSamplerCheck) throws PrismException
@@ -444,7 +448,6 @@ public class RuntimeContext
 			// just read all results
 			readResults(0, numberOfSamples);
 			readPathLength(0, numberOfSamples);
-			samplesProcessed += numberOfSamples;
 			finished = true;
 			return true;
 		}
@@ -797,9 +800,9 @@ public class RuntimeContext
 		try {
 			this.config = config;
 			//TODO : extend for multiple devices
-			this.config.configDevice(currentDevice);		
-			
-			// Separate properties
+			this.config.configDevice(currentDevice);
+
+            // Separate properties
 			this.properties = new ArrayList<>();
 			this.rewardProperties = new ArrayList<>();
 			for(Sampler property : properties) {
@@ -810,7 +813,7 @@ public class RuntimeContext
 				}
 			}
 			kernel = new Kernel(this.config, automaton, this.properties, rewardProperties);
-			
+
 			String str = kernel.getSource();
 			program = context.createProgram(str);
 
@@ -1003,3 +1006,4 @@ public class RuntimeContext
 		}
 	}
 }
+
