@@ -657,7 +657,7 @@ public abstract class RewardGenerator implements KernelComponentGenerator
 		method.addArg(pointerSV);
 		if (timedReward) {
 			// Type of time inherited from the main generator
-			argPropertyTime = new CLVariable(generator.varTimeType, "current_time");
+			argPropertyTime = new CLVariable(generator.varTimeType, "time");
 			method.addArg(argPropertyTime);
 		}
 		// Pointer to array of properties

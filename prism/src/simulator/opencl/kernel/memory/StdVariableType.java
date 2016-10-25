@@ -107,6 +107,31 @@ public class StdVariableType implements VariableTypeInterface
 		{
 			return this == UINT8 || this == UINT16 || this == UINT32 || this == UINT64;
 		}
+		
+		public int getSize()
+		{
+			switch(this)
+			{
+				case VOID:
+					return 8;
+				case BOOL:
+					return 1;
+				case INT8:
+				case UINT8:
+					return 1;
+				case INT16:
+				case UINT16:
+					return 4;
+				case INT32:
+				case UINT32:
+					return 8;
+				case FLOAT:
+					return 4;
+				case DOUBLE:
+					return 8;
+			}
+			throw new RuntimeException("");
+		}
 	}
 
 	private static final EnumSet<StdType> typesWithDirectName = EnumSet.of(StdType.BOOL, StdType.VOID, StdType.FLOAT, StdType.DOUBLE);
@@ -279,5 +304,11 @@ public class StdVariableType implements VariableTypeInterface
 	public String declareVar(String varName)
 	{
 		return String.format("%s %s", getType(), varName);
+	}
+	
+	@Override
+	public int getSize()
+	{
+		return varType.getSize();
 	}
 }

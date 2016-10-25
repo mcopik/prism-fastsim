@@ -164,4 +164,10 @@ public class ArrayType implements VariableTypeInterface
 		Preconditions.checkCondition(values[0].validateAssignmentTo(varType), "Initialization value can't be assigned to array type!");
 		return new ArrayValue(values);
 	}
+	
+	@Override
+	public int getSize()
+	{
+		return varType.getSize() * length;
+	}
 }

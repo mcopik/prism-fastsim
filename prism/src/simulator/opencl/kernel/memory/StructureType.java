@@ -25,10 +25,15 @@
 //==============================================================================
 package simulator.opencl.kernel.memory;
 
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
 
 import simulator.opencl.kernel.expression.Expression;
 import simulator.opencl.kernel.expression.Include;
@@ -86,10 +91,24 @@ public class StructureType implements VariableTypeInterface, UDType
 		}
 	}
 
+    /**
+     * Reverse order of integers in map - descending.
+     */
+    public class ReverseComparator implements Comparator<Integer> {
+
+        public int compare(Integer o1, Integer o2)
+        {
+            return o2.compareTo(o1);
+        }
+
+    }
+
 	/**
 	 * Structure fields. The order can't change!
 	 */
 	private LinkedHashMap<String, CLVariable> fields = new LinkedHashMap<>();
+	
+	private TreeMap<Integer, List<Integer>> fieldsBySize = new TreeMap<>(new ReverseComparator());
 
 	/**
 	 * Structure type name.
@@ -110,6 +129,12 @@ public class StructureType implements VariableTypeInterface, UDType
 	public void addVariable(CLVariable var)
 	{
 		fields.put(var.varName, var);
+		List<Integer> vals = fieldsBySize.get(var.getSize());
+		if(vals == null) {
+			vals = new ArrayList<>();
+			fieldsBySize.put(var.getSize(), vals);
+		}
+		vals.add(fields.size() - 1);
 	}
 
 	/**
@@ -173,10 +198,16 @@ public class StructureType implements VariableTypeInterface, UDType
 	 */
 	public CLValue initializeStdStructure(Number[] values)
 	{
+		// we need to sort it according to indices
 		CLValue[] init = new CLValue[values.length];
-		for (int i = 0; i < values.length; ++i) {
-			init[i] = StdVariableType.initialize(values[i]);
+		int cur = 0;
+		for(Map.Entry<Integer, List<Integer>> field : fieldsBySize.entrySet()) {
+			for(Integer idx : field.getValue())
+				init[cur++] = StdVariableType.initialize(values[idx]);
 		}
+		/*for (int i = 0; i < values.length; ++i) {
+			init[i] = StdVariableType.initialize(values[i]);
+		}*/
 		return new StructureValue(this, init);
 	}
 
@@ -187,6 +218,7 @@ public class StructureType implements VariableTypeInterface, UDType
 	 */
 	public CLValue initializeStdStructure(CLValue[] values)
 	{
+		//TODO: fix that as well
 		return new StructureValue(this, values);
 	}
 
@@ -201,10 +233,19 @@ public class StructureType implements VariableTypeInterface, UDType
 	{
 		StringBuilder builder = new StringBuilder();
 		builder.append("typedef struct _").append(typeName).append("{\n");
-		for (CLVariable var : fields.values()) {
-			builder.append(var.getDeclaration());
-			builder.append("\n");
+		Collection<CLVariable> vars = fields.values();
+		CLVariable[] arr = vars.toArray(new CLVariable[vars.size()]);
+
+		for(Map.Entry<Integer, List<Integer>> field : fieldsBySize.entrySet()) {
+			for(Integer idx : field.getValue()) {
+				builder.append(arr[idx].getDeclaration());
+				builder.append("\n");
+			}
 		}
+//		for (CLVariable var : fields.values()) {
+//			builder.append(var.getDeclaration());
+//			builder.append("\n");
+//		}
 		builder.append("} ").append(typeName).append(";\n");
 		return new Expression(builder.toString());
 	}
@@ -244,5 +285,11 @@ public class StructureType implements VariableTypeInterface, UDType
 	public String declareVar(String varName)
 	{
 		return String.format("%s %s", typeName, varName);
+	}
+	
+	@Override
+	public int getSize()
+	{
+		throw new RuntimeException("TODO");
 	}
 }

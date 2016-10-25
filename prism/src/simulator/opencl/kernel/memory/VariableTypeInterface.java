@@ -63,4 +63,6 @@ public interface VariableTypeInterface
 	 * @return type name 
 	 */
 	String getType();
+	
+	int getSize();
 }

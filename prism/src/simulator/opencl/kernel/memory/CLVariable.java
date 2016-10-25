@@ -218,4 +218,9 @@ public class CLVariable implements CLValue
 	{
 		return new Expression(varName);
 	}
+	
+	public int getSize()
+	{
+		return varType.getSize();
+	}
 }

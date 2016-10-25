@@ -49,6 +49,19 @@ public class ExpressionGenerator
 		Preconditions.checkNotNull(object, "ExpressionGenerator.fromString() called on null reference!");
 		return new Expression(object.toString());
 	}
+	
+	static public Expression standardFunctionCall(String functionName, Expression ... args)
+	{
+		StringBuilder builder = new StringBuilder(functionName);
+		builder.append("(");
+		for(Expression arg : args)
+		{
+			builder.append(arg).append(",");
+		}
+		builder.deleteCharAt( builder.length() - 1 );
+		builder.append(")");
+		return fromString( builder.toString() );
+	}
 
 	/**
 	 * @param dest

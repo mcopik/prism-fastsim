@@ -27,7 +27,9 @@ package simulator.opencl.kernel;
 
 import static simulator.opencl.kernel.expression.ExpressionGenerator.addParentheses;
 import static simulator.opencl.kernel.expression.ExpressionGenerator.createBinaryExpression;
+import static simulator.opencl.kernel.expression.ExpressionGenerator.createAssignment;
 import static simulator.opencl.kernel.expression.ExpressionGenerator.fromString;
+import static simulator.opencl.kernel.expression.ExpressionGenerator.standardFunctionCall;
 
 import java.util.Collection;
 import java.util.Map;
@@ -105,6 +107,10 @@ public class RewardGeneratorCTMC extends RewardGenerator
 			
 			computesCumulativeReward = true;
 		}
+		/*else if (rewardStructure.containsField(REWARD_STRUCTURE_VAR_CURRENT_STATE)) {
+			// for instanetous reward we need only current time
+			function.addArg(PREVIOUS_TIME_ARG);
+		}*/
 	}
 
 	@Override
@@ -126,13 +132,57 @@ public class RewardGeneratorCTMC extends RewardGenerator
 	}
 	
 	@Override
-	protected void createPropertyInst(IfElse ifElse, SamplerDouble property, CLVariable propertyState, CLVariable rewardState)
+	protected void createPropertyInst(IfElse ifElse, SamplerDouble property, CLVariable propertyVar, CLVariable rewardState)
 	{
-	}	
+		/*
+		 * If there's no state reward for a this reward structure - the reward will always be zero.
+		 * 
+		 * Very unlikely case (mostly a user error), but we want to be safe and avoid a nullptr exception.
+		 */ 
+		CLVariable curStateReward = rewardState.accessField(REWARD_STRUCTURE_VAR_CURRENT_STATE);
+		CLVariable prevStateReward = rewardState.accessField(REWARD_STRUCTURE_VAR_PREVIOUS_STATE);
+		CLVariable propertyState = propertyVar.accessField("propertyState");
+		CLVariable valueKnown = propertyVar.accessField("valueKnown");
+		
+		/**
+		 * If we have achieved the desired time, there are two possibilities:
+		 * - we are above time - previous state reward
+		 * - we hit exactly the time barrier (very unlikely) - current state reward
+		 * 
+		 * TODO: is a > b as fabs(a - b) > 1e-5 the best choice?
+		 */
+		
+		/**
+		 * Current time >= barrier
+		 */
+		Expression expectedTime = fromString( ((SamplerRewardInstCont) property).getTime() );
+		Expression timeCondition = createBinaryExpression(NEW_TIME_ARG.getSource(), Operator.GE, expectedTime);
+		IfElse timeReached = new IfElse(timeCondition);
+		
+		/**
+		 * Current_time > barrier
+		 */
+		Expression differenceCall = standardFunctionCall("fabs", createBinaryExpression(NEW_TIME_ARG.getSource(), Operator.SUB, expectedTime) );
+		Expression timeAboveCond = createBinaryExpression( differenceCall, Operator.GT, fromString(1e-5));
+		IfElse timeAbove = new IfElse(timeAboveCond);
+		timeAbove.addExpression( createAssignment(propertyState, prevStateReward != null ? prevStateReward.getSource() : fromString(0.0)) );
+		timeAbove.addExpression(0, createAssignment(valueKnown, fromString("true")));
+		/**
+		 * Current_time == barrier
+		 */
+		timeAbove.addElse();
+		timeAbove.addExpression(1, createAssignment(propertyState, curStateReward != null ? curStateReward.getSource() : fromString(0.0)) );
+		timeAbove.addExpression(1, createAssignment(valueKnown, fromString("true")));
+		timeReached.addExpression(timeAbove);
+		// TODO: deadlock
+		
+		ifElse.addExpression( timeReached );
+	}
 	
 	@Override
 	protected void createPropertyCumul(IfElse ifElse, SamplerDouble property, CLVariable propertyState, CLVariable rewardState)
 	{
+		
 	}
 	
 	@Override

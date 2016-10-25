@@ -89,4 +89,10 @@ public class PointerType implements VariableTypeInterface
 	{
 		return String.format("%s* %s", internalType.getType(), varName);
 	}
+	
+	@Override
+	public int getSize()
+	{
+		throw new RuntimeException("");
+	}
 }
