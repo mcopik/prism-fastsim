@@ -150,41 +150,59 @@ public class KernelGeneratorCTMC extends KernelGenerator
 			return new CLVariable[] { varTime };
 		}
 	}
-
-	@Override
+	
+    @Override
 	protected void mainMethodUpdateTimeBefore(Method currentMethod, ComplexKernelComponent parent)
 	{
-		CLValue random = config.prngType.getRandomUnifFloat(fromString(1));
-		Expression substrRng = createBinaryExpression(fromString(1),
-		//1 - random()
-				Operator.SUB, random.getSource());
-		substrRng = new Expression(String.format("log(%s)", substrRng.getSource()));
-		Expression sum = null;
-		//for synchronized commands - selection_size + selection_syn
-		if (hasSynchronized && hasNonSynchronized) {
-			sum = createBinaryExpression(varSelectionSize.getSource(), Operator.ADD, varSynSelectionSize.getSource());
-			addParentheses(sum);
-		} else if (hasNonSynchronized) {
-			sum = varSelectionSize.getSource();
-		} else {
-			sum = varSynSelectionSize.getSource();
-		}
-		substrRng = createBinaryExpression(substrRng, Operator.DIV, sum);
-		// updated = time - new value
-		// OR time -= new value
+		// time = updated_time;
 		if (varUpdatedTime != null) {
+			CLValue random = config.prngType.getRandomUnifFloat(fromString(1));
+			Expression substrRng = createBinaryExpression(fromString(1),
+			//1 - random()
+					Operator.SUB, random.getSource());
+			substrRng = new Expression(String.format("log(%s)", substrRng.getSource()));
+			Expression sum = null;
+			//for synchronized commands - selection_size + selection_syn
+			if (hasSynchronized && hasNonSynchronized) {
+				sum = createBinaryExpression(varSelectionSize.getSource(), Operator.ADD, varSynSelectionSize.getSource());
+				addParentheses(sum);
+			} else if (hasNonSynchronized) {
+				sum = varSelectionSize.getSource();
+			} else {
+				sum = varSynSelectionSize.getSource();
+			}
+			substrRng = createBinaryExpression(substrRng, Operator.DIV, sum);
+			// updated = time - new value
+			// OR time -= new value
 			substrRng = createBinaryExpression(varTime.getSource(), Operator.SUB, substrRng);
 			parent.addExpression(createAssignment(varUpdatedTime, substrRng));
-		} else {
-			parent.addExpression(addComma(createBinaryExpression(varTime.getSource(), Operator.SUB_AUGM, substrRng)));
 		}
 	}
 
 	@Override
 	protected void mainMethodUpdateTimeAfter(Method currentMethod, ComplexKernelComponent parent)
 	{
-		// time = updated_time;
-		if (varUpdatedTime != null) {
+		if (varUpdatedTime == null) {
+			CLValue random = config.prngType.getRandomUnifFloat(fromString(1));
+			Expression substrRng = createBinaryExpression(fromString(1),
+			//1 - random()
+					Operator.SUB, random.getSource());
+			substrRng = new Expression(String.format("log(%s)", substrRng.getSource()));
+			Expression sum = null;
+			//for synchronized commands - selection_size + selection_syn
+			if (hasSynchronized && hasNonSynchronized) {
+				sum = createBinaryExpression(varSelectionSize.getSource(), Operator.ADD, varSynSelectionSize.getSource());
+				addParentheses(sum);
+			} else if (hasNonSynchronized) {
+				sum = varSelectionSize.getSource();
+			} else {
+				sum = varSynSelectionSize.getSource();
+			}
+			substrRng = createBinaryExpression(substrRng, Operator.DIV, sum);
+			// time -= new value
+			parent.addExpression(addComma(createBinaryExpression(varTime.getSource(), Operator.SUB_AUGM, substrRng)));
+		} else {
+            // OR updated = time - new value
 			parent.addExpression(createAssignment(varTime, varUpdatedTime));
 		}
 	}
