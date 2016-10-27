@@ -124,7 +124,7 @@ public class KernelGeneratorCTMC extends KernelGenerator
 		currentMethod.addLocalVar(varTime);
 		//updated time - it's needed for time bounded property and CTMC state reward
 		//TODO: update after introducing property generator
-		if (timingProperty || rewardGenerator.needsTimeDifference()) {
+		if (timingProperty || (rewardGenerator != null && rewardGenerator.needsTimeDifference())) {
 			varUpdatedTime = new CLVariable(new StdVariableType(StdType.FLOAT), "updatedTime");
 			varUpdatedTime.setInitValue(StdVariableType.initialize(0.0f));
 			currentMethod.addLocalVar(varUpdatedTime);
@@ -690,6 +690,9 @@ public class KernelGeneratorCTMC extends KernelGenerator
 			guardSelectionLoop.addExpression(ifElse);
 			guardSelectionLoop.addExpression(createBinaryExpression(sum.getSource(), Operator.ADD_AUGM, newSum.getSource()).add(";"));
 			parent.addExpression(guardSelectionLoop);
+		} else {
+			// Restart guard variable - only one to select
+			parent.addExpression(createAssignment(guard, fromString(0)));
 		}
 	}
 
