@@ -28,6 +28,7 @@ package simulator.opencl.kernel;
 import static simulator.opencl.kernel.expression.ExpressionGenerator.addParentheses;
 import static simulator.opencl.kernel.expression.ExpressionGenerator.createBinaryExpression;
 import static simulator.opencl.kernel.expression.ExpressionGenerator.createAssignment;
+import static simulator.opencl.kernel.expression.ExpressionGenerator.createConditionalAssignment;
 import static simulator.opencl.kernel.expression.ExpressionGenerator.fromString;
 import static simulator.opencl.kernel.expression.ExpressionGenerator.standardFunctionCall;
 
@@ -45,9 +46,7 @@ import simulator.opencl.kernel.memory.StructureType;
 import simulator.opencl.kernel.memory.StdVariableType.StdType;
 import simulator.sampler.SamplerDouble;
 import simulator.sampler.SamplerRewardCumulCont;
-import simulator.sampler.SamplerRewardCumulDisc;
 import simulator.sampler.SamplerRewardInstCont;
-import simulator.sampler.SamplerRewardInstDisc;
 
 public class RewardGeneratorCTMC extends RewardGenerator
 {
@@ -167,6 +166,7 @@ public class RewardGeneratorCTMC extends RewardGenerator
 		IfElse timeAbove = new IfElse(timeAboveCond);
 		timeAbove.addExpression( createAssignment(propertyState, prevStateReward != null ? prevStateReward.getSource() : fromString(0.0)) );
 		timeAbove.addExpression(0, createAssignment(valueKnown, fromString("true")));
+
 		/**
 		 * Current_time == barrier
 		 */
@@ -180,9 +180,57 @@ public class RewardGeneratorCTMC extends RewardGenerator
 	}
 	
 	@Override
-	protected void createPropertyCumul(IfElse ifElse, SamplerDouble property, CLVariable propertyState, CLVariable rewardState)
+	protected void createPropertyCumul(IfElse ifElse, SamplerDouble property, CLVariable propertyVar, CLVariable rewardState)
 	{
+		CLVariable cumulReward = rewardState.accessField(REWARD_STRUCTURE_VAR_CUMULATIVE_TOTAL);
+		CLVariable prevStateReward = rewardState.accessField(REWARD_STRUCTURE_VAR_PREVIOUS_STATE);
+		CLVariable prevTransReward = rewardState.accessField(REWARD_STRUCTURE_VAR_PREVIOUS_TRANSITION);
+		Expression expectedTime = fromString( ((SamplerRewardCumulCont) property).getTime() );
+		Expression timeCondition = createBinaryExpression(NEW_TIME_ARG.getSource(), Operator.GE, expectedTime);
+		IfElse timeAboveBoundary = new IfElse(timeCondition);
 		
+		/**
+		 * Update cumulative reward by subtracting state reward corresponding to excess time
+		 * in state and transition reward, but only if there is an excess time spent in state.
+		 */
+		
+		// excess_time = (time - time_bound) 
+		Expression excess_time = addParentheses(
+				createBinaryExpression(NEW_TIME_ARG.getSource(), Operator.SUB, expectedTime)
+		);
+		Expression updatedReward = cumulReward.getSource();
+		// subtract state reward multiplied by excess time
+		if (prevStateReward != null) {
+			Expression stateRewardUpdate = createBinaryExpression(prevStateReward.getSource(), Operator.MUL, excess_time);
+			updatedReward = createBinaryExpression(
+					updatedReward,
+					Operator.SUB,
+					stateRewardUpdate
+					);
+		}
+		// subtract transition reward iff excess time > 0
+		if (prevTransReward != null) {
+			Expression transitionRewardUpdate = createConditionalAssignment(
+					createBinaryExpression(excess_time, Operator.GT, fromString(0.0f)),
+					prevTransReward.getSource(),
+					fromString(0.0f)
+					);
+			updatedReward = createBinaryExpression(
+					updatedReward,
+					Operator.SUB,
+					addParentheses(transitionRewardUpdate)
+					);
+		}
+
+		/**
+		 * Write the value of property
+		 */
+		CLVariable propertyState = propertyVar.accessField("propertyState");
+		CLVariable valueKnown = propertyVar.accessField("valueKnown");
+		timeAboveBoundary.addExpression(0, createAssignment(propertyState, updatedReward) );
+		timeAboveBoundary.addExpression(0, createAssignment(valueKnown, fromString("true")));
+		
+		ifElse.addExpression( timeAboveBoundary );
 	}
 	
 	@Override
