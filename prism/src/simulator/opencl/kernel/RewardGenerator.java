@@ -575,12 +575,17 @@ public abstract class RewardGenerator implements KernelComponentGenerator
 			}
 			
 			/**
-			 * If we have a transition reward - restart it, because in next iteration we may not enter
-			 * the appropriate transition reward, e.g. by taking a different synchronization label
+			 * If we have a transition reward, it has to be restarted after computing cumulative reward.
+			 * Otherwise, it could happen that in next iteration of main loop a transition without associated reward
+			 * is taken and old value influences incorrectly computation of cumulative reward.
+			 * 
+			 * HOWEVER: we can't do it now, because this value is necessary for correct computation of cumulative
+			 * reward property for CTMCs. There in virtually every case the last transition reward has to be subtracted
+			 * from final value of cumulative reward.
+			 * 
+			 * For simplicity of implementation, for all models the reset process has been moved to property verification
+			 * function. Hence we can use correct value of previous transition reward and reset this value before applying transition.
 			 */
-			if ( transitionRw != null ) {
-				method.addExpression( createAssignment(transitionRw, fromString(0)) );
-			}
 			
 			stateUpdateFunctions.put(i, method);
 			helperMethods.add(method);
@@ -740,6 +745,24 @@ public abstract class RewardGenerator implements KernelComponentGenerator
 		}
 
 		method.addArg( rewardStructuresArgs.values() );
+		
+		/**
+		 * If the reward structure contains a 'previous transition' field,
+		 * write a zero value to restart it before taking next update.
+		 * 
+		 * Ensures that a CTMC cumulative reward can subtract this value when time > boundary,
+		 * and after next update the transition reward is correct without manually setting value
+		 * in each update label, even if there is no transition reward corresponding to it.
+		 */
+		for(Map.Entry<Integer, CLVariable> rewardStruct : rewardStructuresArgs.entrySet()) {
+
+			CLVariable transitionRw = rewardStruct.getValue().accessField(REWARD_STRUCTURE_VAR_PREVIOUS_TRANSITION);
+			if( transitionRw != null ) {
+				method.addExpression( createAssignment(transitionRw, fromString(0)) );
+			}
+	
+		}
+		
 		method.addReturn(allKnown);
 		helperMethods.add(method);
 		propertyMethod = new Pair<Method, Collection<Integer>>( method, rewardStructuresArgs.keySet() );
@@ -818,11 +841,22 @@ public abstract class RewardGenerator implements KernelComponentGenerator
 	
 	/**
 	 * Implementation is different in discrete and continuous-time:
-	 * a) 
+	 * a) DTMC: 
+	 * 		- time bound reached - save current cumulative reward
+	 * 		- deadlock - current cumulative reward + missing_time * (state)
+	 * 		- loop - current cumulative reward + missing_time * (transition + state)
+	 * Regarding if we're looping or reached deadlock: missing time is known because
+	 * of a discrete time space.
 	 * 
-	 */ 
-	
-	/**
+	 * b) CTMC:
+	 * 		- time bound exceeded - save:
+	 * 			cumulative reward - (time - bound) * previous state - transition if diff > 0
+	 * 		- deadlock - current cumulative reward + missing_time * (state)
+	 * 		- loop - continue looping until reaching time bound.
+	 * If we have exactly reached the bound, then time - bound == 0 and we perform no substraction.
+	 * In a case of deadlock we can compute missing state reward.
+	 * When a loop is detected, one can't know a priori how many transitions are going to be executed
+	 * before time bound is reached.
 	 * 
 	 * @param ifElse
 	 * @param property
@@ -832,6 +866,18 @@ public abstract class RewardGenerator implements KernelComponentGenerator
 	protected abstract void createPropertyCumul(IfElse ifElse, SamplerDouble property, CLVariable propertyState, CLVariable rewardState);
 	
 	/**
+	 * Implementation is different in discrete and continuous-time:
+	 * a) DTMC: 
+	 * 		- time bound reached - save current state reward
+	 * 		- deadlock - save current state reward
+	 * 		- loop - save current state reward
+	 * Two latter approaches are justified by reaching time bound in exactly the same state.
+	 * 
+	 * b) CTMC:
+	 * 		- time bound exceeded - save prev state reward
+	 * 		  time bound equal to current time - save current state reward
+	 * 		- deadlock - save current state reward
+	 * 		- loop - save current state reward
 	 * 
 	 * @param ifElse
 	 * @param property
@@ -868,11 +914,12 @@ public abstract class RewardGenerator implements KernelComponentGenerator
 	 * Import all reward samplers and create C structures to contain required information in kernel launch.
 	 * 
 	 * For every reward structure:
-	 * - reward reachability - total cumulative reward, i.e. 
+	 * - reward reachability - total cumulative reward
 	 * - instanteous reward DTMC - current state reward
 	 * - instanteous reward CTMC - current and previous state reward
 	 * - cumulative DTMC - total cumulative reward
-	 * - cumulative CTMC - total cumulative reward, previous state & transition reward, current state reward
+	 * - cumulative CTMC - total cumulative reward, previous state & transition reward,
+	 * 		current state reward for deadlock
 	 */
 	protected Map<Class<? extends SamplerDouble>, String[]> initializeRewardRequiredVars() throws KernelException
 	{
