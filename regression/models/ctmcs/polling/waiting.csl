@@ -1,4 +1,10 @@
-const double T;
+const double T = 30;
 
 // Expected time station 1 is waiting to be served
+// RESULT(N=3): 3.680075656008867
+// RESULT(N=4): 3.90634354876223
+// RESULT(N=5): 3.9449962585822074
+// RESULT(N=6): 3.903914815213239
+// RESULT(N=7): 3.826327761561125
+// RESULT(N=8): 3.73195810142163
 "waiting": R{"waiting"}=? [ C<=T ];

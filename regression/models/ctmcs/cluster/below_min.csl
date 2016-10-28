@@ -1,4 +1,9 @@
-const double T;
+const double T = 50000;
 
 // Expected time the system spends below minimum QoS until time T
+// RESULT(N=2): 0.1169707138079061
+// RESULT(N=4): 0.1850173797125391
+// RESULT(N=8): 0.12135646303509591
+// RESULT(N=16): 0.10561420858857
+// RESULT(N=32): 0.10465044639291232
 "below_min": R{"time_not_min"}=? [ C<=T ];

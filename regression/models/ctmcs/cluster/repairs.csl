@@ -1,4 +1,9 @@
-const double T;
+const double T = 5000;
 
 // Expected number of repairs by time T
+// RESULT(N=2): 43.43740445700501
+// RESULT(N=4): 83.38221976114477
+// RESULT(N=8): 163.27047752527724
+// RESULT(N=16): 323.04132684106065
+// RESULT(N=32): 642.5588645555482
 "repairs": R{"num_repairs"}=? [ C<=T ];

@@ -1,4 +1,10 @@
-const double T;
+const double T = 30;
 
 // Expected number of times station1 is served
+// RESULT(N=3): 6.31886749138515
+// RESULT(N=4): 4.968352036137209
+// RESULT(N=5): 4.102964111194805
+// RESULT(N=6): 3.498501926487834
+// RESULT(N=7): 3.051257019550893
+// RESULT(N=8): 2.7063771333534956
 "served": R{"served"}=? [ C<=T ];
