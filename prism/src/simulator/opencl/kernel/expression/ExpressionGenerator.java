@@ -150,6 +150,11 @@ public class ExpressionGenerator
 		return new Expression(String.format("%s ? %s : %s", condition.getSource(), first, second));
 	}
 
+	static public Expression createConditionalAssignment(Expression condition, Expression first, Expression second)
+	{
+		return new Expression(String.format("%s ? %s : %s", condition.getSource(), first.getSource(), second.getSource()));
+	}
+
 	/**
 	 * @param expr
 	 * @return (expr)
