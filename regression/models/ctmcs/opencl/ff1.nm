@@ -1,0 +1,55 @@
+ctmc
+
+// this is a model of the client server scenario.
+// we are using count abstraction for state space representation.
+
+const n_c = 300;
+const n_s = 3;
+
+const double r_s = 1;
+const double r_l = 500;
+const double r_b = 0.0006;
+const double r_f = 0.0004;
+
+
+const r_c = 2;
+const double r_t = 0.05;
+
+
+module servers
+
+        Si : [0..n_s] init n_s;
+        Sl : [0..n_s] init 0;
+        Sb : [0..n_s] init 0;
+
+        [request] (Si>0) & (Cr>0) & (Sl<n_s) -> min(Si * r_s , Cr*r_c) :
+(Si'= Si -1) & (Sl'=Sl + 1);
+        [log] (Si<n_s) & (Sl> 0) -> Sl * r_l : (Si'= Si +1) & (Sl'=Sl - 1);
+        [break] (Si>0) & (Sb<n_s) -> Si * r_b : (Si'= Si -1) & (Sb' = Sb +
+1) ;
+        [fix] (Sb>0) & (Si<n_s) -> Sb * r_f : (Si'= Si + 1) & (Sb' = Sb -
+1) ;
+
+
+
+endmodule
+
+module clients
+
+        Ct : [0..n_c] init n_c;
+        Cr : [0..n_c] init 0;
+
+        [request] (Si>0) & (Cr>0) & (Ct<n_c) -> (Cr' = Cr-1) & (Ct'=Ct + 1);
+        [think] (Ct>0) & (Cr<n_c) -> Ct * r_t : (Cr' = Cr + 1) & (Ct' = Ct -
+1);
+
+endmodule
+
+rewards "ServerIdle"
+        true : Si;
+endrewards
+
+rewards "ClientRequesting"
+        true : Cr;
+endrewards
+

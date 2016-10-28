@@ -1,0 +1,2 @@
+cluster.sm -const N=2
+cluster.sm -const N=16

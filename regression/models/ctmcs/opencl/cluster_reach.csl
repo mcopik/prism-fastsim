@@ -1,0 +1,24 @@
+
+// RESULT(N=2): 0.0
+// RESULT(N=16): 0.0
+R{"rewards1"}=? [ F left_n=left_mx-1 ];
+
+// RESULT(N=2): 1249.9997500087566
+// RESULT(N=16): 156.24999995074435
+R{"rewards2"}=? [ F left_n=left_mx-1 ];
+
+// RESULT(N=2): 1251.1672406031182
+// RESULT(N=16): 157.24789708759093
+R{"rewards3"}=? [ F left_n=left_mx-1 ];
+
+// RESULT(N=2): 6246.133173519441
+// RESULT(N=16): 780.7711377649835
+R{"rewards4"}=? [ F left_n=left_mx-1 ];
+
+// RESULT(N=2): 9994.345323078345
+// RESULT(N=16): 1249.2847093653643
+R{"rewards5"}=? [ F left_n=left_mx-1 ];
+
+// RESULT(N=2): 12505.005748679467
+// RESULT(N=16): 1571.6230250628562
+R{"rewards6"}=? [ F left_n=left_mx-1 ];
