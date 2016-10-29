@@ -43,7 +43,6 @@ import simulator.opencl.RuntimeConfig;
 import simulator.opencl.automaton.AbstractAutomaton;
 import simulator.opencl.automaton.command.Command;
 import simulator.opencl.automaton.command.SynchronizedCommand;
-import simulator.opencl.kernel.KernelGenerator.LocalVar;
 import simulator.opencl.kernel.expression.ComplexKernelComponent;
 import simulator.opencl.kernel.expression.Expression;
 import simulator.opencl.kernel.expression.ExpressionGenerator;
@@ -56,9 +55,9 @@ import simulator.opencl.kernel.memory.CLValue;
 import simulator.opencl.kernel.memory.CLVariable;
 import simulator.opencl.kernel.memory.RValue;
 import simulator.opencl.kernel.memory.StdVariableType;
-import simulator.opencl.kernel.memory.VariableTypeInterface;
 import simulator.opencl.kernel.memory.StdVariableType.StdType;
 import simulator.opencl.kernel.memory.StructureType;
+import simulator.opencl.kernel.memory.VariableTypeInterface;
 import simulator.sampler.SamplerBoolean;
 import simulator.sampler.SamplerDouble;
 
@@ -196,7 +195,7 @@ public class KernelGeneratorDTMC extends KernelGenerator
 				rnd,
 				//number of commands
 				sum);
-		return !canDetectLoop ? call : createAssignment(varLoopDetection, call);
+		return loopDetector.kernelCallUpdate(call);
 	}
 
 	@Override

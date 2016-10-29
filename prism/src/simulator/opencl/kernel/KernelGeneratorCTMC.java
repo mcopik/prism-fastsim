@@ -34,12 +34,9 @@ import static simulator.opencl.kernel.expression.ExpressionGenerator.createBinar
 import static simulator.opencl.kernel.expression.ExpressionGenerator.fromString;
 import static simulator.opencl.kernel.expression.ExpressionGenerator.postIncrement;
 
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 
-import parser.ast.ExpressionLiteral;
 import prism.Preconditions;
 import prism.PrismLangException;
 import simulator.opencl.RuntimeConfig;
@@ -60,11 +57,10 @@ import simulator.opencl.kernel.memory.ArrayType;
 import simulator.opencl.kernel.memory.CLValue;
 import simulator.opencl.kernel.memory.CLVariable;
 import simulator.opencl.kernel.memory.StdVariableType;
-import simulator.opencl.kernel.memory.VariableTypeInterface;
 import simulator.opencl.kernel.memory.StdVariableType.StdType;
 import simulator.opencl.kernel.memory.StructureType;
+import simulator.opencl.kernel.memory.VariableTypeInterface;
 import simulator.sampler.SamplerBoolean;
-import simulator.sampler.SamplerBoundedUntilCont;
 import simulator.sampler.SamplerDouble;
 
 public class KernelGeneratorCTMC extends KernelGenerator
@@ -243,7 +239,7 @@ public class KernelGeneratorCTMC extends KernelGenerator
 				varGuardsTab,
 				//random float [0,1]
 				rnd);
-		return !canDetectLoop ? call : createAssignment(varLoopDetection, call);
+		return loopDetector.kernelCallUpdate(call);
 	}
 
 	@Override

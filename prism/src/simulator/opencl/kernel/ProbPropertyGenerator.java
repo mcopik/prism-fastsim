@@ -291,7 +291,7 @@ public abstract class ProbPropertyGenerator
 	 * @param mainMethod
 	 * @param loopDetectionVariable
 	 */
-	public void kernelWriteOutput(Method mainMethod, Expression threadPosition, CLVariable loopDetectionVariable)
+	public void kernelWriteOutput(Method mainMethod, Expression threadPosition)
 	{
 		if(activeGenerator) {
 			// computation ended by a deadlock or loop detector

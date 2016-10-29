@@ -239,6 +239,7 @@ public class ExpressionGenerator
 	 * @param oldValue old value variable to use
 	 * @return action converted from PRISM model to OpenCL
 	 */
+	//TODO: move to loopdetector?
 	static public KernelComponent convertPrismAction(CLVariable stateVector, Action action, Map<String, String> translations,
 			Map<String, CLVariable> savedVariables, CLVariable changeFlag, CLVariable oldValue)
 	{

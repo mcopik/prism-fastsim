@@ -1102,7 +1102,7 @@ public abstract class RewardGenerator implements KernelComponentGenerator
 	 * @param mainMethod
 	 * @param loopDetectionVariable
 	 */
-	public void kernelWriteOutput(Method mainMethod, Expression threadPosition, CLVariable loopDetectionVariable)
+	public void kernelWriteOutput(Method mainMethod, Expression threadPosition)
 	{
 		if(activeGenerator) {
 			for (int i = 0; i < rewardProperties.size(); ++i) {
@@ -1110,8 +1110,9 @@ public abstract class RewardGenerator implements KernelComponentGenerator
 	
 				CLVariable property = propertiesStateVar.accessElement(fromString(i)).accessField("propertyState");
 				CLVariable valueKnown = propertiesStateVar.accessElement(fromString(i)).accessField("valueKnown");
+				//TODO: proper loop detection
 				Expression succesfullComputation = createBinaryExpression(valueKnown.getSource(), ExpressionGenerator.Operator.LOR,
-						loopDetectionVariable.getSource());
+						generator.kernelLoopExpression());
 				Expression assignment = ExpressionGenerator.createConditionalAssignment(ExpressionGenerator.addParentheses(succesfullComputation), property
 						.getSource().toString(), "NAN");
 	

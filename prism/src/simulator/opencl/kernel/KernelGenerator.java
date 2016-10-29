@@ -26,7 +26,6 @@
 package simulator.opencl.kernel;
 
 import static simulator.opencl.kernel.expression.ExpressionGenerator.addParentheses;
-import static simulator.opencl.kernel.expression.ExpressionGenerator.convertPrismAction;
 import static simulator.opencl.kernel.expression.ExpressionGenerator.convertPrismGuard;
 import static simulator.opencl.kernel.expression.ExpressionGenerator.convertPrismRate;
 import static simulator.opencl.kernel.expression.ExpressionGenerator.createAssignment;
@@ -84,7 +83,6 @@ public abstract class KernelGenerator
 	protected CLVariable varSelectionSize = null;
 	//protected CLVariable varStateVector = null;
 	protected CLVariable varPathLength = null;
-	protected CLVariable varLoopDetection = null;
 	protected CLVariable varSynSelectionSize = null;
 	protected CLVariable varGuardsTab = null;
 	protected CLVariable[] varSynchronizedStates = null;
@@ -247,22 +245,16 @@ public abstract class KernelGenerator
 	 * True when model contains 'normal' commands.
 	 */
 	protected boolean hasNonSynchronized = false;
-	
-	/**
-	 * True iff loop detection can be applied.
-	 */
-	protected boolean canDetectLoop = false;
-	
-	/**
-	 * True iff sampling can be stopped when a loop is detected.
-	 * Some reward properties may require looping until bound is reached.
-	 */
-	protected boolean canExitOnLoop = false;
 
 	/**
 	 * TreeVisitor instance, used for parsing of properties (model parsing has been already done in Automaton class)
 	 */
 	protected ParsTreeModifier treeVisitor = new ParsTreeModifier();
+	
+	/**
+	 * Generates code for loop detection.
+	 */
+	protected LoopDetector loopDetector = null;
 
 	/**
 	 * Contains already prepared access formulas to a pointer to StateVector.
@@ -333,11 +325,10 @@ public abstract class KernelGenerator
 		this.rewardProperties = rewardProperties;
 		this.rewardGenerator = RewardGenerator.createGenerator(this, model.getType());
 		additionalDeclarations.addAll(rewardGenerator.getDefinitions());
-		
-		// loop detector
-		canDetectLoop = propertyGenerator.canDetectLoop() && rewardGenerator.canDetectLoop();
-		canExitOnLoop = propertyGenerator.canExitOnLoop() && rewardGenerator.canExitOnLoop();
 
+		// loop detector
+		this.loopDetector = new LoopDetector(this, propertyGenerator, rewardGenerator);
+		
 		// PRNG definitions
 		if (prngType.getAdditionalDefinitions() != null) {
 			additionalDeclarations.addAll(prngType.getAdditionalDefinitions());
@@ -508,9 +499,7 @@ public abstract class KernelGenerator
 		varPathLength = new CLVariable(new StdVariableType(StdType.UINT32), "pathLength");
 		currentMethod.addLocalVar(varPathLength);
 		//flag for loop detection
-		varLoopDetection = new CLVariable(new StdVariableType(StdType.BOOL), "loopDetection");
-		varLoopDetection.setInitValue(StdVariableType.initialize(0));
-		currentMethod.addLocalVar(varLoopDetection);
+		currentMethod.addLocalVar(loopDetector.getLocalVars());
 		//additional local variables, mainly selectionSize. depends on DTMC/CTMC
 		mainMethodDefineLocalVars(currentMethod);
 
@@ -666,7 +655,7 @@ public abstract class KernelGenerator
 		/**
 		 * Loop detection procedure - end computations in case of a loop.
 		 */
-		mainMethodLoopDetection(loop);
+		loopDetector.kernelLoopDetection(loop);
 		currentMethod.addExpression(loop);
 
 		/**
@@ -681,8 +670,8 @@ public abstract class KernelGenerator
 		currentMethod.addExpression(createAssignment(pathLength, varPathLength));
 		position = createBinaryExpression(globalID.getSource(), Operator.ADD, resultsOffset.getSource());
 
-		propertyGenerator.kernelWriteOutput(currentMethod, position, varLoopDetection);
-		rewardGenerator.kernelWriteOutput(currentMethod, position, varLoopDetection);
+		propertyGenerator.kernelWriteOutput(currentMethod, position);
+		rewardGenerator.kernelWriteOutput(currentMethod, position);
 
 		// deinitialize PRNG
 		currentMethod.addExpression(prngType.deinitializeGenerator());
@@ -844,7 +833,7 @@ public abstract class KernelGenerator
 						varSynchronizedStates[i].convertToPointer(),
 						//probability
 						selection);
-				_switch.addExpression(i, !canDetectLoop ? call : createAssignment(varLoopDetection, call));
+				_switch.addExpression(i, loopDetector.kernelCallUpdate(call));
 			}
 			parent.addExpression(_switch);
 		} else {
@@ -864,45 +853,7 @@ public abstract class KernelGenerator
 			 * Before a synchronized update, compute transition rewards.
 			 */
 			parent.addExpression(rewardGenerator.kernelBeforeUpdate(varStateVector, synCommands[0]));
-			parent.addExpression(!canDetectLoop ? call : createAssignment(varLoopDetection, call));
-		}
-	}
-
-	/**
-	 * Create conditional which stops computation when there was no change in values and there was only on update
-	 * (so in the next iteration there will be only one update, which doesn't change anything etc)
-	 * @param parent
-	 */
-	protected void mainMethodLoopDetection(ComplexKernelComponent parent)
-	{
-		//TODO: loop detection right now implemented only for non-timed properties
-		if (canDetectLoop) {
-			// no change?
-			Expression updateFlag = createBinaryExpression(varLoopDetection.getSource(), Operator.EQ, fromString("true"));
-
-			// get update size from update call
-			Expression updateSize = null;
-			if (hasNonSynchronized && hasSynchronized) {
-				updateSize = createBinaryExpression(varSelectionSize.getSource(), Operator.ADD, varSynSelectionSize.getSource());
-			} else if (hasNonSynchronized) {
-				updateSize = varSelectionSize.getSource();
-			} else {
-				updateSize = varSynSelectionSize.getSource();
-			}
-
-			// update size == 1
-			updateSize = createBinaryExpression(updateSize, Operator.EQ, fromString("1"));
-			IfElse loop = new IfElse(createBinaryExpression(updateFlag, Operator.LAND, updateSize));
-			loop.setConditionNumber(0);
-			
-			loop.addExpression( propertyGenerator.kernelUpdateProperties() );
-			loop.addExpression( rewardGenerator.kernelUpdateProperties(
-					localVars.get(LocalVar.STATE_VECTOR),
-					localVars.get(LocalVar.TIME))
-					);
-			loop.addExpression(new Expression("break;\n"));
-
-			parent.addExpression(loop);
+			parent.addExpression( loopDetector.kernelCallUpdate(call) );
 		}
 	}
 
@@ -1056,7 +1007,7 @@ public abstract class KernelGenerator
 			return null;
 		}
 
-		Method currentMethod = new Method("updateNonsynGuards", new StdVariableType(!canDetectLoop ? StdType.VOID : StdType.BOOL));
+		Method currentMethod = new Method("updateNonsynGuards", loopDetector.updateFunctionReturnType());
 		//StateVector * sv
 		CLVariable sv = new CLVariable(localVars.get(LocalVar.STATE_VECTOR).getPointer(), "sv");
 		currentMethod.addArg(sv);
@@ -1071,14 +1022,8 @@ public abstract class KernelGenerator
 		CLVariable selection = new CLVariable(new StdVariableType(0, commands.length), "selection");
 		selection.setInitValue(StdVariableType.initialize(0));
 		currentMethod.addLocalVar(selection);
-		//changeFlag
-		CLVariable changeFlag = new CLVariable(new StdVariableType(StdType.BOOL), "changeFlag");
-		changeFlag.setInitValue(StdVariableType.initialize(1));
-		currentMethod.addLocalVar(changeFlag);
-		//oldValue - used for loop detection
-		CLVariable oldValue = new CLVariable(new StdVariableType(StdType.INT32), "oldValue");
-		oldValue.setInitValue(StdVariableType.initialize(0));
-		currentMethod.addLocalVar(oldValue);
+		// loop detection vars
+		currentMethod.addLocalVar(loopDetector.updateFunctionLocalVars());
 
 		/**
 		 * Performs tasks depending on automata type
@@ -1107,11 +1052,9 @@ public abstract class KernelGenerator
 				if (!update.isActionTrue(0)) {
 					action = update.getAction(0);
 					addSavedVariables(sv, ifElse, 0, action, null, savedVariables);
-					if (canDetectLoop) {
-						ifElse.addExpression(0, convertPrismAction(sv, action, svPtrTranslations, savedVariables, changeFlag, oldValue));
-					} else {
-						ifElse.addExpression(0, convertPrismAction(sv, action, svPtrTranslations, savedVariables));
-					}
+					ifElse.addExpression(0,
+							loopDetector.updateFunctionConvertAction(sv, action, svPtrTranslations, savedVariables)
+							);
 				}
 				// next actions go to 'else if'
 				for (int j = 1; j < update.getActionsNumber(); ++j) {
@@ -1122,11 +1065,9 @@ public abstract class KernelGenerator
 					if (!update.isActionTrue(j)) {
 						action = update.getAction(j);
 						addSavedVariables(sv, ifElse, 0, action, null, savedVariables);
-						if (canDetectLoop) {
-							ifElse.addExpression(j, convertPrismAction(sv, action, svPtrTranslations, savedVariables, changeFlag, oldValue));
-						} else {
-							ifElse.addExpression(j, convertPrismAction(sv, action, svPtrTranslations, savedVariables));
-						}
+						ifElse.addExpression(j,
+								loopDetector.updateFunctionConvertAction(sv, action, svPtrTranslations, savedVariables)
+								);
 					}
 				}
 				_switch.addCase(new Expression(Integer.toString(i)));
@@ -1137,20 +1078,15 @@ public abstract class KernelGenerator
 					_switch.addCase(new Expression(Integer.toString(i)));
 					action = update.getAction(0);
 					addSavedVariables(sv, _switch, switchCounter, action, null, savedVariables);
-					if (canDetectLoop) {
-						_switch.addExpression(switchCounter++, convertPrismAction(sv, action, svPtrTranslations, savedVariables, changeFlag, oldValue));
-					} else {
-						_switch.addExpression(switchCounter++, convertPrismAction(sv, action, svPtrTranslations, savedVariables));
-					}
+					_switch.addExpression(switchCounter++,
+							loopDetector.updateFunctionConvertAction(sv, action, svPtrTranslations, savedVariables)
+							);
 				}
 			}
 		}
 		currentMethod.addExpression(_switch);
 
-		// return change flag, indicating if the performed update changed the state vector
-		if (canDetectLoop) {
-			currentMethod.addReturn(changeFlag);
-		}
+		loopDetector.updateFunctionReturn(currentMethod);
 
 		return currentMethod;
 	}
@@ -1300,7 +1236,9 @@ public abstract class KernelGenerator
 		additionalMethods = new ArrayList<>();
 		for (SynchronizedCommand cmd : synCommands) {
 
-			Method current = new Method(String.format("updateSyn__%s", cmd.synchLabel), new StdVariableType(!canDetectLoop ? StdType.VOID : StdType.BOOL));
+			Method current = new Method(String.format("updateSyn__%s", cmd.synchLabel),
+					loopDetector.synUpdateFunctionReturnType()
+					);
 			//state vector
 			CLVariable stateVector = new CLVariable(localVars.get(LocalVar.STATE_VECTOR).getPointer(), "sv");
 			//synchronized state
@@ -1316,13 +1254,7 @@ public abstract class KernelGenerator
 			//size for current module
 			CLVariable totalSize = new CLVariable(saveSize.varType, "totalSize");
 			totalSize.setInitValue(saveSize);
-			//changeFlag - for loop detection
-			CLVariable changeFlag = null;
-			if (canDetectLoop) {
-				changeFlag = new CLVariable(new StdVariableType(StdType.BOOL), "changeFlag");
-				changeFlag.setInitValue(StdVariableType.initialize(1));
-			}
-
+			
 			/**
 			 * Obtain variables required to save, create a structure (when necessary),
 			 * initialize it with StateVector values.
@@ -1354,9 +1286,7 @@ public abstract class KernelGenerator
 				current.addArg(propability);
 				current.addLocalVar(guard);
 				current.addLocalVar(totalSize);
-				if (canDetectLoop) {
-					current.addLocalVar(changeFlag);
-				}
+				current.addLocalVar( loopDetector.synUpdateFunctionLocalVars() );
 
 				if (savedVarsInstance != null) {
 					current.addLocalVar(savedVarsInstance);
@@ -1400,18 +1330,12 @@ public abstract class KernelGenerator
 				} else {
 					callUpdate = update.callMethod(stateVector, guardsTab, StdVariableType.initialize(i), guard, propability.convertToPointer());
 				}
-				if (!canDetectLoop) {
-					current.addExpression(callUpdate);
-				} else {
-					current.addExpression(createAssignment(changeFlag, createBinaryExpression(callUpdate, Operator.LAND, changeFlag.getSource())));
-				}
+				current.addExpression( loopDetector.synUpdateCallUpdate(callUpdate) );
 
 				updateSynAfterUpdateLabel(current, guard, moduleSize, totalSize, propability);
 			}
 
-			if (canDetectLoop) {
-				current.addReturn(changeFlag);
-			}
+			loopDetector.synUpdateFunctionReturn(current);
 			synchronizedUpdates.add(current);
 		}
 	}
@@ -1465,8 +1389,7 @@ public abstract class KernelGenerator
 	protected Method updateSynLabelMethod(SynchronizedCommand synCmd, StructureType savedVariables)
 	{
 		Method current = new Method(String.format("updateSynchronized__%s", synCmd.synchLabel),
-		//don't return anything
-				new StdVariableType(!canDetectLoop ? StdType.VOID : StdType.BOOL));
+				loopDetector.synLabelUpdateFunctionReturnType());
 		CLVariable stateVector = new CLVariable(localVars.get(LocalVar.STATE_VECTOR).getPointer(), "sv");
 		//guardsTab
 		CLVariable guardsTab = new CLVariable(new PointerType(new StdVariableType(StdType.BOOL)), "guards");
@@ -1481,13 +1404,6 @@ public abstract class KernelGenerator
 		}
 
 		CLVariable probability = probabilityPtr.dereference();
-		CLVariable newValue = null, changeFlag = null;
-		if (canDetectLoop) {
-			newValue = new CLVariable(new StdVariableType(StdType.INT32), "newValue");
-			newValue.setInitValue(StdVariableType.initialize(0));
-			changeFlag = new CLVariable(new StdVariableType(StdType.BOOL), "changeFlag");
-			changeFlag.setInitValue(StdVariableType.initialize(0));
-		}
 		try {
 			current.addArg(stateVector);
 			current.addArg(guardsTab);
@@ -1497,10 +1413,7 @@ public abstract class KernelGenerator
 			if (oldSV != null) {
 				current.addArg(oldSV);
 			}
-			if (canDetectLoop) {
-				current.addLocalVar(newValue);
-				current.addLocalVar(changeFlag);
-			}
+			current.addLocalVar( loopDetector.synLabelUpdateFunctionLocalVars() );
 		} catch (KernelException e) {
 			throw new RuntimeException(e);
 		}
@@ -1564,12 +1477,9 @@ public abstract class KernelGenerator
 						}
 						newSavedTranslations.putAll(varsSaved);
 
-						if (canDetectLoop) {
-							ifElse.addExpression(0,
-									convertPrismAction(stateVector, update.getAction(0), svPtrTranslations, newSavedTranslations, changeFlag, newValue));
-						} else {
-							ifElse.addExpression(0, convertPrismAction(stateVector, update.getAction(0), svPtrTranslations, newSavedTranslations));
-						}
+						ifElse.addExpression(0, loopDetector.synLabelUpdateFunctionConvertAction(
+								stateVector, update.getAction(0), svPtrTranslations, newSavedTranslations
+								));
 					}
 					for (int k = 1; k < update.getActionsNumber(); ++k) {
 						Rate previous = new Rate(rate);
@@ -1589,12 +1499,9 @@ public abstract class KernelGenerator
 						newSavedTranslations.putAll(varsSaved);
 
 						if (!update.isActionTrue(k)) {
-							if (canDetectLoop) {
-								ifElse.addExpression(k,
-										convertPrismAction(stateVector, update.getAction(k), svPtrTranslations, newSavedTranslations, changeFlag, newValue));
-							} else {
-								ifElse.addExpression(k, convertPrismAction(stateVector, update.getAction(k), svPtrTranslations, newSavedTranslations));
-							}
+							ifElse.addExpression(k, loopDetector.synLabelUpdateFunctionConvertAction(
+									stateVector, update.getAction(k), svPtrTranslations, newSavedTranslations
+									));
 						}
 					}
 					internalSwitch.addExpression(j, ifElse);
@@ -1610,13 +1517,10 @@ public abstract class KernelGenerator
 							newSavedTranslations = new HashMap<>();
 						}
 						newSavedTranslations.putAll(varsSaved);
-
-						if (canDetectLoop) {
-							internalSwitch.addExpression(j,
-									convertPrismAction(stateVector, update.getAction(0), svPtrTranslations, newSavedTranslations, changeFlag, newValue));
-						} else {
-							internalSwitch.addExpression(j, convertPrismAction(stateVector, update.getAction(0), svPtrTranslations, newSavedTranslations));
-						}
+			
+						internalSwitch.addExpression(j, loopDetector.synLabelUpdateFunctionConvertAction(
+								stateVector, update.getAction(0), svPtrTranslations, newSavedTranslations
+								));
 						//no recomputation necessary!
 					}
 				}
@@ -1625,9 +1529,7 @@ public abstract class KernelGenerator
 			_switch.addExpression(i, internalSwitch);
 		}
 		current.addExpression(_switch);
-		if (canDetectLoop) {
-			current.addReturn(changeFlag);
-		}
+		loopDetector.synLabelUpdateFunctionReturn(current);
 		return current;
 	}
 
@@ -1874,14 +1776,29 @@ public abstract class KernelGenerator
 	}
 	
 	/**
-	 * @return simply return a boolean keeping value for detected loop
+	 * @return simply return a boolean expression with value marking
+	 * if a loop has been detected
 	 */
 	public Expression kernelLoopExpression()
 	{
-		if(canDetectLoop) {
-			return varLoopDetection.getSource();
+		return loopDetector.kernelLoopExpression();
+	}
+	
+	/**
+	 * @return integer expression with number of active updates 
+	 */
+	public Expression kernelActiveUpdates()
+	{
+		if (varSynSelectionSize != null && varSelectionSize != null) {
+			return createBinaryExpression(
+					varSelectionSize.getSource(),
+					Operator.ADD,
+					varSynSelectionSize.getSource()
+					);
+		} else if (varSynSelectionSize != null) {
+			return varSynSelectionSize.getSource();
 		} else {
-			return new Expression();
+			return varSelectionSize.getSource();
 		}
 	}
 	
@@ -1895,19 +1812,8 @@ public abstract class KernelGenerator
 	 */
 	public Expression kernelDeadlockExpression()
 	{
-		Expression activeUpdates = null;
-		if (varSynSelectionSize != null && varSelectionSize != null) {
-			activeUpdates = createBinaryExpression(
-					varSelectionSize.getSource(),
-					Operator.ADD,
-					varSynSelectionSize.getSource()
-					);
-		} else if (varSynSelectionSize != null) {
-			activeUpdates = varSynSelectionSize.getSource();
-		} else {
-			activeUpdates = varSelectionSize.getSource();
-		}
-		return createBinaryExpression(activeUpdates,
+		return createBinaryExpression(
+				kernelActiveUpdates(),
 				ExpressionGenerator.Operator.EQ, fromString(0));
 	}
 	

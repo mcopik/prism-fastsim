@@ -126,6 +126,12 @@ public class RuntimeConfig
 	public RewardVariableType rewardVariableType = DEFAULT_REWARD_VAR_TYPE;
 
 	/**
+	 * Detect loops in kernel to stop path generation earlier.
+	 */
+	static public boolean DEFAULT_LOOP_DETECTION_ENABLED = true;
+	public boolean loopDetectionEnabled = DEFAULT_LOOP_DETECTION_ENABLED;
+	
+	/**
 	 * Configure using only PrismSettings.
 	 * @param settings
 	 * @throws PrismException
@@ -159,7 +165,7 @@ public class RuntimeConfig
 		if (choice == PrismSettings.OPENCL_SIMULATOR_REWARD_VARIABLE_TYPE_CHOICES.FLOAT.id) {
 			rewardVariableType = RewardVariableType.FLOAT;
 		} else {
-			rewardVariableType = RewardVariableType.DOUBLE;
+			rewardVariableType = RewardVariableType.FLOAT;
 		}
 		
 		//load other parameters
