@@ -36,6 +36,7 @@ import java.util.Collection;
 import java.util.Map;
 
 import prism.PrismLangException;
+import simulator.opencl.kernel.KernelGenerator.LocalVar;
 import simulator.opencl.kernel.expression.Expression;
 import simulator.opencl.kernel.expression.IfElse;
 import simulator.opencl.kernel.expression.ExpressionGenerator.Operator;
@@ -71,7 +72,10 @@ public class RewardGeneratorCTMC extends RewardGenerator
 	public RewardGeneratorCTMC(KernelGenerator generator) throws KernelException, PrismLangException
 	{
 		super(generator);
-		generateRewardCode();
+
+		if(activeGenerator) {
+			generateRewardCode();
+		}
 	}
 
 	@Override
@@ -247,8 +251,9 @@ public class RewardGeneratorCTMC extends RewardGenerator
 		 */
 		if (rewardStructure.accessField(REWARD_STRUCTURE_VAR_CUMULATIVE_TOTAL) != null
 				&& rewardStructure.accessField(REWARD_STRUCTURE_VAR_CURRENT_STATE) != null) {
-			CLVariable[] timeVars = generator.mainMethodTimeVariable();
-			return method.callMethod(stateVector.convertToPointer(), rewardStructure.convertToPointer(), timeVars[0], timeVars[1]);
+			CLVariable timeVar = generator.kernelGetLocalVar(LocalVar.TIME);
+			CLVariable updatedTimeVar = generator.kernelGetLocalVar(LocalVar.UPDATED_TIME);
+			return method.callMethod(stateVector.convertToPointer(), rewardStructure.convertToPointer(), timeVar, updatedTimeVar);
 		}
 		/**
 		 * Otherwise time is not needed.

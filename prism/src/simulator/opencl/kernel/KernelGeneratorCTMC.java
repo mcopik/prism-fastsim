@@ -70,11 +70,6 @@ import simulator.sampler.SamplerDouble;
 public class KernelGeneratorCTMC extends KernelGenerator
 {
 	/**
-	 * Variable containing time of leaving state.
-	 */
-	protected CLVariable varUpdatedTime = null;
-
-	/**
 	 * Constructor for CTMC kernel generator.
 	 * @param model
 	 * @param properties
@@ -119,15 +114,17 @@ public class KernelGeneratorCTMC extends KernelGenerator
 	public void mainMethodDefineLocalVars(Method currentMethod) throws KernelException
 	{
 		//time
-		varTime = new CLVariable(varTimeType, "time");
+		CLVariable varTime = new CLVariable(varTimeType, "time");
 		varTime.setInitValue(StdVariableType.initialize(0.0f));
 		currentMethod.addLocalVar(varTime);
+		localVars.put(LocalVar.TIME, varTime);
+		
 		//updated time - it's needed for time bounded property and CTMC state reward
-		//TODO: update after introducing property generator
-		if (timingProperty || (rewardGenerator != null && rewardGenerator.needsTimeDifference())) {
-			varUpdatedTime = new CLVariable(new StdVariableType(StdType.FLOAT), "updatedTime");
+		if (propertyGenerator.needsTimeDifference() || rewardGenerator.needsTimeDifference()) {
+			CLVariable varUpdatedTime = new CLVariable(new StdVariableType(StdType.FLOAT), "updatedTime");
 			varUpdatedTime.setInitValue(StdVariableType.initialize(0.0f));
 			currentMethod.addLocalVar(varUpdatedTime);
+			localVars.put(LocalVar.UPDATED_TIME, varUpdatedTime);
 		}
 		//number of transitions
 		varSelectionSize = new CLVariable(new StdVariableType(StdType.FLOAT), "selectionSize");
@@ -141,7 +138,7 @@ public class KernelGeneratorCTMC extends KernelGenerator
 		}
 	}
 	
-	@Override
+	/*@Override
 	protected CLVariable[] mainMethodTimeVariable()
 	{
 		if (varUpdatedTime != null) {
@@ -149,13 +146,15 @@ public class KernelGeneratorCTMC extends KernelGenerator
 		} else {
 			return new CLVariable[] { varTime };
 		}
-	}
+	}*/
 	
     @Override
 	protected void mainMethodUpdateTimeBefore(Method currentMethod, ComplexKernelComponent parent)
 	{
+    	CLVariable varUpdatedTime = localVars.get(LocalVar.UPDATED_TIME);
 		// time = updated_time;
 		if (varUpdatedTime != null) {
+	    	CLVariable varTime = localVars.get(LocalVar.TIME);
 			CLValue random = config.prngType.getRandomUnifFloat(fromString(1));
 			Expression substrRng = createBinaryExpression(fromString(1),
 			//1 - random()
@@ -182,6 +181,8 @@ public class KernelGeneratorCTMC extends KernelGenerator
 	@Override
 	protected void mainMethodUpdateTimeAfter(Method currentMethod, ComplexKernelComponent parent)
 	{
+    	CLVariable varUpdatedTime = localVars.get(LocalVar.UPDATED_TIME);
+    	CLVariable varTime = localVars.get(LocalVar.TIME);
 		if (varUpdatedTime == null) {
 			CLValue random = config.prngType.getRandomUnifFloat(fromString(1));
 			Expression substrRng = createBinaryExpression(fromString(1),
@@ -215,50 +216,9 @@ public class KernelGeneratorCTMC extends KernelGenerator
 	}
 
 	@Override
-	protected void mainMethodFirstUpdateProperties(ComplexKernelComponent parent)
-	{
-		/**
-		 * Special case - the translations are prepared for StateVector * sv,
-		 * but this one case works in main method - we have to use the StateVector instance directly.
-		 */
-		Map<String, String> oldTranslations = new HashMap<>(svPtrTranslations);
-		CLVariable stateVector = parent.getLocalVar("stateVector");
-		for (CLVariable var : stateVectorType.getFields()) {
-			String name = var.varName.substring(STATE_VECTOR_PREFIX.length());
-			CLVariable second = stateVector.accessField(var.varName);
-			svPtrTranslations.put(name, second.varName);
-		}
-
-		/**
-		 * For the case of bounded until in CTMC, we have to check initial state at time 0.
-		 */
-		for (int i = 0; i < properties.size(); ++i) {
-			if (properties.get(i) instanceof SamplerBoundedUntilCont) {
-				SamplerBoundedUntilCont prop = (SamplerBoundedUntilCont) properties.get(i);
-				CLVariable propertyVar = varPropertiesArray.accessElement(fromString(i));
-				if (prop.getLowBound() == 0.0) {
-					IfElse ifElse = createPropertyCondition(propertyVar, false, prop.getRightSide().toString(), true);
-					parent.addExpression(ifElse);
-				}
-				/**
-				 * we do not have to check left side if it is constant 'true'
-				 */
-				else if (!(prop.getLeftSide() instanceof ExpressionLiteral)) {
-					IfElse ifElse = createPropertyCondition(propertyVar, true, prop.getLeftSide().toString(), false);
-					parent.addExpression(ifElse);
-				}
-			}
-		}
-
-		svPtrTranslations = oldTranslations;
-	}
-
-	@Override
 	protected void mainMethodCallNonsynUpdateImpl(ComplexKernelComponent parent, CLValue... args)
 	{
-		if (hasRewardProperties) {
-			parent.addExpression(rewardGenerator.beforeUpdate(varStateVector));
-		}
+		parent.addExpression(rewardGenerator.kernelBeforeUpdate(localVars.get(LocalVar.STATE_VECTOR)));
 		CLValue random = null;
 		if (args.length == 0) {
 			random = config.prngType.getRandomFloat(fromString(0), varSelectionSize.getSource());
@@ -277,13 +237,13 @@ public class KernelGeneratorCTMC extends KernelGenerator
 	{
 		Method update = helperMethods.get(KernelMethods.PERFORM_UPDATE);
 		Expression call = update.callMethod(
-		//stateVector
-				varStateVector.convertToPointer(),
+				//stateVector
+				localVars.get(LocalVar.STATE_VECTOR).convertToPointer(),
 				//non-synchronized guards tab
 				varGuardsTab,
 				//random float [0,1]
 				rnd);
-		return timingProperty ? call : createAssignment(varLoopDetection, call);
+		return !canDetectLoop ? call : createAssignment(varLoopDetection, call);
 	}
 
 	@Override
@@ -338,17 +298,6 @@ public class KernelGeneratorCTMC extends KernelGenerator
 			CLVariable currentLabelSize)
 	{
 		parent.addExpression(createBinaryExpression(selection.getSource(), Operator.SUB_AUGM, synSum.getSource()));
-	}
-
-	@Override
-	protected Expression mainMethodUpdateProperties()
-	{
-		if (timingProperty) {
-			return helperMethods.get(KernelMethods.UPDATE_PROPERTIES)
-					.callMethod(varStateVector.convertToPointer(), varPropertiesArray, varTime, varUpdatedTime);
-		} else {
-			return helperMethods.get(KernelMethods.UPDATE_PROPERTIES).callMethod(varStateVector.convertToPointer(), varPropertiesArray, varTime);
-		}
 	}
 
 	/*********************************
@@ -459,99 +408,6 @@ public class KernelGeneratorCTMC extends KernelGenerator
 		//selection
 		CLVariable selection = currentMethod.getLocalVar("selection");
 		selection.setInitValue(StdVariableType.initialize(0));
-	}
-
-	/*********************************
-	 * PROPERTY METHODS
-	 ********************************/
-
-	@Override
-	protected void propertiesMethodTimeArg(Method currentMethod) throws KernelException
-	{
-		// TODO: is time really necessary for non timed properties?
-		CLVariable varTime = new CLVariable(new StdVariableType(StdType.FLOAT), "time");
-		currentMethod.addArg(varTime);
-		if (timingProperty) {
-			CLVariable varUpdatedTime = new CLVariable(new StdVariableType(StdType.FLOAT), "updated_time");
-			currentMethod.addArg(varUpdatedTime);
-		}
-	}
-
-	@Override
-	protected void propertiesMethodAddBoundedUntil(Method currentMethod, ComplexKernelComponent parent, SamplerBoolean property, CLVariable propertyVar)
-			throws PrismLangException
-	{
-		CLVariable updTime = currentMethod.getArg("updated_time");
-		SamplerBoundedUntilCont prop = (SamplerBoundedUntilCont) property;
-
-		String propertyStringRight = visitPropertyExpression(prop.getRightSide()).toString();
-		String propertyStringLeft = visitPropertyExpression(prop.getLeftSide()).toString();
-		/**
-		 * if(updated_time > upper_bound)
-		 */
-		IfElse ifElse = null;
-		if (!Double.isInfinite(prop.getUpperBound())) {
-			ifElse = new IfElse(createBinaryExpression(updTime.getSource(), Operator.GT, fromString(prop.getUpperBound())));
-			/**
-			 * if(right_side == true) -> true
-			 * else -> false
-			 */
-			IfElse rhsCheck = createPropertyCondition(propertyVar, false, propertyStringRight, true);
-			createPropertyCondition(rhsCheck, propertyVar, false, null, false);
-			ifElse.addExpression(rhsCheck);
-		}
-
-		/**
-		 * else if(updated_time < low_bound)
-		 */
-		if (prop.getLowBound() != 0.0) {
-			int position = 0;
-			Expression condition = createBinaryExpression(updTime.getSource(), Operator.LE,
-			// updated_time < lb
-					fromString(prop.getLowBound()));
-			if (ifElse != null) {
-				ifElse.addElif(condition);
-				position = 1;
-			} else {
-				ifElse = new IfElse(condition);
-				position = 0;
-			}
-			/**
-			 * if(left_side == false) -> false
-			 */
-			if (!(prop.getLeftSide() instanceof ExpressionLiteral)) {
-				IfElse lhsCheck = createPropertyCondition(propertyVar, true, propertyStringLeft, false);
-				ifElse.addExpression(position, lhsCheck);
-			}
-		}
-
-		/**
-		 * Else - inside the interval
-		 */
-
-		/**
-		 * if(right_side == true) -> true
-		 * else if(left_side == false) -> false
-		 */
-		IfElse betweenBounds = createPropertyCondition(propertyVar, false, propertyStringRight, true);
-		if (!(prop.getLeftSide() instanceof ExpressionLiteral)) {
-			createPropertyCondition(betweenBounds, propertyVar, true, propertyStringLeft, false);
-		}
-
-		/**
-		 * No condition before, just add this check to method.
-		 */
-		if (ifElse == null) {
-			parent.addExpression(betweenBounds);
-		}
-		/**
-		 * Add 'else'
-		 */
-		else {
-			ifElse.addElse();
-			ifElse.addExpression(ifElse.size() - 1, betweenBounds);
-			parent.addExpression(ifElse);
-		}
 	}
 
 	/*********************************

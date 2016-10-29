@@ -37,6 +37,14 @@ public class Expression implements KernelComponent
 	protected String exprString;
 
 	/**
+	 * Create empty expression.
+	 */
+	public Expression()
+	{
+		exprString = "";
+	}
+	
+	/**
 	 * Create expression from a string
 	 * @param expr
 	 */

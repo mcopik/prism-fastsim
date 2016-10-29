@@ -37,13 +37,13 @@ import static simulator.opencl.kernel.expression.ExpressionGenerator.postIncreme
 import java.util.LinkedHashMap;
 import java.util.List;
 
-import parser.ast.ExpressionLiteral;
 import prism.Preconditions;
 import prism.PrismLangException;
 import simulator.opencl.RuntimeConfig;
 import simulator.opencl.automaton.AbstractAutomaton;
 import simulator.opencl.automaton.command.Command;
 import simulator.opencl.automaton.command.SynchronizedCommand;
+import simulator.opencl.kernel.KernelGenerator.LocalVar;
 import simulator.opencl.kernel.expression.ComplexKernelComponent;
 import simulator.opencl.kernel.expression.Expression;
 import simulator.opencl.kernel.expression.ExpressionGenerator;
@@ -60,7 +60,6 @@ import simulator.opencl.kernel.memory.VariableTypeInterface;
 import simulator.opencl.kernel.memory.StdVariableType.StdType;
 import simulator.opencl.kernel.memory.StructureType;
 import simulator.sampler.SamplerBoolean;
-import simulator.sampler.SamplerBoundedUntilDisc;
 import simulator.sampler.SamplerDouble;
 
 public class KernelGeneratorDTMC extends KernelGenerator
@@ -122,19 +121,15 @@ public class KernelGeneratorDTMC extends KernelGenerator
 	/*********************************
 	 * MAIN METHOD
 	 ********************************/
-	@Override
-	protected void mainMethodFirstUpdateProperties(ComplexKernelComponent parent)
-	{
-		//in case of DTMC, there is nothing to do
-	}
 
 	@Override
 	public void mainMethodDefineLocalVars(Method currentMethod) throws KernelException
 	{
 		//time
-		varTime = new CLVariable(varTimeType, "time");
+		CLVariable varTime = new CLVariable(varTimeType, "time");
 		varTime.setInitValue(StdVariableType.initialize(0));
 		currentMethod.addLocalVar(varTime);
+		localVars.put(LocalVar.TIME, varTime);
 		//number of transitions
 		varSelectionSize = new CLVariable(new StdVariableType(0, model.commandsNumber()), "selectionSize");
 		varSelectionSize.setInitValue(StdVariableType.initialize(0));
@@ -148,12 +143,6 @@ public class KernelGeneratorDTMC extends KernelGenerator
 			varSynSelectionSize.setInitValue(StdVariableType.initialize(0));
 			currentMethod.addLocalVar(varSynSelectionSize);
 		}
-	}
-
-	@Override
-	protected CLVariable[] mainMethodTimeVariable()
-	{
-		return new CLVariable[] { varTime };
 	}
 	
 	@Override
@@ -200,14 +189,14 @@ public class KernelGeneratorDTMC extends KernelGenerator
 		Method update = helperMethods.get(KernelMethods.PERFORM_UPDATE);
 		Expression call = update.callMethod(
 		//stateVector
-				varStateVector.convertToPointer(),
+				localVars.get(LocalVar.STATE_VECTOR).convertToPointer(),
 				//non-synchronized guards tab
 				varGuardsTab,
 				//random float [0,1]
 				rnd,
 				//number of commands
 				sum);
-		return timingProperty ? call : createAssignment(varLoopDetection, call);
+		return !canDetectLoop ? call : createAssignment(varLoopDetection, call);
 	}
 
 	@Override
@@ -265,16 +254,6 @@ public class KernelGeneratorDTMC extends KernelGenerator
 				config.prngType.numbersPerRandomize()));
 		selection.setInitValue(config.prngType.getRandomUnifFloat(fromString(rndNumber)));
 		return selection;
-	}
-
-	@Override
-	protected Expression mainMethodUpdateProperties()
-	{
-		if (timingProperty) {
-			return helperMethods.get(KernelMethods.UPDATE_PROPERTIES).callMethod(varStateVector.convertToPointer(), varPropertiesArray, varTime);
-		} else {
-			return helperMethods.get(KernelMethods.UPDATE_PROPERTIES).callMethod(varStateVector.convertToPointer(), varPropertiesArray);
-		}
 	}
 
 	/*********************************
@@ -354,71 +333,6 @@ public class KernelGeneratorDTMC extends KernelGenerator
 		CLVariable selection = currentMethod.getLocalVar("selection");
 		String selectionExpression = String.format("floor(%s)", createBinaryExpression(sum.getSource(), Operator.MUL, number.getSource()).toString());
 		selection.setInitValue(new Expression(selectionExpression));
-	}
-
-	/*********************************
-	 * PROPERTY METHODS
-	 ********************************/
-
-	@Override
-	protected void propertiesMethodTimeArg(Method currentMethod) throws KernelException
-	{
-		//time necessary only in case of bounded until
-		if (timingProperty) {
-			CLVariable time = new CLVariable(new StdVariableType(0, config.maxPathLength), "time");
-			currentMethod.addArg(time);
-		}
-	}
-
-	@Override
-	protected void propertiesMethodAddBoundedUntil(Method currentMethod, ComplexKernelComponent parent, SamplerBoolean property, CLVariable propertyVar)
-			throws PrismLangException
-	{
-		//TODO: check if it will always work (e.g. CTMC case)
-		CLVariable time = currentMethod.getArg("time");
-		SamplerBoundedUntilDisc prop = (SamplerBoundedUntilDisc) property;
-
-		String propertyStringRight = visitPropertyExpression(prop.getRightSide()).toString();
-		String propertyStringLeft = visitPropertyExpression(prop.getLeftSide()).toString();
-		/**
-		 * if(time > upper_bound)
-		 */
-		IfElse ifElse = new IfElse(createBinaryExpression(time.getSource(), Operator.GE, fromString(prop.getUpperBound())));
-
-		/**
-		 * if(right_side == true) -> true
-		 * else -> false
-		 */
-		IfElse rhsCheck = null;
-
-		//TODO: always !prop?
-		if (prop.getRightSide().toString().charAt(0) == '!') {
-			rhsCheck = createPropertyCondition(propertyVar, true, propertyStringRight.substring(1), true);
-		} else {
-			rhsCheck = createPropertyCondition(propertyVar, false, propertyStringRight, true);
-		}
-		createPropertyCondition(rhsCheck, propertyVar, false, null, false);
-		ifElse.addExpression(rhsCheck);
-		/**
-		 * Else -> check RHS and LHS
-		 */
-		ifElse.addElse();
-		/**
-		 * if(right_side == true) -> true
-		 * else if(left_side == false) -> false
-		 */
-		IfElse betweenBounds = null;
-		//TODO: same as above
-		if (prop.getRightSide().toString().charAt(0) == '!') {
-			betweenBounds = createPropertyCondition(propertyVar, true, propertyStringRight.substring(1), true);
-		} else {
-			betweenBounds = createPropertyCondition(propertyVar, false, propertyStringRight.toString(), true);
-		}
-		if (!(prop.getLeftSide() instanceof ExpressionLiteral)) {
-			createPropertyCondition(betweenBounds, propertyVar, true, propertyStringLeft, false);
-		}
-		ifElse.addExpression(1, betweenBounds);
-		parent.addExpression(ifElse);
 	}
 
 	/*********************************

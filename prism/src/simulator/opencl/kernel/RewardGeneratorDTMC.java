@@ -26,6 +26,7 @@
 package simulator.opencl.kernel;
 
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Map;
 
 import static simulator.opencl.kernel.expression.ExpressionGenerator.createBinaryExpression;
@@ -36,15 +37,10 @@ import simulator.opencl.kernel.expression.ExpressionGenerator;
 import simulator.opencl.kernel.expression.IfElse;
 import simulator.opencl.kernel.expression.ExpressionGenerator.Operator;
 import simulator.opencl.kernel.expression.Method;
-import simulator.opencl.kernel.memory.CLValue;
 import simulator.opencl.kernel.memory.CLVariable;
-import simulator.opencl.kernel.memory.StdVariableType;
 import simulator.opencl.kernel.memory.StructureType;
-import simulator.opencl.kernel.memory.StdVariableType.StdType;
 import simulator.sampler.SamplerDouble;
-import simulator.sampler.SamplerRewardCumulCont;
 import simulator.sampler.SamplerRewardCumulDisc;
-import simulator.sampler.SamplerRewardInstCont;
 import simulator.sampler.SamplerRewardInstDisc;
 
 public class RewardGeneratorDTMC extends RewardGenerator
@@ -52,14 +48,16 @@ public class RewardGeneratorDTMC extends RewardGenerator
 	public RewardGeneratorDTMC(KernelGenerator generator) throws KernelException, PrismLangException
 	{
 		super(generator);
-		generateRewardCode();
+		
+		if(activeGenerator) {
+			generateRewardCode();
+		}
 	}
 
 	@Override
 	public Collection<Method> getMethods()
 	{
-		// TODO Auto-generated method stub
-		return null;
+		return Collections.emptyList();
 	}
 
 	@Override

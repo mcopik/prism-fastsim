@@ -28,11 +28,9 @@ package simulator.opencl.kernel;
 import static simulator.opencl.kernel.expression.ExpressionGenerator.addParentheses;
 import static simulator.opencl.kernel.expression.ExpressionGenerator.convertPrismAction;
 import static simulator.opencl.kernel.expression.ExpressionGenerator.convertPrismGuard;
-import static simulator.opencl.kernel.expression.ExpressionGenerator.convertPrismProperty;
 import static simulator.opencl.kernel.expression.ExpressionGenerator.convertPrismRate;
 import static simulator.opencl.kernel.expression.ExpressionGenerator.createAssignment;
 import static simulator.opencl.kernel.expression.ExpressionGenerator.createBinaryExpression;
-import static simulator.opencl.kernel.expression.ExpressionGenerator.createNegation;
 import static simulator.opencl.kernel.expression.ExpressionGenerator.fromString;
 
 import java.util.ArrayList;
@@ -44,7 +42,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import parser.ast.ExpressionLiteral;
 import prism.PrismLangException;
 import simulator.opencl.RuntimeConfig;
 import simulator.opencl.automaton.AbstractAutomaton;
@@ -76,28 +73,46 @@ import simulator.opencl.kernel.memory.StdVariableType;
 import simulator.opencl.kernel.memory.StdVariableType.StdType;
 import simulator.opencl.kernel.memory.StructureType;
 import simulator.opencl.kernel.memory.VariableTypeInterface;
-import simulator.sampler.Sampler;
 import simulator.sampler.SamplerBoolean;
-import simulator.sampler.SamplerBoundedUntilCont;
-import simulator.sampler.SamplerBoundedUntilDisc;
 import simulator.sampler.SamplerDouble;
-import simulator.sampler.SamplerNext;
-import simulator.sampler.SamplerUntil;
 
 public abstract class KernelGenerator
 {
-	protected CLVariable varTime = null;
+	//protected CLVariable varTime = null;
 	//TODO: move to parent
 	public VariableTypeInterface varTimeType = null;
 	protected CLVariable varSelectionSize = null;
-	protected CLVariable varStateVector = null;
+	//protected CLVariable varStateVector = null;
 	protected CLVariable varPathLength = null;
 	protected CLVariable varLoopDetection = null;
 	protected CLVariable varSynSelectionSize = null;
 	protected CLVariable varGuardsTab = null;
 	protected CLVariable[] varSynchronizedStates = null;
-	protected CLVariable varPropertiesArray = null;
+	
+	public enum LocalVar
+	{
+		/**
+		 * PRISM model variables
+		 */
+		STATE_VECTOR,
+		/**
+		 * Time of entering state
+		 */
+		TIME,
+		/**
+		 * Time of leaving state
+		 */
+		UPDATED_TIME
+	}
 
+	protected final static EnumMap<LocalVar, String> LOCAL_VARIABLES_NAMES;
+	static {
+		EnumMap<LocalVar, String> names = new EnumMap<>(LocalVar.class);
+		names.put(LocalVar.STATE_VECTOR, "stateVector");
+		LOCAL_VARIABLES_NAMES = names;
+	}
+	protected EnumMap<LocalVar, CLVariable> localVars = null;
+	
 	protected enum KernelMethods {
 		/**
 		 * DTMC:
@@ -130,20 +145,7 @@ public abstract class KernelGenerator
 		 * CTMC:
 		 * void performUpdateSyn(StateVector * sv, float sumSelection,SynCmdState * tab);
 		 */
-		PERFORM_UPDATE_SYN(3),
-		/**
-		 * Return value determines is we can stop simulation(we know all values).
-		 * DTMC:
-		 * bool updateProperties(StateVector * sv,PropertyState * prop);
-		 * OR
-		 * bool updateProperties(StateVector * sv,PropertyState * prop,int time);
-		 * 
-		 * CTMC:
-		 * bool updateProperties(StateVector * sv,PropertyState * prop);
-		 * OR
-		 * bool updateProperties(StateVector * sv,PropertyState * prop,float time, float updated_time);
-		 */
-		UPDATE_PROPERTIES(4);
+		PERFORM_UPDATE_SYN(3);
 		public final int indice;
 
 		private KernelMethods(int indice)
@@ -160,13 +162,6 @@ public abstract class KernelGenerator
 	 * }
 	 */
 	protected StructureType stateVectorType = null;
-	public final static StructureType PROPERTY_STATE_STRUCTURE;
-	static {
-		StructureType type = new StructureType("PropertyState");
-		type.addVariable(new CLVariable(new StdVariableType(StdType.BOOL), "propertyState"));
-		type.addVariable(new CLVariable(new StdVariableType(StdType.BOOL), "valueKnown"));
-		PROPERTY_STATE_STRUCTURE = type;
-	}
 
 	/**
 	 * StateVector field prefix.
@@ -184,11 +179,11 @@ public abstract class KernelGenerator
 	protected RuntimeConfig config = null;
 	protected Command commands[] = null;
 	protected SynchronizedCommand synCommands[] = null;
-
+	
 	/**
-	 * Samplers for PCTL/CSL properties.
+	 * Generate source code for property verification.
 	 */
-	protected List<SamplerBoolean> properties = null;
+	protected ProbPropertyGenerator propertyGenerator = null;
 
 	/**
 	 * Additional declarations in kernel - structure types for StateVector,
@@ -224,6 +219,11 @@ public abstract class KernelGenerator
 	protected KernelMethod mainMethod = null;
 
 	/**
+	 * Probabilistic properties for this kernel.
+	 */
+	protected List<SamplerBoolean> properties = null;
+	
+	/**
 	 * Reward properties for this kernel.
 	 */
 	protected List<SamplerDouble> rewardProperties = null;
@@ -247,21 +247,17 @@ public abstract class KernelGenerator
 	 * True when model contains 'normal' commands.
 	 */
 	protected boolean hasNonSynchronized = false;
-
-	/**
-	 * True when there are some reward properties to evaluate.
-	 */
-	protected boolean hasRewardProperties = false;	
 	
 	/**
-	 * True when there are some probabilistic properties to evaluate.
+	 * True iff loop detection can be applied.
 	 */
-	protected boolean hasProbProperties = false;
-
+	protected boolean canDetectLoop = false;
+	
 	/**
-	 * True when one of processed properties has timing constraints.
+	 * True iff sampling can be stopped when a loop is detected.
+	 * Some reward properties may require looping until bound is reached.
 	 */
-	protected boolean timingProperty = false;
+	protected boolean canExitOnLoop = false;
 
 	/**
 	 * TreeVisitor instance, used for parsing of properties (model parsing has been already done in Automaton class)
@@ -291,8 +287,7 @@ public abstract class KernelGenerator
 		this.config = config;
 		this.prngType = config.prngType;
 		this.properties = properties;
-		this.hasRewardProperties = rewardProperties.size() != 0;
-		this.hasProbProperties = properties.size() != 0;
+		this.localVars = new EnumMap<>(LocalVar.class);
 
 		importStateVector();
 		varTimeType = timeVariableType();
@@ -319,15 +314,6 @@ public abstract class KernelGenerator
 			}
 		}
 
-		// TODO: update to handle reward
-		// check if at least one of properties has time constraint
-		for (Sampler sampler : properties) {
-			if (sampler instanceof SamplerBoundedUntilCont || sampler instanceof SamplerBoundedUntilDisc) {
-				timingProperty = true;
-				break;
-			}
-		}
-
 		// create translations from model variable to StateVector structure, accessed by a pointer
 		CLVariable sv = new CLVariable(new PointerType(stateVectorType), "sv");
 		for (CLVariable var : stateVectorType.getFields()) {
@@ -341,18 +327,16 @@ public abstract class KernelGenerator
 			createSynchronizedStructures();
 		}
 
-		/**
-		 * Add definitions of structures for properties.
-		 */
-		if (hasProbProperties) {
-			additionalDeclarations.add(PROPERTY_STATE_STRUCTURE.getDefinition());
-		}
+		this.propertyGenerator = ProbPropertyGenerator.createGenerator(this, model.getType());
+		additionalDeclarations.addAll(propertyGenerator.getDefinitions());
 
 		this.rewardProperties = rewardProperties;
-		this.rewardGenerator = hasRewardProperties ? RewardGenerator.createGenerator(this, model.getType()) : null;
-		if (hasRewardProperties) {
-			additionalDeclarations.addAll(rewardGenerator.getDefinitions());
-		}
+		this.rewardGenerator = RewardGenerator.createGenerator(this, model.getType());
+		additionalDeclarations.addAll(rewardGenerator.getDefinitions());
+		
+		// loop detector
+		canDetectLoop = propertyGenerator.canDetectLoop() && rewardGenerator.canDetectLoop();
+		canExitOnLoop = propertyGenerator.canExitOnLoop() && rewardGenerator.canExitOnLoop();
 
 		// PRNG definitions
 		if (prngType.getAdditionalDefinitions() != null) {
@@ -370,14 +354,6 @@ public abstract class KernelGenerator
 	 * Generated structure types are different for DTMC and CTMC.
 	 */
 	protected abstract void createSynchronizedStructures();
-
-	/**
-	 * @return state vector structure type
-	 */
-	public StructureType getSVType()
-	{
-		return stateVectorType;
-	}
 
 	/**
 	 * Return declarations manually specified earlier and synchronization structures definitions.
@@ -409,9 +385,8 @@ public abstract class KernelGenerator
 		if (additionalMethods != null) {
 			ret.addAll(additionalMethods);
 		}
-		if (hasRewardProperties) {
-			ret.addAll(rewardGenerator.getAdditionalMethods());
-		}
+		ret.addAll(propertyGenerator.getAdditionalMethods());
+		ret.addAll(rewardGenerator.getAdditionalMethods());
 		return ret;
 	}
 
@@ -488,21 +463,9 @@ public abstract class KernelGenerator
 		pathLengths.memLocation = Location.GLOBAL;
 		currentMethod.addArg(pathLengths);
 		//ARG 6..N: property results
-		CLVariable[] propertyResults = null;
-		if (properties.size() != 0) {
-			propertyResults = new CLVariable[properties.size()];
-			for (int i = 0; i < propertyResults.length; ++i) {
-				propertyResults[i] = new CLVariable(new PointerType(new StdVariableType(StdType.UINT8)),
-				//propertyNumber
-						String.format("property%d", i));
-				propertyResults[i].memLocation = Location.GLOBAL;
-				currentMethod.addArg(propertyResults[i]);
-			}
-		}
+		currentMethod.addArg(propertyGenerator.getKernelArgs());
 		//ARG N+1...M: reward property results
-		if (hasRewardProperties) {
-			currentMethod.addArg(rewardGenerator.getKernelArgs());
-		}
+		currentMethod.addArg(rewardGenerator.getKernelArgs());
 
 		/**
 		 * Local variables.
@@ -514,28 +477,16 @@ public abstract class KernelGenerator
 		currentMethod.addLocalVar(globalID);
 
 		//state vector for model
-		varStateVector = new CLVariable(stateVectorType, "stateVector");
+		CLVariable varStateVector = new CLVariable(stateVectorType,
+				LOCAL_VARIABLES_NAMES.get(LocalVar.STATE_VECTOR));
 		varStateVector.setInitValue(initStateVector());
 		currentMethod.addLocalVar(varStateVector);
+		localVars.put(LocalVar.STATE_VECTOR, varStateVector);
 
 		//property results
-		ArrayType propertiesArrayType = null;
-		if (properties.size() != 0) {
-			propertiesArrayType = new ArrayType(PROPERTY_STATE_STRUCTURE, properties.size());
-			varPropertiesArray = new CLVariable(propertiesArrayType, "properties");
-			currentMethod.addLocalVar(varPropertiesArray);
-			CLValue initValues[] = new CLValue[properties.size()];
-			CLValue initValue = PROPERTY_STATE_STRUCTURE.initializeStdStructure(new Number[] { 0, 0 });
-			for (int i = 0; i < initValues.length; ++i) {
-				initValues[i] = initValue;
-			}
-			varPropertiesArray.setInitValue(propertiesArrayType.initializeArray(initValues));
-		}
-
+		currentMethod.addLocalVar(propertyGenerator.getLocalVars());
 		//reward structures and results
-		if (hasRewardProperties) {
-			currentMethod.addLocalVar(rewardGenerator.getLocalVars());
-		}
+		currentMethod.addLocalVar(rewardGenerator.getLocalVars());
 
 		//non-synchronized guard tab
 		if (hasNonSynchronized) {
@@ -575,10 +526,6 @@ public abstract class KernelGenerator
 			createUpdateMethodSyn();
 		}
 
-		if (properties.size() != 0) {
-			helperMethods.put(KernelMethods.UPDATE_PROPERTIES, createPropertiesMethod());
-		}
-
 		/**
 		 * Reject samples with globalID greater than numberOfSimulations
 		 * Necessary in every kernel, because number of OpenCL kernel launches will be aligned
@@ -596,14 +543,12 @@ public abstract class KernelGenerator
 		/**
 		 * Initial check of properties, before making any computations.
 		 */
-		mainMethodFirstUpdateProperties(currentMethod);
+		propertyGenerator.kernelFirstUpdateProperties(currentMethod);
 		
 		/**
-		 * Computate state rewards for the initial state.
+		 * Compute state rewards for the initial state.
 		 */
-		if (hasRewardProperties) {
-			currentMethod.addExpression(rewardGenerator.afterUpdate(varStateVector));
-		}
+		currentMethod.addExpression(rewardGenerator.kernelAfterUpdate(varStateVector));
 
 		/**
 		 * Main processing loop.
@@ -643,7 +588,7 @@ public abstract class KernelGenerator
 			for (int i = 0; i < synCommands.length; ++i) {
 				Expression callMethod = synchronizedGuards.get(i).callMethod(
 				//&stateVector
-						varStateVector.convertToPointer(),
+						localVars.get(LocalVar.STATE_VECTOR).convertToPointer(),
 						//synchState
 						varSynchronizedStates[i].convertToPointer());
 				loop.addExpression(createBinaryExpression(varSynSelectionSize.getSource(), Operator.ADD_AUGM, callMethod));
@@ -664,34 +609,25 @@ public abstract class KernelGenerator
 		 * if all properties and reward properties are known, then we can end iterating
 		 */
 		Expression propertyCall = null;
-		if (hasProbProperties && hasRewardProperties) {
-			propertyCall = createBinaryExpression(mainMethodUpdateProperties(), Operator.LAND, 
-				rewardGenerator.updateProperties(varStateVector, mainMethodTimeVariable()[0]));
-		} else if (hasRewardProperties) {
-			propertyCall = rewardGenerator.updateProperties(varStateVector, mainMethodTimeVariable()[0]);
+		if (propertyGenerator.isGeneratorActive() && rewardGenerator.isGeneratorActive()) {
+			propertyCall = createBinaryExpression(
+					propertyGenerator.kernelUpdateProperties(),
+					Operator.LAND, 
+					rewardGenerator.kernelUpdateProperties(varStateVector, localVars.get(LocalVar.TIME))
+					);
+		} else if (rewardGenerator.isGeneratorActive()) {
+			propertyCall = rewardGenerator.kernelUpdateProperties(varStateVector, localVars.get(LocalVar.TIME));
 		} else {
-			propertyCall = mainMethodUpdateProperties();
+			propertyCall = propertyGenerator.kernelUpdateProperties();
 		}
 		IfElse ifElse = new IfElse(propertyCall);
 		ifElse.addExpression(0, new Expression("break;\n"));
 		loop.addExpression(ifElse);
 
 		/**
-		 * if(selectionSize + synSelectionSize == 0) -> deadlock, break
-		 */
-		Expression sum = null;
-		if (varSynSelectionSize != null && varSelectionSize != null) {
-			sum = createBinaryExpression(varSelectionSize.getSource(), Operator.ADD, varSynSelectionSize.getSource());
-		} else if (varSynSelectionSize != null) {
-			sum = varSynSelectionSize.getSource();
-		} else {
-			sum = varSelectionSize.getSource();
-		}
-
-		/**
 		 * Deadlock when number of possible choices is 0.
 		 */
-		IfElse deadlockState = new IfElse(createBinaryExpression(sum, Operator.EQ, fromString(0)));
+		IfElse deadlockState = new IfElse(kernelDeadlockExpression());
 		deadlockState.addExpression(new Expression("break;\n"));
 		loop.addExpression(deadlockState);
 
@@ -720,9 +656,7 @@ public abstract class KernelGenerator
 		 * For CTMC may require current and new time which means that we have to
 		 * do it before updating current time.
 		 */
-		if (hasRewardProperties) {
-			loop.addExpression(rewardGenerator.afterUpdate(varStateVector));
-		}
+		loop.addExpression(rewardGenerator.kernelAfterUpdate(varStateVector));
 		
 		/**
 		 * For CTMC&bounded until -> update current time.
@@ -746,25 +680,9 @@ public abstract class KernelGenerator
 		CLVariable pathLength = pathLengths.accessElement(position);
 		currentMethod.addExpression(createAssignment(pathLength, varPathLength));
 		position = createBinaryExpression(globalID.getSource(), Operator.ADD, resultsOffset.getSource());
-		//each property result
-		// computation ended by a deadlock or loop detector
-		Expression loopOrDeadlock = createBinaryExpression(
-				createBinaryExpression(varSelectionSize.getSource(), ExpressionGenerator.Operator.EQ, fromString(0)), ExpressionGenerator.Operator.LOR,
-				varLoopDetection.getSource());
-		for (int i = 0; i < properties.size(); ++i) {
-			CLVariable result = propertyResults[i].accessElement(position);
-			CLVariable property = varPropertiesArray.accessElement(fromString(i)).accessField("propertyState");
-			CLVariable valueKnown = varPropertiesArray.accessElement(fromString(i)).accessField("valueKnown");
-			// if loop was detected, then by definition property is verified
-			Expression assignment = ExpressionGenerator.createConditionalAssignment(
-					createBinaryExpression(loopOrDeadlock, ExpressionGenerator.Operator.LOR, valueKnown.getSource()), property.getSource().toString(), "2");
 
-			currentMethod.addExpression(createAssignment(result, assignment));
-		}
-
-		if (hasRewardProperties) {
-			rewardGenerator.writeOutput(currentMethod, position, varLoopDetection);
-		}
+		propertyGenerator.kernelWriteOutput(currentMethod, position, varLoopDetection);
+		rewardGenerator.kernelWriteOutput(currentMethod, position, varLoopDetection);
 
 		// deinitialize PRNG
 		currentMethod.addExpression(prngType.deinitializeGenerator());
@@ -785,13 +703,6 @@ public abstract class KernelGenerator
 	 * @throws KernelException
 	 */
 	protected abstract void mainMethodDefineLocalVars(Method currentMethod) throws KernelException;
-
-	/**
-	 * DTMC: one time variable
-	 * CTMC: one time variable or both time and updatedTime
-	 * @return the local kernel variable keeping current time
-	 */
-	protected abstract CLVariable[] mainMethodTimeVariable();
 	
 	/**
 	 * Generate a call to the non-synchronized update method.
@@ -808,9 +719,7 @@ public abstract class KernelGenerator
 		/**
 		 * If there are some reward properties, add a 
 		 */
-		if (hasRewardProperties) {
-			parent.addExpression(rewardGenerator.beforeUpdate(varStateVector));
-		}
+		parent.addExpression(rewardGenerator.kernelBeforeUpdate(localVars.get(LocalVar.STATE_VECTOR)));
 		mainMethodCallNonsynUpdateImpl(parent, args);
 	}
 
@@ -864,6 +773,8 @@ public abstract class KernelGenerator
 	 */
 	protected void mainMethodCallSynUpdate(ComplexKernelComponent parent, CLVariable selection, CLVariable synSum, Expression sum)
 	{
+		CLVariable varStateVector = localVars.get(LocalVar.STATE_VECTOR);
+
 		if (synCommands.length > 1) {
 			/**
 			 * Loop counter, over all labels
@@ -924,9 +835,7 @@ public abstract class KernelGenerator
 				/**
 				 * Before a synchronized update, compute transition rewards.
 				 */
-				if (hasRewardProperties) {
-					_switch.addExpression(i, rewardGenerator.beforeUpdate(varStateVector, synCommands[i]));
-				}
+				_switch.addExpression(i, rewardGenerator.kernelBeforeUpdate(varStateVector, synCommands[i]));
 
 				Expression call = synchronizedUpdates.get(i).callMethod(
 				//&stateVector
@@ -935,7 +844,7 @@ public abstract class KernelGenerator
 						varSynchronizedStates[i].convertToPointer(),
 						//probability
 						selection);
-				_switch.addExpression(i, timingProperty ? call : createAssignment(varLoopDetection, call));
+				_switch.addExpression(i, !canDetectLoop ? call : createAssignment(varLoopDetection, call));
 			}
 			parent.addExpression(_switch);
 		} else {
@@ -954,10 +863,8 @@ public abstract class KernelGenerator
 			/**
 			 * Before a synchronized update, compute transition rewards.
 			 */
-			if (hasRewardProperties) {
-				parent.addExpression(rewardGenerator.beforeUpdate(varStateVector, synCommands[0]));
-			}
-			parent.addExpression(timingProperty ? call : createAssignment(varLoopDetection, call));
+			parent.addExpression(rewardGenerator.kernelBeforeUpdate(varStateVector, synCommands[0]));
+			parent.addExpression(!canDetectLoop ? call : createAssignment(varLoopDetection, call));
 		}
 	}
 
@@ -969,7 +876,7 @@ public abstract class KernelGenerator
 	protected void mainMethodLoopDetection(ComplexKernelComponent parent)
 	{
 		//TODO: loop detection right now implemented only for non-timed properties
-		if (!timingProperty && (rewardGenerator == null || rewardGenerator.canDetectLoops())) {
+		if (canDetectLoop) {
 			// no change?
 			Expression updateFlag = createBinaryExpression(varLoopDetection.getSource(), Operator.EQ, fromString("true"));
 
@@ -988,13 +895,13 @@ public abstract class KernelGenerator
 			IfElse loop = new IfElse(createBinaryExpression(updateFlag, Operator.LAND, updateSize));
 			loop.setConditionNumber(0);
 			
-			if (hasProbProperties) {
-				loop.addExpression( mainMethodUpdateProperties() );
-			}
-			if (hasRewardProperties) {
-				loop.addExpression( rewardGenerator.updateProperties(varStateVector, mainMethodTimeVariable()[0]) );
-			}
+			loop.addExpression( propertyGenerator.kernelUpdateProperties() );
+			loop.addExpression( rewardGenerator.kernelUpdateProperties(
+					localVars.get(LocalVar.STATE_VECTOR),
+					localVars.get(LocalVar.TIME))
+					);
 			loop.addExpression(new Expression("break;\n"));
+
 			parent.addExpression(loop);
 		}
 	}
@@ -1050,17 +957,6 @@ public abstract class KernelGenerator
 	protected abstract void mainMethodCallNonsynUpdateImpl(ComplexKernelComponent parent, CLValue... args);
 
 	/**
-	 * First property check, before even entering the loop - necessary only for CTMC.
-	 * @param parent
-	 */
-	protected abstract void mainMethodFirstUpdateProperties(ComplexKernelComponent parent);
-
-	/**
-	 * Create call to probabilistic property update method.
-	 */
-	protected abstract Expression mainMethodUpdateProperties();
-
-	/**
 	 * DTMC: increment time (previous time is obvious)
 	 * CTMC: generate updatedTime, assign to time for non-timed properties
 	 * @param currentMethod
@@ -1094,7 +990,7 @@ public abstract class KernelGenerator
 
 		Method currentMethod = guardsMethodCreateSignature();
 		//StateVector * sv
-		CLVariable sv = new CLVariable(varStateVector.getPointer(), "sv");
+		CLVariable sv = new CLVariable(localVars.get(LocalVar.STATE_VECTOR).getPointer(), "sv");
 		currentMethod.addArg(sv);
 		//bool * guardsTab
 		CLVariable guards = new CLVariable(varGuardsTab.getPointer(), "guardsTab");
@@ -1160,9 +1056,9 @@ public abstract class KernelGenerator
 			return null;
 		}
 
-		Method currentMethod = new Method("updateNonsynGuards", new StdVariableType(timingProperty ? StdType.VOID : StdType.BOOL));
+		Method currentMethod = new Method("updateNonsynGuards", new StdVariableType(!canDetectLoop ? StdType.VOID : StdType.BOOL));
 		//StateVector * sv
-		CLVariable sv = new CLVariable(varStateVector.getPointer(), "sv");
+		CLVariable sv = new CLVariable(localVars.get(LocalVar.STATE_VECTOR).getPointer(), "sv");
 		currentMethod.addArg(sv);
 		//bool * guardsTab
 		CLVariable guards = new CLVariable(new PointerType(new StdVariableType(0, commands.length)), "guardsTab");
@@ -1211,7 +1107,7 @@ public abstract class KernelGenerator
 				if (!update.isActionTrue(0)) {
 					action = update.getAction(0);
 					addSavedVariables(sv, ifElse, 0, action, null, savedVariables);
-					if (!timingProperty) {
+					if (canDetectLoop) {
 						ifElse.addExpression(0, convertPrismAction(sv, action, svPtrTranslations, savedVariables, changeFlag, oldValue));
 					} else {
 						ifElse.addExpression(0, convertPrismAction(sv, action, svPtrTranslations, savedVariables));
@@ -1226,7 +1122,7 @@ public abstract class KernelGenerator
 					if (!update.isActionTrue(j)) {
 						action = update.getAction(j);
 						addSavedVariables(sv, ifElse, 0, action, null, savedVariables);
-						if (!timingProperty) {
+						if (canDetectLoop) {
 							ifElse.addExpression(j, convertPrismAction(sv, action, svPtrTranslations, savedVariables, changeFlag, oldValue));
 						} else {
 							ifElse.addExpression(j, convertPrismAction(sv, action, svPtrTranslations, savedVariables));
@@ -1241,7 +1137,7 @@ public abstract class KernelGenerator
 					_switch.addCase(new Expression(Integer.toString(i)));
 					action = update.getAction(0);
 					addSavedVariables(sv, _switch, switchCounter, action, null, savedVariables);
-					if (!timingProperty) {
+					if (canDetectLoop) {
 						_switch.addExpression(switchCounter++, convertPrismAction(sv, action, svPtrTranslations, savedVariables, changeFlag, oldValue));
 					} else {
 						_switch.addExpression(switchCounter++, convertPrismAction(sv, action, svPtrTranslations, savedVariables));
@@ -1252,7 +1148,7 @@ public abstract class KernelGenerator
 		currentMethod.addExpression(_switch);
 
 		// return change flag, indicating if the performed update changed the state vector
-		if (!timingProperty) {
+		if (canDetectLoop) {
 			currentMethod.addReturn(changeFlag);
 		}
 
@@ -1287,200 +1183,6 @@ public abstract class KernelGenerator
 	protected abstract void updateMethodLocalVars(Method currentMethod) throws KernelException;
 
 	/*********************************
-	 * PROPERTY METHODS
-	 ********************************/
-
-	/**
-	 * @return helper method checking all properties and returning true when all of them are verified
-	 * @throws KernelException
-	 * @throws PrismLangException 
-	 */
-	protected Method createPropertiesMethod() throws KernelException, PrismLangException
-	{
-		Method currentMethod = new Method("checkProperties", new StdVariableType(StdType.BOOL));
-		/**
-		 * Local variables and args.
-		 */
-		//StateVector * sv
-		CLVariable sv = new CLVariable(varStateVector.getPointer(), "sv");
-		currentMethod.addArg(sv);
-		//PropertyState * property
-		CLVariable propertyState = new CLVariable(new PointerType(PROPERTY_STATE_STRUCTURE), "propertyState");
-		currentMethod.addArg(propertyState);
-		propertiesMethodTimeArg(currentMethod);
-		//uint counter
-		CLVariable counter = new CLVariable(new StdVariableType(0, properties.size()), "counter");
-		counter.setInitValue(StdVariableType.initialize(0));
-		currentMethod.addLocalVar(counter);
-		//bool allKnown - will be returned 
-		CLVariable allKnown = new CLVariable(new StdVariableType(StdType.BOOL), "allKnown");
-		allKnown.setInitValue(StdVariableType.initialize(1));
-		currentMethod.addLocalVar(allKnown);
-
-		/**
-		 * For each property, add checking
-		 */
-		for (int i = 0; i < properties.size(); ++i) {
-			Sampler property = properties.get(i);
-			
-			CLVariable currentProperty = propertyState.accessElement(counter.getSource());
-			CLVariable valueKnown = currentProperty.accessField("valueKnown");
-
-			IfElse ifElse = new IfElse(createNegation(valueKnown.getSource()));
-			/**
-			 * X state_formulae
-			 * I don't think that this will be used in future.
-			 */
-			if (property instanceof SamplerNext) {
-				propertiesMethodAddNext(ifElse, (SamplerNext) property, currentProperty);
-			}
-			/**
-			 * state_formulae U state_formulae
-			 */
-			else if (property instanceof SamplerUntil) {
-				propertiesMethodAddUntil(ifElse, (SamplerUntil) property, currentProperty);
-			}
-			/**
-			 * state_formulae U[k1,k2] state_formulae
-			 * Requires additional timing args.
-			 */
-			else {
-				propertiesMethodAddBoundedUntil(currentMethod, ifElse, (SamplerBoolean) property, currentProperty);
-			}
-			ifElse.addExpression(0, createBinaryExpression( allKnown.getSource(), 
-					ExpressionGenerator.Operator.LAND_AUGM, valueKnown.getSource()));
-			currentMethod.addExpression(ifElse);
-		}
-		currentMethod.addReturn(allKnown);
-		return currentMethod;
-	}
-
-	/**
-	 * Time argument, used when one have to verify timed property.
-	 * DTMC: only current time (integer)
-	 * CTMC: two floats - time and updated time
-	 * @param currentMethod
-	 * @throws KernelException
-	 */
-	protected abstract void propertiesMethodTimeArg(Method currentMethod) throws KernelException;
-
-	/**
-	 * Handle the timed 'until' operator - different implementations for automata.
-	 * CTMC requires an additional check for the situation, when current time is between lower
-	 * and upper bound.
-	 * @param currentMethod
-	 * @param parent
-	 * @param property
-	 * @param propertyVar
-	 * @throws PrismLangException
-	 */
-	protected abstract void propertiesMethodAddBoundedUntil(Method currentMethod, ComplexKernelComponent parent, SamplerBoolean property, CLVariable propertyVar)
-			throws PrismLangException;
-
-	/**
-	 * @param prop
-	 * @return translate property: add parentheses, cast to float in division etc
-	 * @throws PrismLangException
-	 */
-	protected parser.ast.Expression visitPropertyExpression(parser.ast.Expression prop) throws PrismLangException
-	{
-		return (parser.ast.Expression) prop.accept(treeVisitor);
-	}
-
-	/**
-	 * Handle the 'next' operator - same for both CTMC/DTMC
-	 * @param parent
-	 * @param property
-	 * @param propertyVar
-	 * @throws PrismLangException
-	 */
-	protected void propertiesMethodAddNext(ComplexKernelComponent parent, SamplerNext property, CLVariable propertyVar) throws PrismLangException
-	{
-		String propertyString = visitPropertyExpression(property.getExpression()).toString();
-		IfElse ifElse = createPropertyCondition(propertyVar, false, propertyString, true);
-		createPropertyCondition(ifElse, propertyVar, false, null, false);
-		parent.addExpression(ifElse);
-	}
-
-	/**
-	 * Handle the 'until' non-timed operator - same for both DTMC and CTMC. 
-	 * @param parent
-	 * @param property
-	 * @param propertyVar
-	 * @throws PrismLangException
-	 */
-	protected void propertiesMethodAddUntil(ComplexKernelComponent parent, SamplerUntil property, CLVariable propertyVar) throws PrismLangException
-	{
-		String propertyStringRight = visitPropertyExpression(property.getRightSide()).toString();
-		String propertyStringLeft = visitPropertyExpression(property.getLeftSide()).toString();
-		IfElse ifElse = createPropertyCondition(propertyVar, false, propertyStringRight, true);
-
-		/**
-		 * in F/G it is true, no need to check
-		 */
-		if (!(property.getLeftSide() instanceof ExpressionLiteral)) {
-			createPropertyCondition(ifElse, propertyVar, true, propertyStringLeft, false);
-		}
-		parent.addExpression(ifElse);
-	}
-
-	/**
-	 * Creates IfElse for property.
-	 * @param propertyVar
-	 * @param negation
-	 * @param condition
-	 * @param propertyValue
-	 * @return property verification in conditional - write results to property structure
-	 */
-	protected IfElse createPropertyCondition(CLVariable propertyVar, boolean negation, String condition, boolean propertyValue)
-	{
-		IfElse ifElse = null;
-		if (!negation) {
-			ifElse = new IfElse(convertPrismProperty(svPtrTranslations, condition));
-		} else {
-			ifElse = new IfElse(createNegation(convertPrismProperty(svPtrTranslations, condition)));
-		}
-		CLVariable valueKnown = propertyVar.accessField("valueKnown");
-		CLVariable propertyState = propertyVar.accessField("propertyState");
-		if (propertyValue) {
-			ifElse.addExpression(0, createAssignment(propertyState, fromString("true")));
-		} else {
-			ifElse.addExpression(0, createAssignment(propertyState, fromString("false")));
-		}
-		ifElse.addExpression(0, createAssignment(valueKnown, fromString("true")));
-		return ifElse;
-	}
-
-	/**
-	 * Private helper method - update ifElse
-	 * @param ifElse
-	 * @param propertyVar
-	 * @param negation
-	 * @param condition
-	 * @param propertyValue
-	 */
-	protected void createPropertyCondition(IfElse ifElse, CLVariable propertyVar, boolean negation, String condition, boolean propertyValue)
-	{
-		if (condition != null) {
-			if (!negation) {
-				ifElse.addElif(convertPrismProperty(svPtrTranslations, condition));
-			} else {
-				ifElse.addElif(createNegation(convertPrismProperty(svPtrTranslations, condition)));
-			}
-		} else {
-			ifElse.addElse();
-		}
-		CLVariable valueKnown = propertyVar.accessField("valueKnown");
-		CLVariable propertyState = propertyVar.accessField("propertyState");
-		if (propertyValue) {
-			ifElse.addExpression(ifElse.size() - 1, createAssignment(propertyState, fromString("true")));
-		} else {
-			ifElse.addExpression(ifElse.size() - 1, createAssignment(propertyState, fromString("false")));
-		}
-		ifElse.addExpression(ifElse.size() - 1, createAssignment(valueKnown, fromString("true")));
-	}
-
-	/*********************************
 	 * SYNCHRONIZED GUARDS CHECK
 	 ********************************/
 
@@ -1504,7 +1206,7 @@ public abstract class KernelGenerator
 			CLVariable synState = new CLVariable(new PointerType(synchronizedStates.get(cmd.synchLabel)), "synState");
 			int max = cmd.getMaxCommandsNum();
 			Method current = guardsSynCreateMethod(String.format("guardCheckSyn__%s", cmd.synchLabel), max);
-			CLVariable stateVector = new CLVariable(varStateVector.getPointer(), "sv");
+			CLVariable stateVector = new CLVariable(localVars.get(LocalVar.STATE_VECTOR).getPointer(), "sv");
 			//size for whole label
 			CLVariable labelSize = guardsSynLabelVar(max);
 			labelSize.setInitValue(StdVariableType.initialize(0));
@@ -1598,9 +1300,9 @@ public abstract class KernelGenerator
 		additionalMethods = new ArrayList<>();
 		for (SynchronizedCommand cmd : synCommands) {
 
-			Method current = new Method(String.format("updateSyn__%s", cmd.synchLabel), new StdVariableType(timingProperty ? StdType.VOID : StdType.BOOL));
+			Method current = new Method(String.format("updateSyn__%s", cmd.synchLabel), new StdVariableType(!canDetectLoop ? StdType.VOID : StdType.BOOL));
 			//state vector
-			CLVariable stateVector = new CLVariable(varStateVector.getPointer(), "sv");
+			CLVariable stateVector = new CLVariable(localVars.get(LocalVar.STATE_VECTOR).getPointer(), "sv");
 			//synchronized state
 			CLVariable synState = new CLVariable(new PointerType(synchronizedStates.get(cmd.synchLabel)), "synState");
 			CLVariable propability = new CLVariable(new StdVariableType(StdType.FLOAT), "prop");
@@ -1616,7 +1318,7 @@ public abstract class KernelGenerator
 			totalSize.setInitValue(saveSize);
 			//changeFlag - for loop detection
 			CLVariable changeFlag = null;
-			if (!timingProperty) {
+			if (canDetectLoop) {
 				changeFlag = new CLVariable(new StdVariableType(StdType.BOOL), "changeFlag");
 				changeFlag.setInitValue(StdVariableType.initialize(1));
 			}
@@ -1652,7 +1354,7 @@ public abstract class KernelGenerator
 				current.addArg(propability);
 				current.addLocalVar(guard);
 				current.addLocalVar(totalSize);
-				if (!timingProperty) {
+				if (canDetectLoop) {
 					current.addLocalVar(changeFlag);
 				}
 
@@ -1698,7 +1400,7 @@ public abstract class KernelGenerator
 				} else {
 					callUpdate = update.callMethod(stateVector, guardsTab, StdVariableType.initialize(i), guard, propability.convertToPointer());
 				}
-				if (timingProperty) {
+				if (!canDetectLoop) {
 					current.addExpression(callUpdate);
 				} else {
 					current.addExpression(createAssignment(changeFlag, createBinaryExpression(callUpdate, Operator.LAND, changeFlag.getSource())));
@@ -1707,7 +1409,7 @@ public abstract class KernelGenerator
 				updateSynAfterUpdateLabel(current, guard, moduleSize, totalSize, propability);
 			}
 
-			if (!timingProperty) {
+			if (canDetectLoop) {
 				current.addReturn(changeFlag);
 			}
 			synchronizedUpdates.add(current);
@@ -1764,8 +1466,8 @@ public abstract class KernelGenerator
 	{
 		Method current = new Method(String.format("updateSynchronized__%s", synCmd.synchLabel),
 		//don't return anything
-				new StdVariableType(timingProperty ? StdType.VOID : StdType.BOOL));
-		CLVariable stateVector = new CLVariable(varStateVector.getPointer(), "sv");
+				new StdVariableType(!canDetectLoop ? StdType.VOID : StdType.BOOL));
+		CLVariable stateVector = new CLVariable(localVars.get(LocalVar.STATE_VECTOR).getPointer(), "sv");
 		//guardsTab
 		CLVariable guardsTab = new CLVariable(new PointerType(new StdVariableType(StdType.BOOL)), "guards");
 		//selected module
@@ -1780,7 +1482,7 @@ public abstract class KernelGenerator
 
 		CLVariable probability = probabilityPtr.dereference();
 		CLVariable newValue = null, changeFlag = null;
-		if (!timingProperty) {
+		if (canDetectLoop) {
 			newValue = new CLVariable(new StdVariableType(StdType.INT32), "newValue");
 			newValue.setInitValue(StdVariableType.initialize(0));
 			changeFlag = new CLVariable(new StdVariableType(StdType.BOOL), "changeFlag");
@@ -1795,7 +1497,7 @@ public abstract class KernelGenerator
 			if (oldSV != null) {
 				current.addArg(oldSV);
 			}
-			if (!timingProperty) {
+			if (canDetectLoop) {
 				current.addLocalVar(newValue);
 				current.addLocalVar(changeFlag);
 			}
@@ -1862,7 +1564,7 @@ public abstract class KernelGenerator
 						}
 						newSavedTranslations.putAll(varsSaved);
 
-						if (!timingProperty) {
+						if (canDetectLoop) {
 							ifElse.addExpression(0,
 									convertPrismAction(stateVector, update.getAction(0), svPtrTranslations, newSavedTranslations, changeFlag, newValue));
 						} else {
@@ -1887,7 +1589,7 @@ public abstract class KernelGenerator
 						newSavedTranslations.putAll(varsSaved);
 
 						if (!update.isActionTrue(k)) {
-							if (!timingProperty) {
+							if (canDetectLoop) {
 								ifElse.addExpression(k,
 										convertPrismAction(stateVector, update.getAction(k), svPtrTranslations, newSavedTranslations, changeFlag, newValue));
 							} else {
@@ -1909,7 +1611,7 @@ public abstract class KernelGenerator
 						}
 						newSavedTranslations.putAll(varsSaved);
 
-						if (!timingProperty) {
+						if (canDetectLoop) {
 							internalSwitch.addExpression(j,
 									convertPrismAction(stateVector, update.getAction(0), svPtrTranslations, newSavedTranslations, changeFlag, newValue));
 						} else {
@@ -1923,7 +1625,7 @@ public abstract class KernelGenerator
 			_switch.addExpression(i, internalSwitch);
 		}
 		current.addExpression(_switch);
-		if (!timingProperty) {
+		if (canDetectLoop) {
 			current.addReturn(changeFlag);
 		}
 		return current;
@@ -2092,12 +1794,20 @@ public abstract class KernelGenerator
 		return config;
 	}
 
-	public Collection<SamplerDouble> getRewardProperties()
+	public List<SamplerBoolean> getProbProperties()
+	{
+		return properties;
+	}
+	
+	public List<SamplerDouble> getRewardProperties()
 	{
 		return rewardProperties;
 	}
-
-	public VariableTypeInterface getStateVectorType()
+	
+	/**
+	 * @return state vector structure type
+	 */
+	public StructureType getSVType()
 	{
 		return stateVectorType;
 	}
@@ -2107,8 +1817,106 @@ public abstract class KernelGenerator
 		return model;
 	}
 
-	public Map<String, String> getSVTranslations()
+	/**
+	 * Returns a map containing translations in form:
+	 * FROM:
+	 * PRISM variable name NAME
+	 * TO:
+	 * - access in a pointer to structure: (*sv).
+	 * - field name begins with STATE_VECTOR_PREFIX
+	 * - field name ends with NAME
+	 * @return
+	 */
+	public Map<String, String> getSVPtrTranslations()
 	{
 		return svPtrTranslations;
 	}
+
+	/**
+	 * Returns a special case of map returned from
+	 * @see getSVPtrTranslations()
+	 * 
+	 * FROM:
+	 * PRISM variable name NAME
+	 * TO:
+	 * - access in state vector instance in kernel method
+	 * - field name begins with STATE_VECTOR_PREFIX
+	 * - field name ends with NAME
+	 * @return
+	 */
+	public Map<String, String> getSVTranslations()
+	{
+		/**
+		 * Special case - the translations are prepared for StateVector * sv,
+		 * but this one case works in main method - we have to use the StateVector instance directly.
+		 * 
+		 */
+		Map<String, String> translations = new HashMap<>();
+		StructureType stateVectorType = getSVType();
+		CLVariable stateVector = localVars.get(LocalVar.STATE_VECTOR);
+		for (CLVariable var : stateVectorType.getFields()) {
+			String name = var.varName.substring(STATE_VECTOR_PREFIX.length());
+			CLVariable second = stateVector.accessField(var.varName);
+			translations.put(name, second.varName);
+		}
+		
+		return translations;
+	}
+	
+	/**
+	 * Get local var declared in main kernel method.
+	 * @param var
+	 * @return
+	 */
+	public CLVariable kernelGetLocalVar(LocalVar var)
+	{
+		return localVars.get(var);
+	}
+	
+	/**
+	 * @return simply return a boolean keeping value for detected loop
+	 */
+	public Expression kernelLoopExpression()
+	{
+		if(canDetectLoop) {
+			return varLoopDetection.getSource();
+		} else {
+			return new Expression();
+		}
+	}
+	
+	/**
+	 * Depending on existence of labels, compares count of:
+	 * - synchronized + unsynchronized
+	 * - unsynchronized
+	 * - synchronized
+	 * active labels to zero.
+	 * @return
+	 */
+	public Expression kernelDeadlockExpression()
+	{
+		Expression activeUpdates = null;
+		if (varSynSelectionSize != null && varSelectionSize != null) {
+			activeUpdates = createBinaryExpression(
+					varSelectionSize.getSource(),
+					Operator.ADD,
+					varSynSelectionSize.getSource()
+					);
+		} else if (varSynSelectionSize != null) {
+			activeUpdates = varSynSelectionSize.getSource();
+		} else {
+			activeUpdates = varSelectionSize.getSource();
+		}
+		return createBinaryExpression(activeUpdates,
+				ExpressionGenerator.Operator.EQ, fromString(0));
+	}
+	
+	/**
+	 * @return visitor object to apply for PRISM code
+	 */
+	public ParsTreeModifier getTreeVisitor()
+	{
+		return treeVisitor;
+	}
+
 }
