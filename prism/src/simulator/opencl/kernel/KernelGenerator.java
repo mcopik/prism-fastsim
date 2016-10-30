@@ -1789,13 +1789,13 @@ public abstract class KernelGenerator
 	 */
 	public Expression kernelActiveUpdates()
 	{
-		if (varSynSelectionSize != null && varSelectionSize != null) {
+		if (hasNonSynchronized && hasSynchronized) {
 			return createBinaryExpression(
 					varSelectionSize.getSource(),
 					Operator.ADD,
 					varSynSelectionSize.getSource()
 					);
-		} else if (varSynSelectionSize != null) {
+		} else if (hasSynchronized) {
 			return varSynSelectionSize.getSource();
 		} else {
 			return varSelectionSize.getSource();

@@ -130,9 +130,11 @@ public class KernelGeneratorDTMC extends KernelGenerator
 		currentMethod.addLocalVar(varTime);
 		localVars.put(LocalVar.TIME, varTime);
 		//number of transitions
-		varSelectionSize = new CLVariable(new StdVariableType(0, model.commandsNumber()), "selectionSize");
-		varSelectionSize.setInitValue(StdVariableType.initialize(0));
-		currentMethod.addLocalVar(varSelectionSize);
+		if(hasNonSynchronized) {
+			varSelectionSize = new CLVariable(new StdVariableType(0, model.commandsNumber()), "selectionSize");
+			varSelectionSize.setInitValue(StdVariableType.initialize(0));
+			currentMethod.addLocalVar(varSelectionSize);
+		}
 		//number of synchronized transitions
 		if (hasSynchronized) {
 			for (SynchronizedCommand cmd : synCommands) {

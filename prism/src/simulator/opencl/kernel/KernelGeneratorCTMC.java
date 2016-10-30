@@ -123,9 +123,11 @@ public class KernelGeneratorCTMC extends KernelGenerator
 			localVars.put(LocalVar.UPDATED_TIME, varUpdatedTime);
 		}
 		//number of transitions
-		varSelectionSize = new CLVariable(new StdVariableType(StdType.FLOAT), "selectionSize");
-		varSelectionSize.setInitValue(StdVariableType.initialize(0));
-		currentMethod.addLocalVar(varSelectionSize);
+		if(hasNonSynchronized) {
+			varSelectionSize = new CLVariable(new StdVariableType(StdType.FLOAT), "selectionSize");
+			varSelectionSize.setInitValue(StdVariableType.initialize(0));
+			currentMethod.addLocalVar(varSelectionSize);
+		}
 		if (hasSynchronized) {
 			//number of transitions
 			varSynSelectionSize = new CLVariable(new StdVariableType(StdType.FLOAT), "synSelectionSize");
@@ -578,7 +580,7 @@ public class KernelGeneratorCTMC extends KernelGenerator
 
 	@Override
 	protected void updateSynLabelMethodSelectGuard(Method currentMethod, ComplexKernelComponent parent, CLVariable guardSelection, CLVariable guardCounter,
-			int moduleOffset)
+			int moduleOffset)	
 	{
 
 	}
