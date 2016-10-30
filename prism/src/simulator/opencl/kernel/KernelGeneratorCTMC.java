@@ -481,8 +481,8 @@ public class KernelGeneratorCTMC extends KernelGenerator
 		 */
 		parent.addExpression(createBinaryExpression(totalSize.getSource(), Operator.DIV_AUGM, moduleSize.getSource()));
 		/**
-		 * FROM prob in [0,moduleLength]
-		 * TO prob in [0,moduleLength]
+		 * FROM prob in [0,allModulesSize]
+		 * TO prob in [0,moduleSize]
 		 */
 		parent.addExpression(createBinaryExpression(probability.getSource(), Operator.DIV_AUGM, totalSize.getSource()));
 		/**
@@ -552,10 +552,14 @@ public class KernelGeneratorCTMC extends KernelGenerator
 			CLVariable probability)
 	{
 		/**
-		 * FROM prob in [0,moduleLength]
-		 * TO prob in [0,moduleLength]
+		 * FROM prob in [0,currentModuleSize]
+		 * TO prob in [0,modulesSize]
+		 * 
+		 * obtain that by multiplying with: totalSize, storing  totalSize / currentModuleSize currently
+		 * later update totalSize to store original value
 		 */
 		parent.addExpression(createBinaryExpression(probability.getSource(), Operator.MUL_AUGM, totalSize.getSource()));
+		parent.addExpression(createBinaryExpression(totalSize.getSource(), Operator.MUL_AUGM, moduleSize.getSource()));
 	}
 
 	@Override
