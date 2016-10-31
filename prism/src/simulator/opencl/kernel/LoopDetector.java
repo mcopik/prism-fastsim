@@ -241,6 +241,10 @@ public class LoopDetector
 	/**
 	 * Either call ExpressionGenerator to convert PRISM action directly or generate
 	 * more complex expression with comparing new value to older value and saving result.
+	 * 
+	 * However, perform this only if there is one action. Looping is not possible when more
+	 * than one action can be taken. For such cases, looping is explicitly disabled
+	 * by writing 'changeFlag = false' before any action is taken. Hence we don't need to save values.
 	 * @param sv
 	 * @param action
 	 * @param svPtrTranslations
@@ -248,9 +252,10 @@ public class LoopDetector
 	 * @return
 	 */
 	public KernelComponent updateFunctionConvertAction(CLVariable sv, Action action,
-			Map<String,String> svPtrTranslations, Map<String,CLVariable> savedVariables)
+			int actionsCount, Map<String,String> svPtrTranslations,
+			Map<String,CLVariable> savedVariables)
 	{
-		if (canDetectLoop) {
+		if (canDetectLoop && actionsCount == 1) {
 			return convertPrismAction(sv, action, svPtrTranslations, savedVariables,
 					UPDATE_FUNCTIONS_VAR.get(FunctionVar.CHANGE_FLAG),
 					UPDATE_FUNCTIONS_VAR.get(FunctionVar.OLD_VALUE));
@@ -271,7 +276,18 @@ public class LoopDetector
 			function.addReturn( UPDATE_FUNCTIONS_VAR.get(FunctionVar.CHANGE_FLAG) );
 		}
 	}
-	
+
+	/**
+	 * @return changeFlag = false, because there are multiple actions
+	 */
+	public KernelComponent updateFunctionMultipleActions()
+	{
+		if(canDetectLoop) {
+			return createAssignment(UPDATE_FUNCTIONS_VAR.get(FunctionVar.CHANGE_FLAG), fromString(false));
+		}
+		return new Expression();
+	}
+
 	/**
 	 * SYN UPDATE
 	 */
@@ -353,9 +369,10 @@ public class LoopDetector
 	 * @return
 	 */
 	public KernelComponent synLabelUpdateFunctionConvertAction(CLVariable sv, Action action,
-			Map<String,String> svPtrTranslations, Map<String,CLVariable> savedVariables)
+			int actionsCount, Map<String,String> svPtrTranslations,
+			Map<String,CLVariable> savedVariables)
 	{
-		return updateFunctionConvertAction(sv, action, svPtrTranslations, savedVariables);
+		return updateFunctionConvertAction(sv, action, actionsCount, svPtrTranslations, savedVariables);
 	}	
 	
 	/**
@@ -365,5 +382,14 @@ public class LoopDetector
 	public void synLabelUpdateFunctionReturn(Method function)
 	{
 		updateFunctionReturn(function);
+	}
+	
+	/**
+	 * same as @see updateFunctionMultipleActions
+	 * @return
+	 */
+	public KernelComponent synLabelUpdateFunctionMultipleActions()
+	{
+		return updateFunctionMultipleActions();
 	}
 }

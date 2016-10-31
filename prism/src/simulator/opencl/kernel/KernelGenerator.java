@@ -1045,7 +1045,12 @@ public abstract class KernelGenerator
 
 			// if there is more than one action possible, then create a conditional to choose between them
 			// for one action, it's unnecessary
-			if (update.getActionsNumber() > 1) {
+			int actionsCount = update.getActionsNumber();
+			if (actionsCount > 1) {
+
+				_switch.addCase(new Expression(Integer.toString(i)));
+				_switch.addExpression(switchCounter, loopDetector.updateFunctionMultipleActions());
+				
 				IfElse ifElse = new IfElse(createBinaryExpression(selectionSum.getSource(), Operator.LT,
 						fromString(convertPrismRate(svPtrTranslations, null, rate))));
 				//first one goes to 'if'
@@ -1053,7 +1058,7 @@ public abstract class KernelGenerator
 					action = update.getAction(0);
 					addSavedVariables(sv, ifElse, 0, action, null, savedVariables);
 					ifElse.addExpression(0,
-							loopDetector.updateFunctionConvertAction(sv, action, svPtrTranslations, savedVariables)
+							loopDetector.updateFunctionConvertAction(sv, action, actionsCount, svPtrTranslations, savedVariables)
 							);
 				}
 				// next actions go to 'else if'
@@ -1066,11 +1071,10 @@ public abstract class KernelGenerator
 						action = update.getAction(j);
 						addSavedVariables(sv, ifElse, 0, action, null, savedVariables);
 						ifElse.addExpression(j,
-								loopDetector.updateFunctionConvertAction(sv, action, svPtrTranslations, savedVariables)
+								loopDetector.updateFunctionConvertAction(sv, action, actionsCount, svPtrTranslations, savedVariables)
 								);
 					}
 				}
-				_switch.addCase(new Expression(Integer.toString(i)));
 				_switch.addExpression(switchCounter++, ifElse);
 			} else {
 				// only one action, directly add the code to switch
@@ -1079,7 +1083,7 @@ public abstract class KernelGenerator
 					action = update.getAction(0);
 					addSavedVariables(sv, _switch, switchCounter, action, null, savedVariables);
 					_switch.addExpression(switchCounter++,
-							loopDetector.updateFunctionConvertAction(sv, action, svPtrTranslations, savedVariables)
+							loopDetector.updateFunctionConvertAction(sv, action, actionsCount, svPtrTranslations, savedVariables)
 							);
 				}
 			}
@@ -1461,7 +1465,11 @@ public abstract class KernelGenerator
 
 				internalSwitch.addCase(fromString(j));
 				//when update is in form prob:action + prob:action + ...
-				if (update.getActionsNumber() > 1) {
+				int actionsCount = update.getActionsNumber();
+				if (actionsCount > 1) {
+					
+					internalSwitch.addExpression(j, loopDetector.synLabelUpdateFunctionMultipleActions());
+					
 					IfElse ifElse = new IfElse(createBinaryExpression(probability.getSource(), Operator.LT,
 							fromString(convertPrismRate(svPtrTranslations, savedTranslations, rate))));
 					if (!update.isActionTrue(0)) {
@@ -1478,7 +1486,7 @@ public abstract class KernelGenerator
 						newSavedTranslations.putAll(varsSaved);
 
 						ifElse.addExpression(0, loopDetector.synLabelUpdateFunctionConvertAction(
-								stateVector, update.getAction(0), svPtrTranslations, newSavedTranslations
+								stateVector, update.getAction(0), actionsCount, svPtrTranslations, newSavedTranslations
 								));
 					}
 					for (int k = 1; k < update.getActionsNumber(); ++k) {
@@ -1500,7 +1508,7 @@ public abstract class KernelGenerator
 
 						if (!update.isActionTrue(k)) {
 							ifElse.addExpression(k, loopDetector.synLabelUpdateFunctionConvertAction(
-									stateVector, update.getAction(k), svPtrTranslations, newSavedTranslations
+									stateVector, update.getAction(k), actionsCount, svPtrTranslations, newSavedTranslations
 									));
 						}
 					}
@@ -1519,7 +1527,7 @@ public abstract class KernelGenerator
 						newSavedTranslations.putAll(varsSaved);
 			
 						internalSwitch.addExpression(j, loopDetector.synLabelUpdateFunctionConvertAction(
-								stateVector, update.getAction(0), svPtrTranslations, newSavedTranslations
+								stateVector, update.getAction(0), actionsCount, svPtrTranslations, newSavedTranslations
 								));
 						//no recomputation necessary!
 					}
