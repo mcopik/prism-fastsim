@@ -1,0 +1,35 @@
+ctmc
+
+// Enforce using multiple modules by computing same thing
+// No deadlock, no loop. Main loop with second state which can
+// go to 'wrong' state checked in properties or go to "final" state
+// but with a loop at the end
+
+// Note that loop involves synchronized module and
+// there is a 'false loop' with two possible updates, one looping
+// with probability of 90%. It checks that a false 'loop' is not called
+// because number of active transitions has not been computed correctly
+// when sum of rates is prefered for CTMCs. It may equal to one, but it does
+// not indicate a loop. Verify a regression bug.
+
+// P=? [F t=1] - non-zero and always verified (loop)
+// P=? [t!=1 U t=3] - non-zero
+
+module first
+	s : [0..4] init 0;
+	
+	
+	[] s = 0 -> 1.0 : (s'= 1);
+	[] s = 1 -> 1.0 : (s'= 0);
+	//enter wrong state
+	[] s = 1 -> 1.0 : (s'= 2);
+	[] s = 2 -> 1.0 : (s'= 1);
+	// false loop
+	[] s = 1 -> 1.0 : (s'= 3);
+	// rates sum to one
+	[] s = 3 -> 0.9 : (s'= 3);
+	[] s = 3 -> 0.1 : (s'= 1);
+	// looping final state
+	[] s = 1 -> 1.0 : (s'= 4);
+	[] s = 4-> 1.0 : (s'= 4);
+endmodule
