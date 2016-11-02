@@ -272,6 +272,12 @@ public class KernelGeneratorDTMC extends KernelGenerator
 	 ********************************/
 
 	@Override
+	protected Collection<CLVariable> guardsMethodAddArgs()
+	{
+		return Collections.emptyList();
+	}
+	
+	@Override
 	protected void guardsMethodCreateLocalVars(Method currentMethod) throws KernelException
 	{
 		//don't need to do anything!

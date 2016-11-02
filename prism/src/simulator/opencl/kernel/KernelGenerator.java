@@ -585,10 +585,23 @@ public abstract class KernelGenerator
 		 * check which guards are active
 		 */
 		if (hasNonSynchronized) {
-			Expression callCheckGuards = helperMethods.get(KernelMethods.CHECK_GUARDS).callMethod(
-			//(stateVector,guardsTab)
-					varStateVector.convertToPointer(), varGuardsTab);
-			loop.addExpression(createAssignment(kernelGetLocalVar(LocalVar.UNSYNCHRONIZED_SIZE), callCheckGuards));
+			CLVariable transactionCounter = kernelGetLocalVar(LocalVar.TRANSITIONS_COUNTER);
+			// transactionCounter += nonSynGuards(&size);
+			if(transactionCounter != null) {
+				Expression callCheckGuards = helperMethods.get(KernelMethods.CHECK_GUARDS).callMethod(
+						//(stateVector,guardsTab, &unsynchronizedSize)
+								varStateVector.convertToPointer(), varGuardsTab,
+								kernelGetLocalVar(LocalVar.UNSYNCHRONIZED_SIZE).convertToPointer());
+				loop.addExpression( createAssignment(kernelGetLocalVar(LocalVar.UNSYNCHRONIZED_SIZE), fromString(0)) );
+				loop.addExpression( createAssignment(transactionCounter, callCheckGuards) );
+			} 
+			// otherwise size += synGuards()
+			else {
+				Expression callCheckGuards = helperMethods.get(KernelMethods.CHECK_GUARDS).callMethod(
+						//(stateVector,guardsTab, &unsynchronizedSize)
+								varStateVector.convertToPointer(), varGuardsTab);
+				loop.addExpression(createAssignment(kernelGetLocalVar(LocalVar.UNSYNCHRONIZED_SIZE), callCheckGuards));
+			}
 		}
 		if (hasSynchronized) {
 			loop.addExpression(createAssignment(kernelGetLocalVar(LocalVar.SYNCHRONIZED_SIZE), fromString(0)));
@@ -989,11 +1002,12 @@ public abstract class KernelGenerator
 		//bool * guardsTab
 		CLVariable guards = new CLVariable(varGuardsTab.getPointer(), "guardsTab");
 		currentMethod.addArg(guards);
+		currentMethod.addArg( guardsMethodAddArgs() );
+		
 		//counter
 		CLVariable counter = new CLVariable(new StdVariableType(0, commands.length), "counter");
 		counter.setInitValue(StdVariableType.initialize(0));
 		currentMethod.addLocalVar(counter);
-		guardsMethodCreateLocalVars(currentMethod);
 
 		for (int i = 0; i < commands.length; ++i) {
 			guardsMethodCreateCondition(currentMethod, i, convertPrismGuard(svPtrTranslations, commands[i].getGuard()));
@@ -1010,6 +1024,11 @@ public abstract class KernelGenerator
 		return currentMethod;
 	}
 
+	/**
+	 * @return only for CTMC pointer to sum when counter is returned
+	 */
+	protected abstract Collection<CLVariable> guardsMethodAddArgs();
+	
 	/**
 	 * @return method returning integer for DTMC, float for CTMC
 	 */

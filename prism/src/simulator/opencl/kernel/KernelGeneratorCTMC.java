@@ -61,6 +61,7 @@ import simulator.opencl.kernel.expression.Switch;
 import simulator.opencl.kernel.memory.ArrayType;
 import simulator.opencl.kernel.memory.CLValue;
 import simulator.opencl.kernel.memory.CLVariable;
+import simulator.opencl.kernel.memory.PointerType;
 import simulator.opencl.kernel.memory.StdVariableType;
 import simulator.opencl.kernel.memory.StdVariableType.StdType;
 import simulator.opencl.kernel.memory.StructureType;
@@ -73,6 +74,9 @@ public class KernelGeneratorCTMC extends KernelGenerator
 	protected boolean transitionCounting = false;
 	protected CLVariable varCounter = null;
 	protected CLVariable varCurCounter = null;
+	
+	protected CLVariable varSum = null;
+	protected CLVariable varSumPtr = null;
 	
 	/**
 	 * Constructor for CTMC kernel generator.
@@ -322,21 +326,29 @@ public class KernelGeneratorCTMC extends KernelGenerator
 	@Override
 	protected void guardsMethodCreateLocalVars(Method currentMethod) throws KernelException
 	{
-		CLVariable sum = new CLVariable(new StdVariableType(StdType.FLOAT), "sum");
-		sum.setInitValue(StdVariableType.initialize(0.0f));
-		currentMethod.addLocalVar(sum);
-		/**
-		 * If we need to use a counter: declare a local variable
-		 * to return count of transitions.
-		 */
-		if(kernelGetLocalVar(LocalVar.TRANSITIONS_COUNTER) != null) {
-
-			CLVariable counter = new CLVariable(new StdVariableType(StdType.FLOAT), "counter");
-			sum.setInitValue(StdVariableType.initialize(0.0f));
-			currentMethod.addLocalVar(sum);
+		// when transition counting is not required, declare sum variable locally
+		if(!localVars.containsKey(LocalVar.TRANSITIONS_COUNTER)) {
+			varSum = new CLVariable(new StdVariableType(StdType.FLOAT), "sum");
+			varSum.setInitValue(StdVariableType.initialize(0.0f));
+			currentMethod.addLocalVar(varSum);
 		}
-		
 	}
+
+	@Override
+	protected Collection<CLVariable> guardsMethodAddArgs()
+	{
+		/**
+		 * If we need to use a counter, pass sum as a parameter
+		 */
+		CLVariable counterVariable = kernelGetLocalVar(LocalVar.TRANSITIONS_COUNTER);
+		if(counterVariable != null) {
+			varSumPtr = new CLVariable(new PointerType(new StdVariableType(StdType.FLOAT)), "sum");
+			varSumPtr.setInitValue(StdVariableType.initialize(0.0f));
+			return Collections.singleton(varSumPtr);
+		}
+		return Collections.emptyList();
+	}
+
 
 	@Override
 	protected Method guardsMethodCreateSignature()
@@ -359,13 +371,13 @@ public class KernelGeneratorCTMC extends KernelGenerator
 		Preconditions.checkNotNull(guardsTab, "");
 		CLVariable counter = currentMethod.getLocalVar("counter");
 		Preconditions.checkNotNull(counter, "");
-		CLVariable sum = currentMethod.getLocalVar("sum");
-		Preconditions.checkNotNull(sum, "");
 		CLVariable tabPos = guardsTab.accessElement(postIncrement(counter));
 
 		IfElse ifElse = new IfElse(guard);
 		ifElse.addExpression(0, createAssignment(tabPos, fromString(position)));
-		Expression sumExpr = createBinaryExpression(sum.getSource(), Operator.ADD_AUGM,
+		Expression sumExpr = createBinaryExpression(
+				varSum != null ? varSum.getSource() : varSumPtr.dereference().getSource(),
+				Operator.ADD_AUGM,
 				fromString(convertPrismRate(svPtrTranslations, null, commands[position].getRateSum())));
 		ifElse.addExpression(0, sumExpr);
 		currentMethod.addExpression(ifElse);
@@ -374,9 +386,16 @@ public class KernelGeneratorCTMC extends KernelGenerator
 	@Override
 	protected void guardsMethodReturnValue(Method currentMethod)
 	{
-		CLVariable sum = currentMethod.getLocalVar("sum");
-		Preconditions.checkNotNull(sum, "");
-		currentMethod.addReturn(sum);
+		/**
+		 * If we need to use a counter, return this counter.
+		 * Otherwise we don't return anything.
+		 */
+		CLVariable counterVariable = kernelGetLocalVar(LocalVar.TRANSITIONS_COUNTER);
+		if(counterVariable != null){
+			currentMethod.addReturn( currentMethod.getLocalVar("counter") );
+		} else {
+			currentMethod.addReturn( currentMethod.getLocalVar("sum") );
+		}
 	}
 
 	/*********************************
