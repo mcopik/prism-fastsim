@@ -32,8 +32,12 @@ import static simulator.opencl.kernel.expression.ExpressionGenerator.convertPris
 import static simulator.opencl.kernel.expression.ExpressionGenerator.createAssignment;
 import static simulator.opencl.kernel.expression.ExpressionGenerator.createBinaryExpression;
 import static simulator.opencl.kernel.expression.ExpressionGenerator.fromString;
+import static simulator.opencl.kernel.expression.ExpressionGenerator.preIncrement;
 import static simulator.opencl.kernel.expression.ExpressionGenerator.postIncrement;
 
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 
@@ -44,6 +48,7 @@ import simulator.opencl.automaton.AbstractAutomaton;
 import simulator.opencl.automaton.command.Command;
 import simulator.opencl.automaton.command.SynchronizedCommand;
 import simulator.opencl.automaton.update.Rate;
+import simulator.opencl.kernel.KernelGenerator.LocalVar;
 import simulator.opencl.kernel.expression.ComplexKernelComponent;
 import simulator.opencl.kernel.expression.Expression;
 import simulator.opencl.kernel.expression.ExpressionGenerator;
@@ -65,6 +70,10 @@ import simulator.sampler.SamplerDouble;
 
 public class KernelGeneratorCTMC extends KernelGenerator
 {
+	protected boolean transitionCounting = false;
+	protected CLVariable varCounter = null;
+	protected CLVariable varCurCounter = null;
+	
 	/**
 	 * Constructor for CTMC kernel generator.
 	 * @param model
@@ -124,15 +133,17 @@ public class KernelGeneratorCTMC extends KernelGenerator
 		}
 		//number of transitions
 		if(hasNonSynchronized) {
-			varSelectionSize = new CLVariable(new StdVariableType(StdType.FLOAT), "selectionSize");
+			CLVariable varSelectionSize = new CLVariable(new StdVariableType(StdType.FLOAT), "selectionSize");
 			varSelectionSize.setInitValue(StdVariableType.initialize(0));
 			currentMethod.addLocalVar(varSelectionSize);
+			localVars.put(LocalVar.UNSYNCHRONIZED_SIZE, varSelectionSize);
 		}
 		if (hasSynchronized) {
 			//number of transitions
-			varSynSelectionSize = new CLVariable(new StdVariableType(StdType.FLOAT), "synSelectionSize");
+			CLVariable varSynSelectionSize = new CLVariable(new StdVariableType(StdType.FLOAT), "synSelectionSize");
 			varSynSelectionSize.setInitValue(StdVariableType.initialize(0));
 			currentMethod.addLocalVar(varSynSelectionSize);
+			localVars.put(LocalVar.SYNCHRONIZED_SIZE, varSynSelectionSize);
 		}
 	}
 	
@@ -149,6 +160,8 @@ public class KernelGeneratorCTMC extends KernelGenerator
     @Override
 	protected void mainMethodUpdateTimeBefore(Method currentMethod, ComplexKernelComponent parent)
 	{
+		CLVariable varSelectionSize = kernelGetLocalVar(LocalVar.UNSYNCHRONIZED_SIZE);
+		CLVariable varSynSelectionSize = kernelGetLocalVar(LocalVar.SYNCHRONIZED_SIZE);
     	CLVariable varUpdatedTime = localVars.get(LocalVar.UPDATED_TIME);
 		// time = updated_time;
 		if (varUpdatedTime != null) {
@@ -179,6 +192,8 @@ public class KernelGeneratorCTMC extends KernelGenerator
 	@Override
 	protected void mainMethodUpdateTimeAfter(Method currentMethod, ComplexKernelComponent parent)
 	{
+		CLVariable varSelectionSize = kernelGetLocalVar(LocalVar.UNSYNCHRONIZED_SIZE);
+		CLVariable varSynSelectionSize = kernelGetLocalVar(LocalVar.SYNCHRONIZED_SIZE);
     	CLVariable varUpdatedTime = localVars.get(LocalVar.UPDATED_TIME);
     	CLVariable varTime = localVars.get(LocalVar.TIME);
 		if (varUpdatedTime == null) {
@@ -216,6 +231,7 @@ public class KernelGeneratorCTMC extends KernelGenerator
 	@Override
 	protected void mainMethodCallNonsynUpdateImpl(ComplexKernelComponent parent, CLValue... args)
 	{
+		CLVariable varSelectionSize = kernelGetLocalVar(LocalVar.UNSYNCHRONIZED_SIZE);
 		parent.addExpression(rewardGenerator.kernelBeforeUpdate(localVars.get(LocalVar.STATE_VECTOR)));
 		CLValue random = null;
 		if (args.length == 0) {
@@ -273,6 +289,7 @@ public class KernelGeneratorCTMC extends KernelGenerator
 	@Override
 	protected IfElse mainMethodBothUpdatesCondition(CLVariable selection)
 	{
+		CLVariable varSelectionSize = kernelGetLocalVar(LocalVar.UNSYNCHRONIZED_SIZE);
 		Expression condition = createBinaryExpression(selection.getSource(), Operator.LT,
 		//random < selectionSize
 				varSelectionSize.getSource());
@@ -308,12 +325,31 @@ public class KernelGeneratorCTMC extends KernelGenerator
 		CLVariable sum = new CLVariable(new StdVariableType(StdType.FLOAT), "sum");
 		sum.setInitValue(StdVariableType.initialize(0.0f));
 		currentMethod.addLocalVar(sum);
+		/**
+		 * If we need to use a counter: declare a local variable
+		 * to return count of transitions.
+		 */
+		if(kernelGetLocalVar(LocalVar.TRANSITIONS_COUNTER) != null) {
+
+			CLVariable counter = new CLVariable(new StdVariableType(StdType.FLOAT), "counter");
+			sum.setInitValue(StdVariableType.initialize(0.0f));
+			currentMethod.addLocalVar(sum);
+		}
+		
 	}
 
 	@Override
 	protected Method guardsMethodCreateSignature()
 	{
-		return new Method("checkNonsynGuards", new StdVariableType(StdType.FLOAT));
+		/**
+		 * If we need to use a counter, return this counter.
+		 * Otherwise we don't return anything.
+		 */
+		CLVariable counterVariable = kernelGetLocalVar(LocalVar.TRANSITIONS_COUNTER);
+		return new Method("checkNonsynGuards",
+				counterVariable != null ? counterVariable.varType : new StdVariableType(StdType.VOID)
+				);
+			
 	}
 
 	@Override
@@ -415,8 +451,48 @@ public class KernelGeneratorCTMC extends KernelGenerator
 	@Override
 	protected Method guardsSynCreateMethod(String label, int maxCommandsNumber)
 	{
-		Method currentMethod = new Method(label, new StdVariableType(StdType.FLOAT));
-		return currentMethod;
+		/**
+		 * If we need to use a counter, return this counter.
+		 * Otherwise we don't return anything.
+		 */
+		CLVariable counterVariable = kernelGetLocalVar(LocalVar.TRANSITIONS_COUNTER);
+		return new Method(label,
+				counterVariable != null ? counterVariable.varType : new StdVariableType(StdType.VOID)
+				);
+	}
+	
+	@Override
+	protected Collection<CLVariable> guardsSynLocalVars(int moduleCount, int cmdsCount, int maxCmdsCount)
+	{
+		/**
+		 * If we need to use a counter, declare two additional vars:
+		 * counter and cur_counter
+		 * 
+		 * However, when only one module is present, optimize by not using counter
+		 * and returning cur_counter.
+		 */
+		if(localVars.containsKey(LocalVar.TRANSITIONS_COUNTER)) {
+			List<CLVariable> vars = new ArrayList<>();
+
+			if(moduleCount > 1) {
+				if(varCounter == null) {
+					varCounter = new CLVariable(new StdVariableType(0, maxCmdsCount), "counter");
+					varCounter.setInitValue(StdVariableType.initialize(1));
+				}
+				vars.add(varCounter);
+			} else {
+				varCounter = null;
+			}
+
+			if(varCurCounter == null) {
+				varCurCounter = new CLVariable(new StdVariableType(0, cmdsCount), "cur_counter");
+				varCurCounter.setInitValue(StdVariableType.initialize(0));
+			}
+			vars.add(varCurCounter);
+
+			return vars;
+		}
+		return Collections.emptyList();
 	}
 
 	@Override
@@ -430,17 +506,66 @@ public class KernelGeneratorCTMC extends KernelGenerator
 	{
 		return new CLVariable(new StdVariableType(StdType.FLOAT), "currentSize");
 	}
+	
+	@Override
+	protected KernelComponent guardsSynBeforeModule(int module)
+	{
+		/**
+		 * For i-th module, i > 0, reset current counter
+		 */
+		if(varCurCounter != null && module > 0) {
+			return createAssignment(varCurCounter, fromString(0));
+		} else {
+			return new Expression();
+		}
+	}
+	
+	@Override
+	protected KernelComponent guardsSynAfterModule(int module)
+	{
+		/**
+		 * After module update count:
+		 * counter *= cur_counter;
+		 * 
+		 * When counter has been optimized and removed,
+		 * ignore it and simply return cur_counter later.
+		 */
+		if(varCurCounter != null && varCounter != null) {
+			return createBinaryExpression(
+					varCounter.getSource(),
+					Operator.MUL_AUGM,
+					varCurCounter.getSource());
+		} else {
+			return new Expression();
+		}
+	}
+
+	@Override
+	protected void guardsSynReturn(Method method)
+	{
+		/**
+		 * Return count of transitions or don't return anything,
+		 * when counting is not performed.
+		 */
+		if(varCurCounter != null) {
+			method.addReturn(varCounter != null ? varCounter : varCurCounter);
+		}
+	}
 
 	@Override
 	protected void guardsSynAddGuard(ComplexKernelComponent parent, CLVariable guardArray, Command cmd, CLVariable size)
 	{
 		//TODO: optimize this by removing if and setting rate add:
-		// rateSum += rate*guards
+		// rateSum += rate*guards, firstly setting guards[0] = PRISM_guard
 		IfElse ifElse = new IfElse(convertPrismGuard(svPtrTranslations, cmd.getGuard()));
 		ifElse.addExpression(createBinaryExpression(size.getSource(), Operator.ADD_AUGM,
 		//converted rate
 				new Expression(convertPrismRate(svPtrTranslations, null, cmd.getRateSum()))));
 		ifElse.addExpression(createAssignment(guardArray, fromString(1)));
+		// transition counting requested: current_counter++;
+		if(localVars.containsKey(LocalVar.TRANSITIONS_COUNTER)) {
+			ifElse.addExpression( preIncrement(varCurCounter) );
+		}
 		ifElse.addElse();
 		ifElse.addExpression(1, createAssignment(guardArray, fromString(0)));
 		parent.addExpression(ifElse);

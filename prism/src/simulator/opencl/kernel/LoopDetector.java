@@ -30,11 +30,14 @@ import static simulator.opencl.kernel.expression.ExpressionGenerator.createAssig
 import static simulator.opencl.kernel.expression.ExpressionGenerator.createBinaryExpression;
 import static simulator.opencl.kernel.expression.ExpressionGenerator.fromString;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumMap;
+import java.util.List;
 import java.util.Map;
 
+import simulator.opencl.automaton.AbstractAutomaton.AutomatonType;
 import simulator.opencl.automaton.update.Action;
 import simulator.opencl.kernel.KernelGenerator.LocalVar;
 import simulator.opencl.kernel.expression.ComplexKernelComponent;
@@ -159,9 +162,20 @@ public class LoopDetector
 	public Collection<CLVariable> getLocalVars()
 	{
 		if(canDetectLoop) {
+			List<CLVariable> vars = new ArrayList<>();
 			varLoopDetection = new CLVariable(new StdVariableType(StdType.BOOL), "loopDetection");
 			varLoopDetection.setInitValue(StdVariableType.initialize(0));
-			return Collections.singletonList(varLoopDetection);
+			vars.add(varLoopDetection);
+			
+			/**
+			 * For CTMC we need to manually define a counter for all transitions.
+			 */
+			if(generator.getModel().getType() == AutomatonType.CTMC) {
+				CLVariable counter = generator.kernelCreateTransitionCounter();
+				vars.add(counter);
+			}
+			
+			return vars;
 		}
 		return Collections.emptyList();
 	}

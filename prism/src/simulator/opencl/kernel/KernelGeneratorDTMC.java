@@ -34,6 +34,8 @@ import static simulator.opencl.kernel.expression.ExpressionGenerator.fromString;
 import static simulator.opencl.kernel.expression.ExpressionGenerator.functionCall;
 import static simulator.opencl.kernel.expression.ExpressionGenerator.postIncrement;
 
+import java.util.Collection;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 
@@ -46,6 +48,7 @@ import simulator.opencl.automaton.command.SynchronizedCommand;
 import simulator.opencl.kernel.expression.ComplexKernelComponent;
 import simulator.opencl.kernel.expression.Expression;
 import simulator.opencl.kernel.expression.ExpressionGenerator;
+import simulator.opencl.kernel.expression.KernelComponent;
 import simulator.opencl.kernel.expression.ExpressionGenerator.Operator;
 import simulator.opencl.kernel.expression.ForLoop;
 import simulator.opencl.kernel.expression.IfElse;
@@ -68,6 +71,8 @@ public class KernelGeneratorDTMC extends KernelGenerator
 	 * Used to detect variable size to contain number of updates.
 	 */
 	protected int maximalNumberOfSynchsUpdates = 0;
+	
+	protected CLVariable synGuardsLabelSize = null;
 
 	/**
 	 * Constructor for DTMC kernel generator.
@@ -131,18 +136,20 @@ public class KernelGeneratorDTMC extends KernelGenerator
 		localVars.put(LocalVar.TIME, varTime);
 		//number of transitions
 		if(hasNonSynchronized) {
-			varSelectionSize = new CLVariable(new StdVariableType(0, model.commandsNumber()), "selectionSize");
+			CLVariable varSelectionSize = new CLVariable(new StdVariableType(0, model.commandsNumber()), "selectionSize");
 			varSelectionSize.setInitValue(StdVariableType.initialize(0));
 			currentMethod.addLocalVar(varSelectionSize);
+			localVars.put(LocalVar.UNSYNCHRONIZED_SIZE, varSelectionSize);
 		}
 		//number of synchronized transitions
 		if (hasSynchronized) {
 			for (SynchronizedCommand cmd : synCommands) {
 				maximalNumberOfSynchsUpdates += cmd.getMaxCommandsNum();
 			}
-			varSynSelectionSize = new CLVariable(new StdVariableType(0, maximalNumberOfSynchsUpdates - 1), "selectionSynSize");
+			CLVariable varSynSelectionSize = new CLVariable(new StdVariableType(0, maximalNumberOfSynchsUpdates - 1), "selectionSynSize");
 			varSynSelectionSize.setInitValue(StdVariableType.initialize(0));
 			currentMethod.addLocalVar(varSynSelectionSize);
+			localVars.put(LocalVar.SYNCHRONIZED_SIZE, varSynSelectionSize);
 		}
 	}
 	
@@ -170,7 +177,7 @@ public class KernelGeneratorDTMC extends KernelGenerator
 		if (args.length == 0) {
 			Expression rndNumber = new Expression(String.format("%s%%%d", varPathLength.getSource().toString(), config.prngType.numbersPerRandomize()));
 			CLValue random = config.prngType.getRandomUnifFloat(rndNumber);
-			parent.addExpression(mainMethodCallNonsynUpdateImpl(random, varSelectionSize));
+			parent.addExpression(mainMethodCallNonsynUpdateImpl(random, kernelGetLocalVar(LocalVar.UNSYNCHRONIZED_SIZE)));
 		} else if (args.length == 2) {
 			parent.addExpression(mainMethodCallNonsynUpdateImpl(args[0], args[1]));
 		} else {
@@ -209,6 +216,9 @@ public class KernelGeneratorDTMC extends KernelGenerator
 	@Override
 	protected IfElse mainMethodBothUpdatesCondition(CLVariable selection)
 	{
+		CLVariable varSelectionSize = kernelGetLocalVar(LocalVar.UNSYNCHRONIZED_SIZE);
+		CLVariable varSynSelectionSize = kernelGetLocalVar(LocalVar.SYNCHRONIZED_SIZE);
+		
 		Expression sum = createBinaryExpression(varSelectionSize.getSource(), Operator.ADD, varSynSelectionSize.getSource());
 		addParentheses(sum);
 		Expression condition = createBinaryExpression(selection.getSource(), Operator.LT,
@@ -346,11 +356,36 @@ public class KernelGeneratorDTMC extends KernelGenerator
 		Method currentMethod = new Method(label, new StdVariableType(0, maxCommandsNumber));
 		return currentMethod;
 	}
+	
+	@Override
+	protected Collection<CLVariable> guardsSynLocalVars(int moduleCount, int cmdsCount, int maxCmdsCount)
+	{
+		return Collections.emptyList();
+	}
+
+	@Override
+	protected KernelComponent guardsSynBeforeModule(int module)
+	{
+		return new Expression();
+	}
+	
+	@Override
+	protected KernelComponent guardsSynAfterModule(int module)
+	{
+		return new Expression();
+	}
+
+	@Override
+	protected void guardsSynReturn(Method method)
+	{
+		method.addReturn(synGuardsLabelSize);
+	}
 
 	@Override
 	protected CLVariable guardsSynLabelVar(int maxCommandsNumber)
 	{
-		return new CLVariable(new StdVariableType(0, maxCommandsNumber), "labelSize");
+		synGuardsLabelSize = new CLVariable(new StdVariableType(0, maxCommandsNumber), "labelSize");
+		return synGuardsLabelSize;
 	}
 
 	@Override

@@ -80,10 +80,10 @@ public abstract class KernelGenerator
 	//protected CLVariable varTime = null;
 	//TODO: move to parent
 	public VariableTypeInterface varTimeType = null;
-	protected CLVariable varSelectionSize = null;
+	//protected CLVariable varSelectionSize = null;
 	//protected CLVariable varStateVector = null;
 	protected CLVariable varPathLength = null;
-	protected CLVariable varSynSelectionSize = null;
+	//protected CLVariable varSynSelectionSize = null;
 	protected CLVariable varGuardsTab = null;
 	protected CLVariable[] varSynchronizedStates = null;
 	
@@ -100,13 +100,31 @@ public abstract class KernelGenerator
 		/**
 		 * Time of leaving state
 		 */
-		UPDATED_TIME
+		UPDATED_TIME,
+		/**
+		 * Size of unsynchronized transitions.
+		 * DTMC: unsigned integer, count of active transitions
+		 * CTMC: float, sum of rates for all active transitions
+		 */
+		UNSYNCHRONIZED_SIZE,
+		/**
+		 * Size of synchronized transitions.
+		 * DTMC: unsigned integer, count of active transitions
+		 * CTMC: float, sum of rates for all active transitions
+		 */
+		SYNCHRONIZED_SIZE,
+		/**
+		 * Count of all transitions.
+		 * May be required 
+		 */
+		TRANSITIONS_COUNTER
 	}
 
 	protected final static EnumMap<LocalVar, String> LOCAL_VARIABLES_NAMES;
 	static {
 		EnumMap<LocalVar, String> names = new EnumMap<>(LocalVar.class);
 		names.put(LocalVar.STATE_VECTOR, "stateVector");
+		names.put(LocalVar.TRANSITIONS_COUNTER, "transitionsCount");
 		LOCAL_VARIABLES_NAMES = names;
 	}
 	protected EnumMap<LocalVar, CLVariable> localVars = null;
@@ -570,17 +588,39 @@ public abstract class KernelGenerator
 			Expression callCheckGuards = helperMethods.get(KernelMethods.CHECK_GUARDS).callMethod(
 			//(stateVector,guardsTab)
 					varStateVector.convertToPointer(), varGuardsTab);
-			loop.addExpression(createAssignment(varSelectionSize, callCheckGuards));
+			loop.addExpression(createAssignment(kernelGetLocalVar(LocalVar.UNSYNCHRONIZED_SIZE), callCheckGuards));
 		}
 		if (hasSynchronized) {
-			loop.addExpression(createAssignment(varSynSelectionSize, fromString(0)));
+			loop.addExpression(createAssignment(kernelGetLocalVar(LocalVar.SYNCHRONIZED_SIZE), fromString(0)));
+			
+			CLVariable transitionCount = kernelGetLocalVar(LocalVar.TRANSITIONS_COUNTER);
+			if(transitionCount != null) {
+				loop.addExpression(createAssignment(transitionCount, fromString(0)));
+			}
+			
 			for (int i = 0; i < synCommands.length; ++i) {
+				// call guard.
 				Expression callMethod = synchronizedGuards.get(i).callMethod(
 				//&stateVector
 						localVars.get(LocalVar.STATE_VECTOR).convertToPointer(),
 						//synchState
 						varSynchronizedStates[i].convertToPointer());
-				loop.addExpression(createBinaryExpression(varSynSelectionSize.getSource(), Operator.ADD_AUGM, callMethod));
+				CLVariable transactionCounter = kernelGetLocalVar(LocalVar.TRANSITIONS_COUNTER);
+				// transactionCounter += synGuards();
+				if(transactionCounter != null) {
+					loop.addExpression( createBinaryExpression(
+							transactionCounter.getSource(),
+							Operator.ADD_AUGM,
+							callMethod
+							) );
+				} 
+				// otherwise just synGuards()
+				else {
+					loop.addExpression(callMethod);
+				}
+				// sum sizes of all transitions
+				loop.addExpression(createBinaryExpression(kernelGetLocalVar(LocalVar.SYNCHRONIZED_SIZE).getSource(),
+						Operator.ADD_AUGM, varSynchronizedStates[i].accessField("size").getSource()));
 			}
 		}
 		
@@ -718,6 +758,8 @@ public abstract class KernelGenerator
 	 */
 	protected void mainMethodCallBothUpdates(ComplexKernelComponent parent)
 	{
+		CLVariable varSelectionSize = kernelGetLocalVar(LocalVar.UNSYNCHRONIZED_SIZE);
+		CLVariable varSynSelectionSize = kernelGetLocalVar(LocalVar.SYNCHRONIZED_SIZE);
 		//selection
 		Expression sum = createBinaryExpression(varSelectionSize.getSource(), Operator.ADD, varSynSelectionSize.getSource());
 		addParentheses(sum);
@@ -745,6 +787,7 @@ public abstract class KernelGenerator
 	 */
 	protected void mainMethodCallSynUpdate(ComplexKernelComponent parent)
 	{
+		CLVariable varSynSelectionSize = kernelGetLocalVar(LocalVar.SYNCHRONIZED_SIZE);
 		CLVariable selection = mainMethodSelectionVar(varSynSelectionSize.getSource());
 		CLVariable synSum = mainMethodBothUpdatesSumVar();
 		synSum.setInitValue(StdVariableType.initialize(0));
@@ -1161,6 +1204,9 @@ public abstract class KernelGenerator
 				current.addArg(synState);
 				current.addLocalVar(labelSize);
 				current.addLocalVar(currentSize);
+				current.addLocalVar( guardsSynLocalVars(
+						cmd.getModulesNum(), cmd.getCmdsNum(), cmd.getMaxCommandsNum()
+								));
 			} catch (KernelException e) {
 				throw new RuntimeException(e);
 			}
@@ -1174,10 +1220,12 @@ public abstract class KernelGenerator
 			}
 			current.addExpression(createAssignment(saveSize.accessElement(fromString(0)), currentSize));
 			current.addExpression(createAssignment(labelSize, currentSize));
+			current.addExpression(guardsSynAfterModule(0));
 			//rest
 			for (int i = 1; i < cmd.getModulesNum(); ++i) {
 				IfElse ifElse = new IfElse(createBinaryExpression(labelSize.getSource(), Operator.NE, fromString(0)));
 				ifElse.addExpression(createAssignment(currentSize, fromString(0)));
+				ifElse.addExpression(guardsSynBeforeModule(i));
 				for (int j = 0; j < cmd.getCommandNumber(i); ++j) {
 					guardsSynAddGuard(ifElse, guardsTab.accessElement(fromString(guardCounter++)),
 					//guardsTab[counter] = evaluate(guard)
@@ -1187,11 +1235,12 @@ public abstract class KernelGenerator
 				// cmds_for_label *= cmds_for_module;
 						Operator.MUL_AUGM, currentSize.getSource()));
 				ifElse.addExpression(createAssignment(saveSize.accessElement(fromString(i)), currentSize));
+				ifElse.addExpression(guardsSynAfterModule(i));
 				current.addExpression(ifElse);
 			}
 			saveSize = synState.accessField("size");
 			current.addExpression(createAssignment(saveSize, labelSize));
-			current.addReturn(labelSize);
+			guardsSynReturn(current);
 			synchronizedGuards.add(current);
 		}
 	}
@@ -1204,6 +1253,14 @@ public abstract class KernelGenerator
 	protected abstract Method guardsSynCreateMethod(String label, int maxCommandsNumber);
 
 	/**
+	 * Additional local variables.
+	 * @param cmdsCount
+	 * @param maxCmdsCount
+	 * @return none for DTMC, CTMC may add transition counters
+	 */
+	protected abstract Collection<CLVariable> guardsSynLocalVars(int moduleCount, int cmdsCount, int maxCmdsCount);
+	
+	/**
 	 * @param maxCommandsNumber
 	 * @return helper variable for label size - float/integer
 	 */
@@ -1215,6 +1272,27 @@ public abstract class KernelGenerator
 	 */
 	protected abstract CLVariable guardsSynCurrentVar(int maxCommandsNumber);
 
+	/**
+	 * Only for CTMC with loop detection
+	 * @param module
+	 * @return code injected before starting checking a module
+	 */
+	protected abstract KernelComponent guardsSynBeforeModule(int module);
+	
+	/**
+	 * Only for CTMC with loop detection
+	 * @param module
+	 * @return code injected after finishing checking a module
+	 */
+	protected abstract KernelComponent guardsSynAfterModule(int module);
+
+	/**
+	 * Only for CTMC with loop detection
+	 * @param method
+	 * @return code injected after finishing checking a module
+	 */
+	protected abstract void guardsSynReturn(Method method);
+	
 	/**
 	 * Mark command index in guardsArray and sum rates/counts (simpler implementation for DTMC - 
 	 * just add guard tab value, whether it is 0 or 1; in CTMC, rate is added only in one case).
@@ -1784,6 +1862,24 @@ public abstract class KernelGenerator
 	}
 	
 	/**
+	 * Currently only usage is allowed and advised:
+	 * LoopDetector needs to define counter for all transitions for CTMCs.
+	 * Put variable in local vars set.
+	 * @param var
+	 * @param clVar
+	 * @return
+	 */
+	public CLVariable kernelCreateTransitionCounter()
+	{
+		CLVariable varTransCounter = new CLVariable(
+				new StdVariableType(0,model.commandsNumber() + model.synchCmdsNumber()),
+				LOCAL_VARIABLES_NAMES.get(LocalVar.TRANSITIONS_COUNTER));
+		varTransCounter.setInitValue(StdVariableType.initialize(0));
+		localVars.put(LocalVar.TRANSITIONS_COUNTER, varTransCounter);
+		return varTransCounter;
+	}
+	
+	/**
 	 * @return simply return a boolean expression with value marking
 	 * if a loop has been detected
 	 */
@@ -1797,7 +1893,12 @@ public abstract class KernelGenerator
 	 */
 	public Expression kernelActiveUpdates()
 	{
-		if (hasNonSynchronized && hasSynchronized) {
+		CLVariable varSelectionSize = kernelGetLocalVar(LocalVar.UNSYNCHRONIZED_SIZE);
+		CLVariable varSynSelectionSize = kernelGetLocalVar(LocalVar.SYNCHRONIZED_SIZE);
+		CLVariable varTransitioncounter = kernelGetLocalVar(LocalVar.TRANSITIONS_COUNTER);
+		if (varTransitioncounter != null) {
+			return varTransitioncounter.getSource();
+		} else if (hasNonSynchronized && hasSynchronized) {
 			return createBinaryExpression(
 					varSelectionSize.getSource(),
 					Operator.ADD,

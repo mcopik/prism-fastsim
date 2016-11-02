@@ -179,6 +179,15 @@ public class ExpressionGenerator
 	 * @param var
 	 * @return var++
 	 */
+	static public Expression preIncrement(CLVariable var)
+	{
+		return new Expression("++" + var.varName);
+	}
+	
+	/**
+	 * @param var
+	 * @return var++
+	 */
 	static public Expression postIncrement(CLVariable var)
 	{
 		return new Expression(var.varName + "++");
