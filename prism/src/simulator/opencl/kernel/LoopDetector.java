@@ -114,6 +114,7 @@ public class LoopDetector
 		names.put(FunctionVar.OLD_VALUE, "oldValue");
 		FUNCTION_VARIABLES_NAMES = names;
 	}
+	
 	/**
 	 * Store local variables for synchronized update.
 	 * Note: use the same variable in two functions: nonsyn and synLabel.
@@ -157,6 +158,14 @@ public class LoopDetector
 				propertyGenerator.canDetectLoop() && rewardGenerator.canDetectLoop();
 		canExitOnLoop = canDetectLoop &&
 				propertyGenerator.canExitOnLoop() && rewardGenerator.canExitOnLoop();
+		
+		/**
+		 * For CTMC we need to manually define a counter for all transitions.
+		 * Request from parent generator to use this counter.
+		 */
+		if(generator.getModel().getType() == AutomatonType.CTMC) {
+			generator.kernelCreateTransitionCounter();
+		}
 	}
 	
 	public Collection<CLVariable> getLocalVars()
@@ -167,13 +176,7 @@ public class LoopDetector
 			varLoopDetection.setInitValue(StdVariableType.initialize(0));
 			vars.add(varLoopDetection);
 			
-			/**
-			 * For CTMC we need to manually define a counter for all transitions.
-			 */
-			if(generator.getModel().getType() == AutomatonType.CTMC) {
-				CLVariable counter = generator.kernelCreateTransitionCounter();
-				vars.add(counter);
-			}
+			vars.add( generator.kernelGetLocalVar(LocalVar.TRANSITIONS_COUNTER) );
 			
 			return vars;
 		}

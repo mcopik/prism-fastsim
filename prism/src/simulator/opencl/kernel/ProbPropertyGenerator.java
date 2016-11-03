@@ -58,7 +58,7 @@ import simulator.sampler.SamplerBoolean;
 import simulator.sampler.SamplerNext;
 import simulator.sampler.SamplerUntil;
 
-public abstract class ProbPropertyGenerator
+public abstract class ProbPropertyGenerator implements KernelComponentGenerator
 {
 	/**
 	 * Structure with two booleans: property value and information
@@ -220,10 +220,8 @@ public abstract class ProbPropertyGenerator
 		return Collections.emptyList();
 	}
 
-	/**
-	 * @return additional methods which need to be declared and defined
-	 */
-	public Collection<Method> getAdditionalMethods()
+	@Override
+	public Collection<Method> getMethods()
 	{
 		if (activeGenerator) {
 			return Collections.singletonList(propertyUpdateMethod);

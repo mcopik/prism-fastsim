@@ -136,7 +136,7 @@ public class KernelGeneratorCTMC extends KernelGenerator
 			localVars.put(LocalVar.UPDATED_TIME, varUpdatedTime);
 		}
 		//number of transitions
-		if(hasNonSynchronized) {
+		if(cmdGenerator.isActive()) {
 			CLVariable varSelectionSize = new CLVariable(new StdVariableType(StdType.FLOAT), "selectionSize");
 			varSelectionSize.setInitValue(StdVariableType.initialize(0));
 			currentMethod.addLocalVar(varSelectionSize);
@@ -177,10 +177,10 @@ public class KernelGeneratorCTMC extends KernelGenerator
 			substrRng = new Expression(String.format("log(%s)", substrRng.getSource()));
 			Expression sum = null;
 			//for synchronized commands - selection_size + selection_syn
-			if (hasSynchronized && hasNonSynchronized) {
+			if (hasSynchronized && cmdGenerator.isActive()) {
 				sum = createBinaryExpression(varSelectionSize.getSource(), Operator.ADD, varSynSelectionSize.getSource());
 				addParentheses(sum);
-			} else if (hasNonSynchronized) {
+			} else if (cmdGenerator.isActive()) {
 				sum = varSelectionSize.getSource();
 			} else {
 				sum = varSynSelectionSize.getSource();
@@ -208,10 +208,10 @@ public class KernelGeneratorCTMC extends KernelGenerator
 			substrRng = new Expression(String.format("log(%s)", substrRng.getSource()));
 			Expression sum = null;
 			//for synchronized commands - selection_size + selection_syn
-			if (hasSynchronized && hasNonSynchronized) {
+			if (hasSynchronized && cmdGenerator.isActive()) {
 				sum = createBinaryExpression(varSelectionSize.getSource(), Operator.ADD, varSynSelectionSize.getSource());
 				addParentheses(sum);
-			} else if (hasNonSynchronized) {
+			} else if (cmdGenerator.isActive()) {
 				sum = varSelectionSize.getSource();
 			} else {
 				sum = varSynSelectionSize.getSource();
@@ -233,7 +233,7 @@ public class KernelGeneratorCTMC extends KernelGenerator
 	}
 
 	@Override
-	protected void mainMethodCallNonsynUpdateImpl(ComplexKernelComponent parent, CLValue... args)
+	protected void mainMethodCallNonsynUpdateImpl(ComplexKernelComponent parent, CLValue... args) throws KernelException
 	{
 		CLVariable varSelectionSize = kernelGetLocalVar(LocalVar.UNSYNCHRONIZED_SIZE);
 		parent.addExpression(rewardGenerator.kernelBeforeUpdate(localVars.get(LocalVar.STATE_VECTOR)));
@@ -243,25 +243,7 @@ public class KernelGeneratorCTMC extends KernelGenerator
 		} else {
 			random = args[0];
 		}
-		parent.addExpression(mainMethodCallNonsynUpdateImpl(random));
-	}
-
-	/**
-	 * Private helper method - generate call to non-synchronized update in CTMC. 
-	 * @param rnd
-	 * @return call expression
-	 */
-	private KernelComponent mainMethodCallNonsynUpdateImpl(CLValue rnd)
-	{
-		Method update = helperMethods.get(KernelMethods.PERFORM_UPDATE);
-		Expression call = update.callMethod(
-				//stateVector
-				localVars.get(LocalVar.STATE_VECTOR).convertToPointer(),
-				//non-synchronized guards tab
-				varGuardsTab,
-				//random float [0,1]
-				rnd);
-		return loopDetector.kernelCallUpdate(call);
+		parent.addExpression( cmdGenerator.kernelCallUpdate(random, null) );
 	}
 
 	@Override
@@ -291,7 +273,7 @@ public class KernelGeneratorCTMC extends KernelGenerator
 	}
 
 	@Override
-	protected IfElse mainMethodBothUpdatesCondition(CLVariable selection)
+	protected IfElse mainMethodBothUpdatesCondition(CLVariable selection) throws KernelException
 	{
 		CLVariable varSelectionSize = kernelGetLocalVar(LocalVar.UNSYNCHRONIZED_SIZE);
 		Expression condition = createBinaryExpression(selection.getSource(), Operator.LT,
@@ -317,150 +299,6 @@ public class KernelGeneratorCTMC extends KernelGenerator
 			CLVariable currentLabelSize)
 	{
 		parent.addExpression(createBinaryExpression(selection.getSource(), Operator.SUB_AUGM, synSum.getSource()));
-	}
-
-	/*********************************
-	 * NON-SYNCHRONIZED GUARDS CHECK
-	 ********************************/
-
-	@Override
-	protected void guardsMethodCreateLocalVars(Method currentMethod) throws KernelException
-	{
-		// when transition counting is not required, declare sum variable locally
-		if(!localVars.containsKey(LocalVar.TRANSITIONS_COUNTER)) {
-			varSum = new CLVariable(new StdVariableType(StdType.FLOAT), "sum");
-			varSum.setInitValue(StdVariableType.initialize(0.0f));
-			currentMethod.addLocalVar(varSum);
-		}
-	}
-
-	@Override
-	protected Collection<CLVariable> guardsMethodAddArgs()
-	{
-		/**
-		 * If we need to use a counter, pass sum as a parameter
-		 */
-		CLVariable counterVariable = kernelGetLocalVar(LocalVar.TRANSITIONS_COUNTER);
-		if(counterVariable != null) {
-			varSumPtr = new CLVariable(new PointerType(new StdVariableType(StdType.FLOAT)), "sum");
-			varSumPtr.setInitValue(StdVariableType.initialize(0.0f));
-			return Collections.singleton(varSumPtr);
-		}
-		return Collections.emptyList();
-	}
-
-
-	@Override
-	protected Method guardsMethodCreateSignature()
-	{
-		/**
-		 * If we need to use a counter, return this counter.
-		 * Otherwise we don't return anything.
-		 */
-		CLVariable counterVariable = kernelGetLocalVar(LocalVar.TRANSITIONS_COUNTER);
-		return new Method("checkNonsynGuards",
-				counterVariable != null ? counterVariable.varType : new StdVariableType(StdType.VOID)
-				);
-			
-	}
-
-	@Override
-	protected void guardsMethodCreateCondition(Method currentMethod, int position, Expression guard)
-	{
-		CLVariable guardsTab = currentMethod.getArg("guardsTab");
-		Preconditions.checkNotNull(guardsTab, "");
-		CLVariable counter = currentMethod.getLocalVar("counter");
-		Preconditions.checkNotNull(counter, "");
-		CLVariable tabPos = guardsTab.accessElement(postIncrement(counter));
-
-		IfElse ifElse = new IfElse(guard);
-		ifElse.addExpression(0, createAssignment(tabPos, fromString(position)));
-		Expression sumExpr = createBinaryExpression(
-				varSum != null ? varSum.getSource() : varSumPtr.dereference().getSource(),
-				Operator.ADD_AUGM,
-				fromString(convertPrismRate(svPtrTranslations, null, commands[position].getRateSum())));
-		ifElse.addExpression(0, sumExpr);
-		currentMethod.addExpression(ifElse);
-	}
-
-	@Override
-	protected void guardsMethodReturnValue(Method currentMethod)
-	{
-		/**
-		 * If we need to use a counter, return this counter.
-		 * Otherwise we don't return anything.
-		 */
-		CLVariable counterVariable = kernelGetLocalVar(LocalVar.TRANSITIONS_COUNTER);
-		if(counterVariable != null){
-			currentMethod.addReturn( currentMethod.getLocalVar("counter") );
-		} else {
-			currentMethod.addReturn( currentMethod.getLocalVar("sum") );
-		}
-	}
-
-	/*********************************
-	 * NON-SYNCHRONIZED UPDATE
-	 ********************************/
-
-	@Override
-	protected void updateMethodPerformSelection(Method currentMethod) throws KernelException
-	{
-		CLVariable selection = currentMethod.getLocalVar("selection");
-		CLVariable guardsTab = currentMethod.getArg("guardsTab");
-		CLVariable newSum = currentMethod.getLocalVar("newSum");
-		CLVariable selectionSum = currentMethod.getArg("selectionSum");
-		CLVariable sum = currentMethod.getLocalVar("sum");
-
-		//loop over all selected guards
-		ForLoop loop = new ForLoop(selection, false);
-		//switch with all possible guards - in i-th iteration go to guardsTab[i] guard
-		Switch _switch = new Switch(guardsTab.accessElement(selection.getName()));
-
-		//sum rates and check if we reached the probability of update
-		for (int i = 0; i < commands.length; ++i) {
-			Rate rateSum = commands[i].getRateSum();
-			_switch.addCase(new Expression(Integer.toString(i)));
-			_switch.addExpression(i, ExpressionGenerator.createAssignment(newSum, convertPrismRate(svPtrTranslations, null, rateSum)));
-		}
-		loop.addExpression(_switch);
-		// if(sum + newSum > selectionSum)
-		Expression condition = createBinaryExpression(
-		//selectionSum
-				selectionSum.getSource(),
-				// <
-				Operator.LT,
-				//sum + newSum
-				createBinaryExpression(sum.getSource(), Operator.ADD, newSum.getSource()));
-		IfElse ifElse = new IfElse(condition);
-		Expression reduction = createBinaryExpression(selectionSum.getSource(), Operator.SUB_AUGM, sum.getSource());
-		ifElse.addExpression(0, reduction.add(";"));
-		ifElse.addExpression(0, new Expression("break;"));
-		loop.addExpression(ifElse);
-		loop.addExpression(createBinaryExpression(sum.getSource(), Operator.ADD_AUGM, newSum.getSource()).add(";"));
-
-		currentMethod.addExpression(loop);
-	}
-
-	@Override
-	protected void updateMethodAdditionalArgs(Method currentMethod) throws KernelException
-	{
-	}
-
-	@Override
-	protected void updateMethodLocalVars(Method currentMethod) throws KernelException
-	{
-		//float newSum
-		CLVariable newSum = new CLVariable(new StdVariableType(StdType.FLOAT), "newSum");
-		newSum.setInitValue(StdVariableType.initialize(0.0f));
-		currentMethod.addLocalVar(newSum);
-		//float sum
-		CLVariable sum = new CLVariable(new StdVariableType(StdType.FLOAT), "sum");
-		sum.setInitValue(StdVariableType.initialize(0.0f));
-		currentMethod.addLocalVar(sum);
-
-		//selection
-		CLVariable selection = currentMethod.getLocalVar("selection");
-		selection.setInitValue(StdVariableType.initialize(0));
 	}
 
 	/*********************************

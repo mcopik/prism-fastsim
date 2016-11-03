@@ -44,7 +44,6 @@ import java.util.Set;
 import prism.PrismLangException;
 import simulator.opencl.RuntimeConfig;
 import simulator.opencl.automaton.AbstractAutomaton;
-import simulator.opencl.automaton.AbstractAutomaton.StateVector;
 import simulator.opencl.automaton.ParsTreeModifier;
 import simulator.opencl.automaton.PrismVariable;
 import simulator.opencl.automaton.command.Command;
@@ -138,7 +137,7 @@ public abstract class KernelGenerator
 		 * Return value is rates sum of transitions in race condition.
 		 * float checkGuards(StateVector * sv, bool * guardsTab);
 		 */
-		CHECK_GUARDS(0),
+		//CHECK_GUARDS(0),
 		/**
 		 * DTMC:
 		 * Return value is number of concurrent transitions.
@@ -154,7 +153,7 @@ public abstract class KernelGenerator
 		 * CTMC:
 		 * void performUpdate(StateVector * sv,  bool * guardsTab,float sumSelection);
 		 */
-		PERFORM_UPDATE(2),
+		//PERFORM_UPDATE(2),
 		/**
 		 * DTMC:
 		 * void performUpdateSyn(StateVector * sv, int updateSelection,SynCmdState * tab);
@@ -178,16 +177,6 @@ public abstract class KernelGenerator
 	 * }
 	 */
 	protected StructureType stateVectorType = null;
-
-	/**
-	 * StateVector field prefix.
-	 */
-	protected final static String STATE_VECTOR_PREFIX = "__STATE_VECTOR_";
-
-	/**
-	 * Prefix of variable used to save value of StateVector field.
-	 */
-	protected final static String SAVED_VARIABLE_PREFIX = "SAVED_VARIABLE__";
 
 	protected Map<String, StructureType> synchronizedStates = new LinkedHashMap<>();
 	protected StructureType synCmdState = null;
@@ -258,11 +247,16 @@ public abstract class KernelGenerator
 	 * True when model contains synchronized commands.
 	 */
 	protected boolean hasSynchronized = false;
+	
+	/**
+	 * Helper class to generate code for unsynchronized commands.
+	 */
+	protected CommandGenerator cmdGenerator = null;
 
 	/**
 	 * True when model contains 'normal' commands.
 	 */
-	protected boolean hasNonSynchronized = false;
+	//protected boolean hasNonSynchronized = false;
 
 	/**
 	 * TreeVisitor instance, used for parsing of properties (model parsing has been already done in Automaton class)
@@ -299,11 +293,25 @@ public abstract class KernelGenerator
 		this.properties = properties;
 		this.localVars = new EnumMap<>(LocalVar.class);
 
-		importStateVector();
+		stateVectorType = StateVector.importStateVector(model);
+		additionalDeclarations.add(stateVectorType.getDefinition());
+		// create translations from model variable to StateVector structure, accessed by a pointer
+		CLVariable sv = new CLVariable(new PointerType(stateVectorType), "sv");
+		StateVector.createTranslations(sv, stateVectorType, svPtrTranslations);
 		varTimeType = timeVariableType();
 		int synSize = model.synchCmdsNumber();
 		int size = model.commandsNumber();
 
+		this.propertyGenerator = ProbPropertyGenerator.createGenerator(this, model.getType());
+		additionalDeclarations.addAll(propertyGenerator.getDefinitions());
+
+		this.rewardProperties = rewardProperties;
+		this.rewardGenerator = RewardGenerator.createGenerator(this, model.getType());
+		additionalDeclarations.addAll(rewardGenerator.getDefinitions());
+
+		// loop detector
+		this.loopDetector = new LoopDetector(this, propertyGenerator, rewardGenerator);
+		
 		// import commands
 		if (synSize != 0) {
 			synCommands = new SynchronizedCommand[synSize];
@@ -311,7 +319,7 @@ public abstract class KernelGenerator
 		}
 		if (size - synSize != 0) {
 			commands = new Command[size - synSize];
-			hasNonSynchronized = true;
+			//hasNonSynchronized = true;
 		}
 
 		int normalCounter = 0, synCounter = 0;
@@ -323,29 +331,14 @@ public abstract class KernelGenerator
 				synCommands[synCounter++] = (SynchronizedCommand) cmd;
 			}
 		}
-
-		// create translations from model variable to StateVector structure, accessed by a pointer
-		CLVariable sv = new CLVariable(new PointerType(stateVectorType), "sv");
-		for (CLVariable var : stateVectorType.getFields()) {
-			String name = var.varName.substring(STATE_VECTOR_PREFIX.length());
-			CLVariable second = sv.accessField(var.varName);
-			svPtrTranslations.put(name, second.varName);
-		}
+		
+		cmdGenerator = CommandGenerator.createGenerator(this);
+		additionalDeclarations.addAll(cmdGenerator.getDefinitions());
 
 		// property and synchronized structure definitions
 		if (hasSynchronized) {
 			createSynchronizedStructures();
 		}
-
-		this.propertyGenerator = ProbPropertyGenerator.createGenerator(this, model.getType());
-		additionalDeclarations.addAll(propertyGenerator.getDefinitions());
-
-		this.rewardProperties = rewardProperties;
-		this.rewardGenerator = RewardGenerator.createGenerator(this, model.getType());
-		additionalDeclarations.addAll(rewardGenerator.getDefinitions());
-
-		// loop detector
-		this.loopDetector = new LoopDetector(this, propertyGenerator, rewardGenerator);
 		
 		// PRNG definitions
 		if (prngType.getAdditionalDefinitions() != null) {
@@ -394,52 +387,13 @@ public abstract class KernelGenerator
 		if (additionalMethods != null) {
 			ret.addAll(additionalMethods);
 		}
-		ret.addAll(propertyGenerator.getAdditionalMethods());
-		ret.addAll(rewardGenerator.getAdditionalMethods());
+		ret.addAll(cmdGenerator.getMethods());
+		ret.addAll(propertyGenerator.getMethods());
+		ret.addAll(rewardGenerator.getMethods());
 		return ret;
 	}
 
-	/**
-	 * Create StateVector structure type from model's state vector.
-	 */
-	protected void importStateVector()
-	{
-		StateVector sv = model.getStateVector();
-		stateVectorType = new StructureType("StateVector");
-		PrismVariable[] vars = sv.getVars();
-		for (int i = 0; i < vars.length; ++i) {
-			CLVariable var = new CLVariable(new StdVariableType(vars[i]), translateSVField(vars[i].name));
-			stateVectorType.addVariable(var);
-		}
-		additionalDeclarations.add(stateVectorType.getDefinition());
-	}
-
-	/**
-	 * Initialize state vector from initial state declared in model or provided by user.  
-	 * @return structure initialization value
-	 */
-	protected CLValue initStateVector()
-	{
-		StateVector sv = model.getStateVector();
-		Integer[] init = new Integer[sv.size()];
-		if (config.initialState == null) {
-			PrismVariable[] vars = sv.getVars();
-			for (int i = 0; i < vars.length; ++i) {
-				init[i] = vars[i].initValue;
-			}
-		} else {
-			Object[] initVars = config.initialState.varValues;
-			for (int i = 0; i < initVars.length; ++i) {
-				if (initVars[i] instanceof Integer) {
-					init[i] = (Integer) initVars[i];
-				} else {
-					init[i] = new Integer(((Boolean) initVars[i]) ? 1 : 0);
-				}
-			}
-		}
-		return stateVectorType.initializeStdStructure(init);
-	}
-
+	
 	/*********************************
 	 * MAIN METHOD
 	 * @throws PrismLangException, KernelException 
@@ -488,20 +442,19 @@ public abstract class KernelGenerator
 		//state vector for model
 		CLVariable varStateVector = new CLVariable(stateVectorType,
 				LOCAL_VARIABLES_NAMES.get(LocalVar.STATE_VECTOR));
-		varStateVector.setInitValue(initStateVector());
+		varStateVector.setInitValue(
+				StateVector.initStateVector(model, stateVectorType, config.initialState)
+				);
 		currentMethod.addLocalVar(varStateVector);
 		localVars.put(LocalVar.STATE_VECTOR, varStateVector);
 
 		//property results
-		currentMethod.addLocalVar(propertyGenerator.getLocalVars());
+		currentMethod.addLocalVar( propertyGenerator.getLocalVars() );
 		//reward structures and results
-		currentMethod.addLocalVar(rewardGenerator.getLocalVars());
-
-		//non-synchronized guard tab
-		if (hasNonSynchronized) {
-			varGuardsTab = new CLVariable(new ArrayType(new StdVariableType(0, commands.length), commands.length), "guardsTab");
-			currentMethod.addLocalVar(varGuardsTab);
-		}
+		currentMethod.addLocalVar( rewardGenerator.getLocalVars() );
+		//non-synchronized commands vars
+		currentMethod.addLocalVar( cmdGenerator.getLocalVars() );
+		
 		//synchronized state
 		if (hasSynchronized) {
 			varSynchronizedStates = new CLVariable[synchronizedStates.size()];
@@ -524,10 +477,10 @@ public abstract class KernelGenerator
 		/**
 		 * Create helpers method.
 		 */
-		if (hasNonSynchronized) {
-			helperMethods.put(KernelMethods.CHECK_GUARDS, createNonsynGuardsMethod());
-			helperMethods.put(KernelMethods.PERFORM_UPDATE, createNonsynUpdate());
-		}
+		//if (hasNonSynchronized) {
+			//helperMethods.put(KernelMethods.CHECK_GUARDS, createNonsynGuardsMethod());
+			//helperMethods.put(KernelMethods.PERFORM_UPDATE, createNonsynUpdate());
+		//}
 		if (hasSynchronized) {
 			createSynGuardsMethod();
 			createUpdateMethodSyn();
@@ -584,25 +537,7 @@ public abstract class KernelGenerator
 		/**
 		 * check which guards are active
 		 */
-		if (hasNonSynchronized) {
-			CLVariable transactionCounter = kernelGetLocalVar(LocalVar.TRANSITIONS_COUNTER);
-			// transactionCounter += nonSynGuards(&size);
-			if(transactionCounter != null) {
-				Expression callCheckGuards = helperMethods.get(KernelMethods.CHECK_GUARDS).callMethod(
-						//(stateVector,guardsTab, &unsynchronizedSize)
-								varStateVector.convertToPointer(), varGuardsTab,
-								kernelGetLocalVar(LocalVar.UNSYNCHRONIZED_SIZE).convertToPointer());
-				loop.addExpression( createAssignment(kernelGetLocalVar(LocalVar.UNSYNCHRONIZED_SIZE), fromString(0)) );
-				loop.addExpression( createAssignment(transactionCounter, callCheckGuards) );
-			} 
-			// otherwise size += synGuards()
-			else {
-				Expression callCheckGuards = helperMethods.get(KernelMethods.CHECK_GUARDS).callMethod(
-						//(stateVector,guardsTab, &unsynchronizedSize)
-								varStateVector.convertToPointer(), varGuardsTab);
-				loop.addExpression(createAssignment(kernelGetLocalVar(LocalVar.UNSYNCHRONIZED_SIZE), callCheckGuards));
-			}
-		}
+		loop.addExpression(cmdGenerator.kernelCallGuardCheck());
 		if (hasSynchronized) {
 			loop.addExpression(createAssignment(kernelGetLocalVar(LocalVar.SYNCHRONIZED_SIZE), fromString(0)));
 			
@@ -677,7 +612,7 @@ public abstract class KernelGenerator
 		 * call update method; 
 		 * most complex case - both nonsyn and synchronized updates
 		 */
-		if (hasNonSynchronized && hasSynchronized) {
+		if (cmdGenerator.isActive() && hasSynchronized) {
 			mainMethodCallBothUpdates(loop);
 		}
 		/**
@@ -756,7 +691,7 @@ public abstract class KernelGenerator
 	 * @param args used to specify additional parameters which are already computed (random, sum)
 	 * if they are not provided, use the default implementation
 	 */
-	protected void mainMethodCallNonsynUpdate(ComplexKernelComponent parent, CLValue... args)
+	protected void mainMethodCallNonsynUpdate(ComplexKernelComponent parent, CLValue... args) throws KernelException
 	{
 		/**
 		 * If there are some reward properties, add a 
@@ -768,8 +703,9 @@ public abstract class KernelGenerator
 	/**
 	 * Create the call expression for both updates: non-synchronized and synchronized.
 	 * @param parent
+	 * @throws KernelException 
 	 */
-	protected void mainMethodCallBothUpdates(ComplexKernelComponent parent)
+	protected void mainMethodCallBothUpdates(ComplexKernelComponent parent) throws KernelException
 	{
 		CLVariable varSelectionSize = kernelGetLocalVar(LocalVar.UNSYNCHRONIZED_SIZE);
 		CLVariable varSynSelectionSize = kernelGetLocalVar(LocalVar.SYNCHRONIZED_SIZE);
@@ -923,8 +859,9 @@ public abstract class KernelGenerator
 	 * Put call to non-synchronized update in first condition.
 	 * @param selection
 	 * @return if-else with completed 'if' case
+	 * @throws KernelException 
 	 */
-	protected abstract IfElse mainMethodBothUpdatesCondition(CLVariable selection);
+	protected abstract IfElse mainMethodBothUpdatesCondition(CLVariable selection) throws KernelException;
 
 	/**
 	 * Create condition which evaluates to true for selected non-sychronized update.
@@ -961,7 +898,7 @@ public abstract class KernelGenerator
 	 * @param parent
 	 * @param args specify here additional arguments which are already computed (randomized number, sum of active cmds)
 	 */
-	protected abstract void mainMethodCallNonsynUpdateImpl(ComplexKernelComponent parent, CLValue... args);
+	protected abstract void mainMethodCallNonsynUpdateImpl(ComplexKernelComponent parent, CLValue... args) throws KernelException;
 
 	/**
 	 * DTMC: increment time (previous time is obvious)
@@ -978,211 +915,6 @@ public abstract class KernelGenerator
 	 * @param parent
 	 */
 	protected abstract void mainMethodUpdateTimeAfter(Method currentMethod, ComplexKernelComponent parent);
-
-	/*********************************
-	 * NON-SYNCHRONIZED GUARDS CHECK
-	 ********************************/
-	/**
-	 * Create method for guards verification in non-synchronized updates.
-	 * Method will just go through all guards and write numbers of successfully evaluated guards
-	 * at consecutive positions at guardsTab. 
-	 * @return number of active guards (DTMC) / rate sum (CTMC)
-	 * @throws KernelException
-	 */
-	protected Method createNonsynGuardsMethod() throws KernelException
-	{
-		if (!hasNonSynchronized) {
-			return null;
-		}
-
-		Method currentMethod = guardsMethodCreateSignature();
-		//StateVector * sv
-		CLVariable sv = new CLVariable(localVars.get(LocalVar.STATE_VECTOR).getPointer(), "sv");
-		currentMethod.addArg(sv);
-		//bool * guardsTab
-		CLVariable guards = new CLVariable(varGuardsTab.getPointer(), "guardsTab");
-		currentMethod.addArg(guards);
-		currentMethod.addArg( guardsMethodAddArgs() );
-		
-		//counter
-		CLVariable counter = new CLVariable(new StdVariableType(0, commands.length), "counter");
-		counter.setInitValue(StdVariableType.initialize(0));
-		currentMethod.addLocalVar(counter);
-
-		for (int i = 0; i < commands.length; ++i) {
-			guardsMethodCreateCondition(currentMethod, i, convertPrismGuard(svPtrTranslations, commands[i].getGuard()));
-		}
-
-		//TODO: disable writing last guard, should not change anything
-		//signature last guard
-		//CLVariable position = guards.varType.accessElement(guards, new Expression(counter.varName));
-		//IfElse ifElse = new IfElse(createBasicExpression(counter.getSource(), Operator.NE, fromString(commands.length)));
-		//ifElse.addExpression(0, createAssignment(position, fromString(commands.length)));
-		//currentMethod.addExpression(ifElse);
-
-		guardsMethodReturnValue(currentMethod);
-		return currentMethod;
-	}
-
-	/**
-	 * @return only for CTMC pointer to sum when counter is returned
-	 */
-	protected abstract Collection<CLVariable> guardsMethodAddArgs();
-	
-	/**
-	 * @return method returning integer for DTMC, float for CTMC
-	 */
-	protected abstract Method guardsMethodCreateSignature();
-
-	/**
-	 * Additional float for rate sum at CTMC, none at DTMC (both use an integer for array counting)
-	 * @param currentMethod
-	 * @throws KernelException
-	 */
-	protected abstract void guardsMethodCreateLocalVars(Method currentMethod) throws KernelException;
-
-	/**
-	 * For both automata evaluate guard, for CTMC additionally add rate to returned sum.
-	 * @param currentMethod
-	 * @param position
-	 * @param guard
-	 */
-	protected abstract void guardsMethodCreateCondition(Method currentMethod, int position, Expression guard);
-
-	/**
-	 * Returns counter of evaluated guards (integer) for DTMC or sum of rates (float) for CTMC.
-	 * @param currentMethod
-	 */
-	protected abstract void guardsMethodReturnValue(Method currentMethod);
-
-	/*********************************	
-	 * NON-SYNCHRONIZED UPDATE
-	 ********************************/
-
-	/**
-	 * @return method for non-synchronized update of state vector
-	 * @throws KernelException
-	 */
-	protected Method createNonsynUpdate() throws KernelException
-	{
-		if (!hasNonSynchronized) {
-			return null;
-		}
-
-		Method currentMethod = new Method("updateNonsynGuards", loopDetector.updateFunctionReturnType());
-		//StateVector * sv
-		CLVariable sv = new CLVariable(localVars.get(LocalVar.STATE_VECTOR).getPointer(), "sv");
-		currentMethod.addArg(sv);
-		//bool * guardsTab
-		CLVariable guards = new CLVariable(new PointerType(new StdVariableType(0, commands.length)), "guardsTab");
-		currentMethod.addArg(guards);
-		//float sum
-		CLVariable selectionSum = new CLVariable(new StdVariableType(StdType.FLOAT), "selectionSum");
-		selectionSum.setInitValue(StdVariableType.initialize(0.0f));
-		currentMethod.addArg(selectionSum);
-		// selected command
-		CLVariable selection = new CLVariable(new StdVariableType(0, commands.length), "selection");
-		selection.setInitValue(StdVariableType.initialize(0));
-		currentMethod.addLocalVar(selection);
-		// loop detection vars
-		currentMethod.addLocalVar(loopDetector.updateFunctionLocalVars());
-
-		/**
-		 * Performs tasks depending on automata type
-		 */
-		updateMethodAdditionalArgs(currentMethod);
-		updateMethodLocalVars(currentMethod);
-		updateMethodPerformSelection(currentMethod);
-
-		CLVariable guardsTabSelection = varGuardsTab.accessElement(selection.getSource());
-		Switch _switch = new Switch(guardsTabSelection.getSource());
-		int switchCounter = 0;
-
-		for (int i = 0; i < commands.length; ++i) {
-			Update update = commands[i].getUpdate();
-			Rate rate = new Rate(update.getRate(0));
-			Action action;
-			// variables saved in this action 
-			Map<String, CLVariable> savedVariables = new HashMap<>();
-
-			// if there is more than one action possible, then create a conditional to choose between them
-			// for one action, it's unnecessary
-			int actionsCount = update.getActionsNumber();
-			if (actionsCount > 1) {
-
-				_switch.addCase(new Expression(Integer.toString(i)));
-				_switch.addExpression(switchCounter, loopDetector.updateFunctionMultipleActions());
-				
-				IfElse ifElse = new IfElse(createBinaryExpression(selectionSum.getSource(), Operator.LT,
-						fromString(convertPrismRate(svPtrTranslations, null, rate))));
-				//first one goes to 'if'
-				if (!update.isActionTrue(0)) {
-					action = update.getAction(0);
-					addSavedVariables(sv, ifElse, 0, action, null, savedVariables);
-					ifElse.addExpression(0,
-							loopDetector.updateFunctionConvertAction(sv, action, actionsCount, svPtrTranslations, savedVariables)
-							);
-				}
-				// next actions go to 'else if'
-				for (int j = 1; j < update.getActionsNumber(); ++j) {
-					// else if (selection <= sum)
-					rate.addRate(update.getRate(j));
-					ifElse.addElif(createBinaryExpression(selectionSum.getSource(), Operator.LT, fromString(convertPrismRate(svPtrTranslations, null, rate))));
-
-					if (!update.isActionTrue(j)) {
-						action = update.getAction(j);
-						addSavedVariables(sv, ifElse, 0, action, null, savedVariables);
-						ifElse.addExpression(j,
-								loopDetector.updateFunctionConvertAction(sv, action, actionsCount, svPtrTranslations, savedVariables)
-								);
-					}
-				}
-				_switch.addExpression(switchCounter++, ifElse);
-			} else {
-				// only one action, directly add the code to switch
-				if (!update.isActionTrue(0)) {
-					_switch.addCase(new Expression(Integer.toString(i)));
-					action = update.getAction(0);
-					addSavedVariables(sv, _switch, switchCounter, action, null, savedVariables);
-					_switch.addExpression(switchCounter++,
-							loopDetector.updateFunctionConvertAction(sv, action, actionsCount, svPtrTranslations, savedVariables)
-							);
-				}
-			}
-		}
-		currentMethod.addExpression(_switch);
-
-		loopDetector.updateFunctionReturn(currentMethod);
-
-		return currentMethod;
-	}
-
-	/**
-	 * Add code choosing a action
-	 * DTMC: all updates are chosen with the same probability - one need to subtract probability of previous updates
-	 *  and scale it to [0,1)
-	 * CTMC: updates have different probability, one need to walk through all actions and sum rates,
-	 * until the selection is reached
-	 * @param currentMethod
-	 * @throws KernelException
-	 */
-	protected abstract void updateMethodPerformSelection(Method currentMethod) throws KernelException;
-
-	/**
-	 * DTMC: number of commands
-	 * CTMC: no additional arg
-	 * @param currentMethod
-	 * @throws KernelException
-	 */
-	protected abstract void updateMethodAdditionalArgs(Method currentMethod) throws KernelException;
-
-	/**
-	 * CTMC: float sum, float newSum and initialize selection with zero
-	 * DTMC: no additional variable, initialize selection with selectionSum * number of commands
-	 * @param currentMethod
-	 * @throws KernelException
-	 */
-	protected abstract void updateMethodLocalVars(Method currentMethod) throws KernelException;
 
 	/*********************************
 	 * SYNCHRONIZED GUARDS CHECK
@@ -1366,7 +1098,7 @@ public abstract class KernelGenerator
 			if (!varsToSave.isEmpty()) {
 				savedVarsType = new StructureType(String.format("SAVE_VARIABLES_SYNCHR_%s", cmd.synchLabel));
 				for (PrismVariable var : varsToSave) {
-					CLVariable structureVar = new CLVariable(new StdVariableType(var), translateSVField(var.name));
+					CLVariable structureVar = new CLVariable(new StdVariableType(var), StateVector.translateSVField(var.name));
 					savedVarsType.addVariable(structureVar);
 				}
 				//add to global declarations
@@ -1376,7 +1108,7 @@ public abstract class KernelGenerator
 				CLValue[] init = new CLValue[varsToSave.size()];
 				int i = 0;
 				for (PrismVariable var : varsToSave) {
-					init[i++] = stateVector.accessField(translateSVField(var.name));
+					init[i++] = stateVector.accessField(StateVector.translateSVField(var.name));
 				}
 				savedVarsInstance.setInitValue(savedVarsType.initializeStdStructure(init));
 			}
@@ -1534,12 +1266,13 @@ public abstract class KernelGenerator
 
 		// Create translations variable -> savedStructure.variable
 		// Provide alternative access to state vector variable (instead of regular structure)
+		// TODO: refactor this by moving to StateVector
 		Map<String, CLVariable> savedTranslations = null;
 		if (oldSV != null) {
 			savedTranslations = new HashMap<>();
 
 			for (CLVariable var : savedVariables.getFields()) {
-				String name = var.varName.substring(STATE_VECTOR_PREFIX.length());
+				String name = var.varName.substring(StateVector.STATE_VECTOR_PREFIX.length());
 				CLVariable second = oldSV.accessField(var.varName);
 				savedTranslations.put(name, second);
 			}
@@ -1572,7 +1305,7 @@ public abstract class KernelGenerator
 					if (!update.isActionTrue(0)) {
 						ifElse.addExpression(0, updateSynLabelMethodProbabilityRecompute(probability, null, rate, savedTranslations));
 
-						addSavedVariables(stateVector, ifElse, 0, update.getAction(0), savedTranslations, varsSaved);
+						StateVector.addSavedVariables(stateVector, ifElse, 0, update.getAction(0), savedTranslations, varsSaved);
 						// make temporary copy, we may ovewrite some variables
 						Map<String, CLVariable> newSavedTranslations;
 						if (savedTranslations != null) {
@@ -1593,7 +1326,7 @@ public abstract class KernelGenerator
 								fromString(convertPrismRate(svPtrTranslations, savedTranslations, rate))));
 						ifElse.addExpression(k, updateSynLabelMethodProbabilityRecompute(probability, previous, update.getRate(k), savedTranslations));
 
-						addSavedVariables(stateVector, ifElse, k, update.getAction(k), savedTranslations, varsSaved);
+						StateVector.addSavedVariables(stateVector, ifElse, k, update.getAction(k), savedTranslations, varsSaved);
 						// make temporary copy, we may ovewrite some variables
 						Map<String, CLVariable> newSavedTranslations;
 						if (savedTranslations != null) {
@@ -1613,7 +1346,7 @@ public abstract class KernelGenerator
 				} else {
 					if (!update.isActionTrue(0)) {
 
-						addSavedVariables(stateVector, internalSwitch, j, update.getAction(0), savedTranslations, varsSaved);
+						StateVector.addSavedVariables(stateVector, internalSwitch, j, update.getAction(0), savedTranslations, varsSaved);
 						// make temporary copy, we may ovewrite some variables
 						Map<String, CLVariable> newSavedTranslations;
 						if (savedTranslations != null) {
@@ -1689,113 +1422,6 @@ public abstract class KernelGenerator
 	 * OTHER METHODS
 	 ********************************/
 
-	/**
-	 * @param varName variable name
-	 * @return corresponding field in StateVector structure
-	 */
-	public String translateSVField(String varName)
-	{
-		return String.format("%s%s", STATE_VECTOR_PREFIX, varName);
-	}
-
-	/**
-	 * @param varName variable name
-	 * @return corresponding variable to "save" previous value from StateVector
-	 */
-	public String translateSavedVariable(String varName)
-	{
-		return String.format("%s%s", SAVED_VARIABLE_PREFIX, varName);
-	}
-
-	/**
-	 * Create variables, which need to be save before action, and their declarations to proper IfElse condition.
-	 * @param stateVector state vector instance in the method
-	 * @param ifElse kernel component to put declaration
-	 * @param conditionalNumber condition number in component
-	 * @param action
-	 * @param variableSources additional parameter (may be null, if not used) - for each variable, 
-	 * give additional source (different than default which is state vector)
-	 * @param savedVariables map to save results
-	 */
-	protected void addSavedVariables(CLVariable stateVector, IfElse ifElse, int conditionalNumber, Action action, Map<String, CLVariable> variableSources,
-			Map<String, CLVariable> savedVariables)
-	{
-		//clear previous adds
-		savedVariables.clear();
-		Set<PrismVariable> varsToSave = action.variablesCopiedBeforeUpdate();
-
-		//for every saved variable, create a local variable in C
-		for (PrismVariable var : varsToSave) {
-			CLVariable savedVar = new CLVariable(new StdVariableType(var), translateSavedVariable(var.name));
-
-			// are there any other sources of variables rather than original state vector?
-			// this additional parameter is used in synchronized update, where one may want to
-			// initialize 'saved' variable with the value in oldStateVector
-			// (unnecessary usage of variables may happen, but OpenCL compiler should eliminate that)
-			boolean flag = false;
-			if (variableSources != null) {
-				CLVariable source = variableSources.get(var.name);
-				if (source != null) {
-					flag = true;
-					savedVar.setInitValue(source);
-				}
-			}
-
-			// not using additional source - just initialize variable from state vector
-			if (!flag) {
-				savedVar.setInitValue(stateVector.accessField(translateSVField(var.name)));
-			}
-			ifElse.addExpression(conditionalNumber, savedVar.getDefinition());
-
-			savedVariables.put(var.name, savedVar);
-		}
-	}
-
-	/**
-	 * Create variables, which need to be save before action, and put declarations in proper Switch condition.
-	 * @param stateVector state vector instance in the method
-	 * @param _switch kernel component to put declaration
-	 * @param conditionalNumber condition number in component
-	 * @param action
-	 * @param variableSources additional parameter (may be null, if not used) - for each variable, 
-	 * give additional source (different than default which is state vector)
-	 * @param savedVariables map to save results
-	 */
-	protected void addSavedVariables(CLVariable stateVector, Switch _switch, int conditionalNumber, Action action, Map<String, CLVariable> variableSources,
-			Map<String, CLVariable> savedVariables)
-	{
-		//clear previous adds
-		savedVariables.clear();
-		Set<PrismVariable> varsToSave = action.variablesCopiedBeforeUpdate();
-
-		//for every saved variable, create a local variable in C
-		for (PrismVariable var : varsToSave) {
-			CLVariable savedVar = new CLVariable(new StdVariableType(var), translateSavedVariable(var.name));
-
-			// are there any other sources of variables rather than original state vector?
-			// this additional parameter is used in synchronized update, where one may want to
-			// initialize 'saved' variable with the value in oldStateVector
-			// (unnecessary usage of variables may happen, but OpenCL compiler should eliminate that)
-			boolean flag = false;
-			if (variableSources != null) {
-				CLVariable source = variableSources.get(var.name);
-				if (source != null) {
-					flag = true;
-					savedVar.setInitValue(source);
-				}
-			}
-
-			// not using additional source - just initialize variable from state vector
-			if (!flag) {
-				savedVar.setInitValue(stateVector.accessField(translateSVField(var.name)));
-			}
-
-			_switch.addExpression(conditionalNumber, savedVar.getDefinition());
-
-			savedVariables.put(var.name, savedVar);
-		}
-	}
-
 	public RuntimeConfig getRuntimeConfig()
 	{
 		return config;
@@ -1840,34 +1466,14 @@ public abstract class KernelGenerator
 	}
 
 	/**
-	 * Returns a special case of map returned from
-	 * @see getSVPtrTranslations()
-	 * 
-	 * FROM:
-	 * PRISM variable name NAME
-	 * TO:
-	 * - access in state vector instance in kernel method
-	 * - field name begins with STATE_VECTOR_PREFIX
-	 * - field name ends with NAME
+	 * TODO: temporary, remove
 	 * @return
 	 */
 	public Map<String, String> getSVTranslations()
 	{
-		/**
-		 * Special case - the translations are prepared for StateVector * sv,
-		 * but this one case works in main method - we have to use the StateVector instance directly.
-		 * 
-		 */
-		Map<String, String> translations = new HashMap<>();
 		StructureType stateVectorType = getSVType();
 		CLVariable stateVector = localVars.get(LocalVar.STATE_VECTOR);
-		for (CLVariable var : stateVectorType.getFields()) {
-			String name = var.varName.substring(STATE_VECTOR_PREFIX.length());
-			CLVariable second = stateVector.accessField(var.varName);
-			translations.put(name, second.varName);
-		}
-		
-		return translations;
+		return StateVector.getSVTranslations(stateVector, stateVectorType);
 	}
 	
 	/**
@@ -1917,7 +1523,7 @@ public abstract class KernelGenerator
 		CLVariable varTransitioncounter = kernelGetLocalVar(LocalVar.TRANSITIONS_COUNTER);
 		if (varTransitioncounter != null) {
 			return varTransitioncounter.getSource();
-		} else if (hasNonSynchronized && hasSynchronized) {
+		} else if (cmdGenerator.isActive() && hasSynchronized) {
 			return createBinaryExpression(
 					varSelectionSize.getSource(),
 					Operator.ADD,
@@ -1943,6 +1549,19 @@ public abstract class KernelGenerator
 		return createBinaryExpression(
 				kernelActiveUpdates(),
 				ExpressionGenerator.Operator.EQ, fromString(0));
+	}
+	
+	/**
+	 * @return loop detector instance
+	 */
+	public LoopDetector getLoopDetector()
+	{
+		return loopDetector;
+	}
+	
+	public Command[] getCommands()
+	{
+		return commands;
 	}
 	
 	/**

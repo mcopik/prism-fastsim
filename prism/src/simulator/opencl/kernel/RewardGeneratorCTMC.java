@@ -79,13 +79,6 @@ public class RewardGeneratorCTMC extends RewardGenerator
 	}
 
 	@Override
-	public Collection<Method> getMethods()
-	{
-		// TODO Auto-generated method stub
-		return null;
-	}
-
-	@Override
 	protected void initializeRewardRequiredVarsCumulative(Map<Class<? extends SamplerDouble>, String[]> map)
 	{
 		String[] vars = new String[] { REWARD_STRUCTURE_VAR_CUMULATIVE_TOTAL, REWARD_STRUCTURE_VAR_PREVIOUS_STATE, REWARD_STRUCTURE_VAR_PREVIOUS_TRANSITION,

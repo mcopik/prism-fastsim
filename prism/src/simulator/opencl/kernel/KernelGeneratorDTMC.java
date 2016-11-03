@@ -135,7 +135,7 @@ public class KernelGeneratorDTMC extends KernelGenerator
 		currentMethod.addLocalVar(varTime);
 		localVars.put(LocalVar.TIME, varTime);
 		//number of transitions
-		if(hasNonSynchronized) {
+		if(cmdGenerator.isActive()) {
 			CLVariable varSelectionSize = new CLVariable(new StdVariableType(0, model.commandsNumber()), "selectionSize");
 			varSelectionSize.setInitValue(StdVariableType.initialize(0));
 			currentMethod.addLocalVar(varSelectionSize);
@@ -172,39 +172,21 @@ public class KernelGeneratorDTMC extends KernelGenerator
 	}
 
 	@Override
-	protected void mainMethodCallNonsynUpdateImpl(ComplexKernelComponent parent, CLValue... args)
+	protected void mainMethodCallNonsynUpdateImpl(ComplexKernelComponent parent, CLValue... args) throws KernelException
 	{
 		if (args.length == 0) {
 			Expression rndNumber = new Expression(String.format("%s%%%d", varPathLength.getSource().toString(), config.prngType.numbersPerRandomize()));
 			CLValue random = config.prngType.getRandomUnifFloat(rndNumber);
-			parent.addExpression(mainMethodCallNonsynUpdateImpl(random, kernelGetLocalVar(LocalVar.UNSYNCHRONIZED_SIZE)));
+			parent.addExpression(
+					cmdGenerator.kernelCallUpdate(random, kernelGetLocalVar(LocalVar.UNSYNCHRONIZED_SIZE))
+					);
 		} else if (args.length == 2) {
-			parent.addExpression(mainMethodCallNonsynUpdateImpl(args[0], args[1]));
+			parent.addExpression(
+					cmdGenerator.kernelCallUpdate(args[0], args[1])
+					);
 		} else {
 			throw new RuntimeException("Illegal number of parameters for mainMethodCallNonsynUpdateImpl @ KernelGeneratorDTMC, required 0 or 2!");
 		}
-	}
-
-	/**
-	 * Generate direct call non-synchronized update method.
-	 * stateVector, guardsTab, random, selectionSize
-	 * @param rnd
-	 * @param sum
-	 * @return method call expression
-	 */
-	private Expression mainMethodCallNonsynUpdateImpl(CLValue rnd, CLValue sum)
-	{
-		Method update = helperMethods.get(KernelMethods.PERFORM_UPDATE);
-		Expression call = update.callMethod(
-		//stateVector
-				localVars.get(LocalVar.STATE_VECTOR).convertToPointer(),
-				//non-synchronized guards tab
-				varGuardsTab,
-				//random float [0,1]
-				rnd,
-				//number of commands
-				sum);
-		return loopDetector.kernelCallUpdate(call);
 	}
 
 	@Override
@@ -214,7 +196,7 @@ public class KernelGeneratorDTMC extends KernelGenerator
 	}
 
 	@Override
-	protected IfElse mainMethodBothUpdatesCondition(CLVariable selection)
+	protected IfElse mainMethodBothUpdatesCondition(CLVariable selection) throws KernelException
 	{
 		CLVariable varSelectionSize = kernelGetLocalVar(LocalVar.UNSYNCHRONIZED_SIZE);
 		CLVariable varSynSelectionSize = kernelGetLocalVar(LocalVar.SYNCHRONIZED_SIZE);
@@ -265,91 +247,6 @@ public class KernelGeneratorDTMC extends KernelGenerator
 				config.prngType.numbersPerRandomize()));
 		selection.setInitValue(config.prngType.getRandomUnifFloat(fromString(rndNumber)));
 		return selection;
-	}
-
-	/*********************************
-	 * NON-SYNCHRONIZED GUARDS CHECK
-	 ********************************/
-
-	@Override
-	protected Collection<CLVariable> guardsMethodAddArgs()
-	{
-		return Collections.emptyList();
-	}
-	
-	@Override
-	protected void guardsMethodCreateLocalVars(Method currentMethod) throws KernelException
-	{
-		//don't need to do anything!
-	}
-
-	@Override
-	protected Method guardsMethodCreateSignature()
-	{
-		return new Method("checkNonsynGuards", new StdVariableType(0, commands.length - 1));
-	}
-
-	@Override
-	protected void guardsMethodCreateCondition(Method currentMethod, int position, Expression guard)
-	{
-		CLVariable guardsTab = currentMethod.getArg("guardsTab");
-		Preconditions.checkNotNull(guardsTab, "");
-		CLVariable counter = currentMethod.getLocalVar("counter");
-		Preconditions.checkNotNull(counter, "");
-
-		CLVariable tabPos = guardsTab.accessElement(ExpressionGenerator.postIncrement(counter));
-		IfElse ifElse = new IfElse(guard);
-		ifElse.addExpression(0, createAssignment(tabPos, fromString(position)));
-		currentMethod.addExpression(ifElse);
-	}
-
-	@Override
-	protected void guardsMethodReturnValue(Method currentMethod)
-	{
-		CLVariable counter = currentMethod.getLocalVar("counter");
-		Preconditions.checkNotNull(counter, "");
-		currentMethod.addReturn(counter);
-	}
-
-	/*********************************
-	 * NON-SYNCHRONIZED UPDATE
-	 ********************************/
-
-	@Override
-	protected void updateMethodPerformSelection(Method currentMethod) throws KernelException
-	{
-		//INPUT: selectionSum - float [0, numberOfAllCommands];
-		CLVariable sum = currentMethod.getArg("selectionSum");
-		CLVariable number = currentMethod.getArg("numberOfCommands");
-		CLVariable selection = currentMethod.getLocalVar("selection");
-		CLVariable guardsTab = currentMethod.getArg("guardsTab");
-		guardsTab = guardsTab.accessElement(selection.getName());
-
-		// selectionSum = numberOfCommands * ( selectionSum - selection/numberOfCommands);
-		Expression divideSelection = createBinaryExpression(selection.cast("float"), Operator.DIV, number.getSource());
-		Expression subSum = createBinaryExpression(sum.getSource(), Operator.SUB, divideSelection);
-		ExpressionGenerator.addParentheses(subSum);
-		Expression asSum = createBinaryExpression(number.getSource(), Operator.MUL, subSum);
-		currentMethod.addExpression(ExpressionGenerator.createAssignment(sum, asSum));
-	}
-
-	@Override
-	protected void updateMethodAdditionalArgs(Method currentMethod) throws KernelException
-	{
-		//uint numberOfCommands
-		CLVariable numberOfCommands = new CLVariable(new StdVariableType(0, commands.length - 1), "numberOfCommands");
-		currentMethod.addArg(numberOfCommands);
-	}
-
-	@Override
-	protected void updateMethodLocalVars(Method currentMethod) throws KernelException
-	{
-		//selection
-		CLVariable sum = currentMethod.getArg("selectionSum");
-		CLVariable number = currentMethod.getArg("numberOfCommands");
-		CLVariable selection = currentMethod.getLocalVar("selection");
-		String selectionExpression = String.format("floor(%s)", createBinaryExpression(sum.getSource(), Operator.MUL, number.getSource()).toString());
-		selection.setInitValue(new Expression(selectionExpression));
 	}
 
 	/*********************************

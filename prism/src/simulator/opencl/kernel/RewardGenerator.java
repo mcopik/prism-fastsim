@@ -1217,10 +1217,8 @@ public abstract class RewardGenerator implements KernelComponentGenerator
 		return new Expression();
 	}
 
-	/**
-	 * @return additional methods which need to be declared and defined
-	 */
-	public Collection<Method> getAdditionalMethods()
+	@Override
+	public Collection<Method> getMethods()
 	{
 		if (activeGenerator) {
 			return helperMethods;
