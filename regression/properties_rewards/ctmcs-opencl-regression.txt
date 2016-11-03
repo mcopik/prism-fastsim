@@ -1,6 +1,4 @@
 ../models/ctmcs/opencl, cluster_reach.csl
-../models/ctmcs/opencl, customers_T_inst_nonloop.csl
 ../models/ctmcs/opencl, cluster_inst_nonloop.csl
-#../models/ctmcs/opencl, 
-#messagesA_cumul_loop.pctl ../models/ctmcs/opencl, messagesA_cumul_nonloop.pctl
+../models/ctmcs/opencl, cluster_cumul_nonloop.pctl
 
