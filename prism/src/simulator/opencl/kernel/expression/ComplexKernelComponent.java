@@ -35,7 +35,7 @@ import java.util.Map;
 import prism.Preconditions;
 import simulator.opencl.kernel.KernelException;
 import simulator.opencl.kernel.memory.CLVariable;
-import simulator.opencl.kernel.memory.UDType;
+import simulator.opencl.kernel.memory.UserDefinedType;
 
 public abstract class ComplexKernelComponent implements KernelComponent
 {
@@ -76,6 +76,19 @@ public abstract class ComplexKernelComponent implements KernelComponent
 		}
 		localVars.put(var.varName, var);
 		updateIncludes(var);
+	}
+
+	/**
+	 * Add collection of local vars.
+	 * @param vars
+	 * @throws KernelException when a variable with this name already exists
+	 */
+	public void addLocalVar(Collection<CLVariable> vars) throws KernelException
+	{
+		Preconditions.checkNotNull(vars);
+		for (CLVariable var : vars) {
+			addLocalVar(var);
+		}
 	}
 
 	/**
@@ -163,8 +176,8 @@ public abstract class ComplexKernelComponent implements KernelComponent
 	protected final void updateIncludes(CLVariable var)
 	{
 		Preconditions.checkNotNull(var);
-		if (var.varType instanceof UDType) {
-			List<Include> list = ((UDType) var.varType).getIncludes();
+		if (var.varType instanceof UserDefinedType) {
+			List<Include> list = ((UserDefinedType) var.varType).getIncludes();
 			if (list != null) {
 				necessaryIncludes.addAll(list);
 			}

@@ -71,7 +71,7 @@ public class ProbPropertyGeneratorCTMC extends ProbPropertyGenerator
 	 */
 
 	@Override
-	public void kernelFirstUpdateProperties(ComplexKernelComponent parent)
+	public void kernelFirstUpdateProperties(ComplexKernelComponent parent, StateVector.Translations translations)
 	{
 		/**
 		 * For the case of bounded until in CTMC, we have to check initial state at time 0.
@@ -88,7 +88,7 @@ public class ProbPropertyGeneratorCTMC extends ProbPropertyGenerator
 				CLVariable propertyVar = varPropertiesArray.accessElement(fromString(i));
 				if (prop.getLowBound() == 0.0) {
 					IfElse ifElse = createPropertyCondition(propertyVar, false, prop.getRightSide().toString(),
-							true, generator.getSVTranslations());
+							true, translations);
 					parent.addExpression(ifElse);
 				}
 				/**
@@ -96,7 +96,7 @@ public class ProbPropertyGeneratorCTMC extends ProbPropertyGenerator
 				 */
 				else if (!(prop.getLeftSide() instanceof ExpressionLiteral)) {
 					IfElse ifElse = createPropertyCondition(propertyVar, true, prop.getLeftSide().toString(),
-							false, generator.getSVTranslations());
+							false, translations);
 					parent.addExpression(ifElse);
 				}
 			}
@@ -142,7 +142,7 @@ public class ProbPropertyGeneratorCTMC extends ProbPropertyGenerator
 
 	@Override
 	protected void propertiesMethodAddBoundedUntil(Method currentMethod, ComplexKernelComponent parent,
-			SamplerBoolean property, CLVariable propertyVar) throws PrismLangException
+			StateVector.Translations translations, SamplerBoolean property, CLVariable propertyVar) throws PrismLangException
 	{
 		SamplerBoundedUntilCont prop = (SamplerBoundedUntilCont) property;
 
@@ -161,9 +161,9 @@ public class ProbPropertyGeneratorCTMC extends ProbPropertyGenerator
 			 * else -> false
 			 */
 			IfElse rhsCheck = createPropertyCondition(propertyVar, false, propertyStringRight,
-					true, generator.getSVPtrTranslations());
+					true, translations);
 			createPropertyCondition(rhsCheck, propertyVar, false, null,
-					false, generator.getSVPtrTranslations());
+					false, translations);
 			ifElse.addExpression(rhsCheck);
 		}
 
@@ -188,7 +188,7 @@ public class ProbPropertyGeneratorCTMC extends ProbPropertyGenerator
 			 */
 			if (!(prop.getLeftSide() instanceof ExpressionLiteral)) {
 				IfElse lhsCheck = createPropertyCondition(propertyVar, true, propertyStringLeft,
-						false, generator.getSVPtrTranslations());
+						false, translations);
 				ifElse.addExpression(position, lhsCheck);
 			}
 		}
@@ -202,10 +202,10 @@ public class ProbPropertyGeneratorCTMC extends ProbPropertyGenerator
 		 * else if(left_side == false) -> false
 		 */
 		IfElse betweenBounds = createPropertyCondition(propertyVar, false, propertyStringRight,
-				true, generator.getSVPtrTranslations());
+				true, translations);
 		if (!(prop.getLeftSide() instanceof ExpressionLiteral)) {
 			createPropertyCondition(betweenBounds, propertyVar, true, propertyStringLeft,
-					false, generator.getSVPtrTranslations());
+					false, translations);
 		}
 
 		/**

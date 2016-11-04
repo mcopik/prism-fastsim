@@ -298,7 +298,7 @@ public class KernelGeneratorDTMC extends KernelGenerator
 	}
 
 	@Override
-	protected void guardsSynAddGuard(ComplexKernelComponent parent, CLVariable guardArray, Command cmd, CLVariable size)
+	protected void guardsSynAddGuard(ComplexKernelComponent parent, StateVector.Translations svPtrTranslations, CLVariable guardArray, Command cmd, CLVariable size)
 	{
 		Expression guard = convertPrismGuard(svPtrTranslations, cmd.getGuard());
 		parent.addExpression(createAssignment(guardArray, guard));
@@ -318,7 +318,8 @@ public class KernelGeneratorDTMC extends KernelGenerator
 	}
 
 	@Override
-	protected void updateSynBeforeUpdateLabel(Method parent, SynchronizedCommand cmd, int moduleNumber, CLVariable guardsTab, CLVariable guard,
+	protected void updateSynBeforeUpdateLabel(Method parent, StateVector.Translations translations,
+			SynchronizedCommand cmd, int moduleNumber, CLVariable guardsTab, CLVariable guard,
 			CLVariable moduleSize, CLVariable totalSize, CLVariable probability)
 	{
 		/**

@@ -87,7 +87,7 @@ import simulator.sampler.SamplerRewardReach;
  * Requires only new state vector.
  * 4) Recheck reward properties.
  */
-public abstract class RewardGenerator implements KernelComponentGenerator
+public abstract class RewardGenerator extends PropertyGenerator
 {
 	/**
 	 * Structure contains two fields:
@@ -244,16 +244,7 @@ public abstract class RewardGenerator implements KernelComponentGenerator
 	 * Reward properties - all types are inherited from a SamplerDouble class.
 	 */
 	protected Collection<SamplerDouble> rewardProperties = null;
-
-	/**
-	 * Parent generator - access data
-	 */
-	protected KernelGenerator generator = null;
 	
-	/**
-	 * True if there is at least one reward property.
-	 */
-	protected boolean activeGenerator = false;
 	
 	/**
 	 * Set to true if there is a property which needs to know the current time for verification.
@@ -265,14 +256,12 @@ public abstract class RewardGenerator implements KernelComponentGenerator
 
 	public RewardGenerator(KernelGenerator generator) throws KernelException
 	{
-		this.generator = generator;
+		super(generator, generator.getRewardProperties().size() > 0);
 		this.config = generator.getRuntimeConfig();
 		this.rewardProperties = generator.getRewardProperties();
 		REWARD_PROPERTY_STATE_STRUCTURE = createPropertyStateType();
 
-		if(rewardProperties.size() > 0) {
-			activeGenerator = true;
-		} else {
+		if(!activeGenerator) {
 			return;
 		}
 		
@@ -450,8 +439,8 @@ public abstract class RewardGenerator implements KernelComponentGenerator
 	 */
 	private void createTransitionRewardFunction(Map<String, List<Pair<Integer, RewardStructItem>>> transitionRewards) throws KernelException
 	{
-		CLVariable pointerSV = new CLVariable(new PointerType(generator.getSVType()), "sv");
-		Map<String, String> stateVectorTranslations = generator.getSVPtrTranslations();
+		CLVariable pointerSV = new CLVariable(new PointerType(stateVector.getType()), "sv");
+		StateVector.Translations translations = stateVector.createTranslations(pointerSV);
 		for (Map.Entry<String, List<Pair<Integer, RewardStructItem>>> item : transitionRewards.entrySet()) {
 
 			/**
@@ -498,9 +487,10 @@ public abstract class RewardGenerator implements KernelComponentGenerator
 				/**
 				 * First, process the guard.
 				 */
-				Expression guard = ExpressionGenerator.convertPrismGuard(stateVectorTranslations, rwItem.second.getStates());
+				Expression guard = ExpressionGenerator.convertPrismGuard(translations, rwItem.second.getStates());
 				IfElse condition = new IfElse(guard);
-				Expression rw = ExpressionGenerator.convertPrismUpdate(pointerSV, rwItem.second.getReward(), stateVectorTranslations, null);
+				Expression rw = ExpressionGenerator.convertPrismUpdate(pointerSV, rwItem.second.getReward(),
+						translations, null);
 
 				/**
 				 * If the guard is true, then write new transition reward.
@@ -523,8 +513,8 @@ public abstract class RewardGenerator implements KernelComponentGenerator
 
 	private void createStateRewardFunction(int rewardsCount, Map<Integer, List<RewardStructItem>> stateRewards) throws KernelException
 	{
-		CLVariable pointerSV = new CLVariable(new PointerType(generator.getSVType()), "sv");
-		Map<String, String> stateVectorTranslations = generator.getSVPtrTranslations();
+		CLVariable pointerSV = new CLVariable(new PointerType(stateVector.getType()), "sv");
+		StateVector.Translations translations = stateVector.createTranslations(pointerSV);
 		
 		/**
 		 * For each reward structure:
@@ -605,9 +595,9 @@ public abstract class RewardGenerator implements KernelComponentGenerator
 					/**
 					 * First, process the guard.
 					 */
-					Expression guard = ExpressionGenerator.convertPrismGuard(stateVectorTranslations, rwItem.getStates());
+					Expression guard = ExpressionGenerator.convertPrismGuard(translations, rwItem.getStates());
 					IfElse condition = new IfElse(guard);
-					Expression rw = ExpressionGenerator.convertPrismUpdate(pointerSV, rwItem.getReward(), stateVectorTranslations, null);
+					Expression rw = ExpressionGenerator.convertPrismUpdate(pointerSV, rwItem.getReward(), translations);
 					condition.addExpression(ExpressionGenerator.createBinaryExpression(stateRewardDest, Operator.ADD_AUGM, rw));
 	
 					method.addExpression(condition);
@@ -696,7 +686,8 @@ public abstract class RewardGenerator implements KernelComponentGenerator
 //			insertIntoMultiMap(sortedSamplers, new Pair<>(idx++, sampler), sampler.getClass());
 //		}
 		//checkRewardProperty_$(type)(StateVector * sv, RewardState *, ..., REWARD_STRUCTURE...)
-		CLVariable pointerSV = new CLVariable(new PointerType(generator.getSVType()), "sv");
+		CLVariable pointerSV = new CLVariable(new PointerType(stateVector.getType()), "sv");
+		StateVector.Translations translations = stateVector.createTranslations(pointerSV);
 		Method method = new Method(String.format("%s_Reachability", CHECK_REWARD_PROPERTY_FUNCTION_NAME),
 				new StdVariableType(StdType.BOOL));
 		method.addArg(pointerSV);
@@ -758,7 +749,7 @@ public abstract class RewardGenerator implements KernelComponentGenerator
 				 * Reachability reward.
 				 */
 				if (sampler instanceof SamplerRewardReach) {
-					createPropertyReachability(ifElse, (SamplerRewardReach) sampler, currentProperty, rewardStatePointer);
+					createPropertyReachability(ifElse, translations, (SamplerRewardReach) sampler, currentProperty, rewardStatePointer);
 				}
 				/**
 				 * DTMC/CTMC instanteous reward
@@ -816,12 +807,13 @@ public abstract class RewardGenerator implements KernelComponentGenerator
 	 * @throws KernelException
 	 * @throws PrismLangException 
 	 */
-	protected void createPropertyReachability(IfElse ifElse, SamplerRewardReach property, 
+	protected void createPropertyReachability(IfElse ifElse, StateVector.Translations translations,
+			SamplerRewardReach property, 
 			CLVariable propertyState, CLVariable rewardState) throws KernelException, PrismLangException
 	{
 		CLVariable cumulativeReward = rewardState.accessField(REWARD_STRUCTURE_VAR_CUMULATIVE_TOTAL);
 		String propertyCondition = visitPropertyExpression( property.getTarget() ).toString();
-		ifElse.addExpression( createPropertyCondition(propertyState, propertyCondition, cumulativeReward.getSource()) );
+		ifElse.addExpression( createPropertyCondition(translations, propertyState, propertyCondition, cumulativeReward.getSource()) );
 	}
 
 	/**
@@ -833,10 +825,11 @@ public abstract class RewardGenerator implements KernelComponentGenerator
 	 * @param propertyValue
 	 * @return property verification in conditional - write results to property structure
 	 */
-	protected IfElse createPropertyCondition(CLVariable propertyVar, String condition, Expression propertyValue)
+	protected IfElse createPropertyCondition(StateVector.Translations translations,
+			CLVariable propertyVar, String condition, Expression propertyValue)
 	{
 		IfElse ifElse = null;
-		ifElse = new IfElse(convertPrismProperty(generator.svPtrTranslations, condition));
+		ifElse = new IfElse(convertPrismProperty(translations, condition));
 		CLVariable valueKnown = propertyVar.accessField("valueKnown");
 		CLVariable propertyState = propertyVar.accessField("propertyState");
 		ifElse.addExpression(0, createAssignment(propertyState, propertyValue));

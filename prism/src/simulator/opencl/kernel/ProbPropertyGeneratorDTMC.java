@@ -66,7 +66,7 @@ public class ProbPropertyGeneratorDTMC extends ProbPropertyGenerator
 	 */
 	
 	@Override
-	public void kernelFirstUpdateProperties(ComplexKernelComponent parent)
+	public void kernelFirstUpdateProperties(ComplexKernelComponent parent, StateVector.Translations translations)
 	{
 		//in case of DTMC, there is nothing to do
 	}
@@ -107,7 +107,8 @@ public class ProbPropertyGeneratorDTMC extends ProbPropertyGenerator
 	}
 
 	@Override
-	protected void propertiesMethodAddBoundedUntil(Method currentMethod, ComplexKernelComponent parent, SamplerBoolean property, CLVariable propertyVar)
+	protected void propertiesMethodAddBoundedUntil(Method currentMethod, ComplexKernelComponent parent,
+			StateVector.Translations translations, SamplerBoolean property, CLVariable propertyVar)
 			throws PrismLangException
 	{
 		//TODO: check if it will always work (e.g. CTMC case)
@@ -130,13 +131,13 @@ public class ProbPropertyGeneratorDTMC extends ProbPropertyGenerator
 		//TODO: always !prop?
 		if (prop.getRightSide().toString().charAt(0) == '!') {
 			rhsCheck = createPropertyCondition(propertyVar, true, propertyStringRight.substring(1),
-					true, generator.getSVPtrTranslations());
+					true, translations);
 		} else {
 			rhsCheck = createPropertyCondition(propertyVar, false, propertyStringRight,
-					true, generator.getSVPtrTranslations());
+					true, translations);
 		}
 		createPropertyCondition(rhsCheck, propertyVar, false, null,
-				false, generator.getSVPtrTranslations());
+				false, translations);
 		ifElse.addExpression(rhsCheck);
 		/**
 		 * Else -> check RHS and LHS
@@ -150,14 +151,14 @@ public class ProbPropertyGeneratorDTMC extends ProbPropertyGenerator
 		//TODO: same as above
 		if (prop.getRightSide().toString().charAt(0) == '!') {
 			betweenBounds = createPropertyCondition(propertyVar, true, propertyStringRight.substring(1),
-					true, generator.getSVPtrTranslations());
+					true, translations);
 		} else {
 			betweenBounds = createPropertyCondition(propertyVar, false, propertyStringRight.toString(),
-					true, generator.getSVPtrTranslations());
+					true, translations);
 		}
 		if (!(prop.getLeftSide() instanceof ExpressionLiteral)) {
 			createPropertyCondition(betweenBounds, propertyVar, true, propertyStringLeft,
-					false, generator.getSVPtrTranslations());
+					false, translations);
 		}
 		ifElse.addExpression(1, betweenBounds);
 		parent.addExpression(ifElse);

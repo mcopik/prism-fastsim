@@ -109,10 +109,13 @@ public class CommandGeneratorCTMC extends CommandGenerator
 			}
 			// otherwise size += synGuards()
 			else {
-				return checkGuards.callMethod(
+				CLVariable transactionSize =
+						generator.kernelGetLocalVar(LocalVar.UNSYNCHRONIZED_SIZE);
+				return createAssignment(transactionSize,
+						checkGuards.callMethod(
 						stateVectorPtr,
 						kernelGuardsTab
-						);
+						));
 			}
 			
 		}
@@ -173,13 +176,14 @@ public class CommandGeneratorCTMC extends CommandGenerator
 		 */
 		CLVariable counterVariable = generator.kernelGetLocalVar(LocalVar.TRANSITIONS_COUNTER);
 		return new Method(CHECK_GUARDS_NAME,
-				counterVariable != null ? counterVariable.varType : new StdVariableType(StdType.VOID)
+				counterVariable != null ? counterVariable.varType : new StdVariableType(StdType.FLOAT)
 				);
 			
 	}
 
 	@Override
-	protected void guardsMethodCreateCondition(Method currentMethod, int position, Expression guard)
+	protected void guardsMethodCreateCondition(Method currentMethod, StateVector.Translations translations,
+			int position, Expression guard)
 	{
 		CLVariable tabPos = checkGuardsVars.get(CheckGuardsVar.GUARDS_TAB).
 				accessElement(postIncrement( checkGuardsVars.get(CheckGuardsVar.COUNTER) ));
@@ -189,7 +193,7 @@ public class CommandGeneratorCTMC extends CommandGenerator
 		Expression sumExpr = createBinaryExpression(
 				guardsVarSum != null ? guardsVarSum.getSource() : guardsVarPtrSum.dereference().getSource(),
 				Operator.ADD_AUGM,
-				convertPrismRate(generator.getSVPtrTranslations(), null, commands[position].getRateSum())
+				convertPrismRate(translations, commands[position].getRateSum())
 				);
 		ifElse.addExpression(0, sumExpr);
 		currentMethod.addExpression(ifElse);
@@ -214,7 +218,7 @@ public class CommandGeneratorCTMC extends CommandGenerator
 	 ********************************/
 
 	@Override
-	protected void updateMethodPerformSelection(Method currentMethod) throws KernelException
+	protected void updateMethodPerformSelection(Method currentMethod, StateVector.Translations translations) throws KernelException
 	{
 		CLVariable selection = currentMethod.getLocalVar("selection");
 		CLVariable guardsTab = currentMethod.getArg("guardsTab");
@@ -231,7 +235,7 @@ public class CommandGeneratorCTMC extends CommandGenerator
 		for (int i = 0; i < commands.length; ++i) {
 			Rate rateSum = commands[i].getRateSum();
 			_switch.addCase(new Expression(Integer.toString(i)));
-			_switch.addExpression(i, ExpressionGenerator.createAssignment(newSum, convertPrismRate(generator.getSVPtrTranslations(), null, rateSum)));
+			_switch.addExpression(i, ExpressionGenerator.createAssignment(newSum, convertPrismRate(translations, rateSum)));
 		}
 		loop.addExpression(_switch);
 		// if(sum + newSum > selectionSum)

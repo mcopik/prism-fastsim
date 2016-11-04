@@ -52,6 +52,7 @@ import simulator.opencl.automaton.command.SynchronizedCommand;
 import simulator.opencl.automaton.update.Action;
 import simulator.opencl.automaton.update.Rate;
 import simulator.opencl.automaton.update.Update;
+import simulator.opencl.kernel.StateVector.Translations;
 import simulator.opencl.kernel.expression.ComplexKernelComponent;
 import simulator.opencl.kernel.expression.Expression;
 import simulator.opencl.kernel.expression.ExpressionGenerator;
@@ -176,7 +177,7 @@ public abstract class KernelGenerator
 	 * 	each_variable;
 	 * }
 	 */
-	protected StructureType stateVectorType = null;
+	protected StateVector stateVector = null;
 
 	protected Map<String, StructureType> synchronizedStates = new LinkedHashMap<>();
 	protected StructureType synCmdState = null;
@@ -274,7 +275,7 @@ public abstract class KernelGenerator
 	 * Example:
 	 * variable -> (*sv).STATE_VECTOR_PREFIX_variable
 	 */
-	Map<String, String> svPtrTranslations = new HashMap<>();
+	//StateVector.Translations svPtrTranslations = new HashMap<>();
 
 	/**
 	 * Constructor.
@@ -293,11 +294,12 @@ public abstract class KernelGenerator
 		this.properties = properties;
 		this.localVars = new EnumMap<>(LocalVar.class);
 
-		stateVectorType = StateVector.importStateVector(model);
-		additionalDeclarations.add(stateVectorType.getDefinition());
+		stateVector = new StateVector(model);
+		//VariableTypeInterface stateVectorType = stateVector.getType();
+		additionalDeclarations.add(stateVector.getType().getDefinition());
 		// create translations from model variable to StateVector structure, accessed by a pointer
-		CLVariable sv = new CLVariable(new PointerType(stateVectorType), "sv");
-		StateVector.createTranslations(sv, stateVectorType, svPtrTranslations);
+		//CLVariable sv = new CLVariable(new PointerType(stateVectorType), "sv");
+		//StateVector.createTranslations(sv, stateVectorType, svPtrTranslations);
 		varTimeType = timeVariableType();
 		int synSize = model.synchCmdsNumber();
 		int size = model.commandsNumber();
@@ -440,10 +442,10 @@ public abstract class KernelGenerator
 		currentMethod.addLocalVar(globalID);
 
 		//state vector for model
-		CLVariable varStateVector = new CLVariable(stateVectorType,
+		CLVariable varStateVector = new CLVariable(stateVector.getType(),
 				LOCAL_VARIABLES_NAMES.get(LocalVar.STATE_VECTOR));
 		varStateVector.setInitValue(
-				StateVector.initStateVector(model, stateVectorType, config.initialState)
+				stateVector.initStateVector(config.initialState)
 				);
 		currentMethod.addLocalVar(varStateVector);
 		localVars.put(LocalVar.STATE_VECTOR, varStateVector);
@@ -485,6 +487,8 @@ public abstract class KernelGenerator
 			createSynGuardsMethod();
 			createUpdateMethodSyn();
 		}
+		
+		StateVector.Translations translations = stateVector.createTranslations(varStateVector);
 
 		/**
 		 * Reject samples with globalID greater than numberOfSimulations
@@ -503,7 +507,7 @@ public abstract class KernelGenerator
 		/**
 		 * Initial check of properties, before making any computations.
 		 */
-		propertyGenerator.kernelFirstUpdateProperties(currentMethod);
+		propertyGenerator.kernelFirstUpdateProperties(currentMethod, translations);
 		
 		/**
 		 * Compute state rewards for the initial state.
@@ -542,7 +546,7 @@ public abstract class KernelGenerator
 			loop.addExpression(createAssignment(kernelGetLocalVar(LocalVar.SYNCHRONIZED_SIZE), fromString(0)));
 			
 			CLVariable transitionCount = kernelGetLocalVar(LocalVar.TRANSITIONS_COUNTER);
-			if(transitionCount != null) {
+			if(!cmdGenerator.isActive() && transitionCount != null) {
 				loop.addExpression(createAssignment(transitionCount, fromString(0)));
 			}
 			
@@ -949,6 +953,8 @@ public abstract class KernelGenerator
 			currentSize.setInitValue(StdVariableType.initialize(0));
 			CLVariable saveSize = synState.accessField("moduleSize");
 			CLVariable guardsTab = synState.accessField("guards");
+			
+			StateVector.Translations translations = this.stateVector.createTranslations(stateVector);
 
 			try {
 				current.addArg(stateVector);
@@ -965,7 +971,7 @@ public abstract class KernelGenerator
 			int guardCounter = 0;
 			//first module
 			for (int i = 0; i < cmd.getCommandNumber(0); ++i) {
-				guardsSynAddGuard(current, guardsTab.accessElement(fromString(guardCounter++)),
+				guardsSynAddGuard(current, translations, guardsTab.accessElement(fromString(guardCounter++)),
 				//guardsTab[counter] = evaluate(guard)
 						cmd.getCommand(0, i), currentSize);
 			}
@@ -978,7 +984,7 @@ public abstract class KernelGenerator
 				ifElse.addExpression(createAssignment(currentSize, fromString(0)));
 				ifElse.addExpression(guardsSynBeforeModule(i));
 				for (int j = 0; j < cmd.getCommandNumber(i); ++j) {
-					guardsSynAddGuard(ifElse, guardsTab.accessElement(fromString(guardCounter++)),
+					guardsSynAddGuard(ifElse, translations, guardsTab.accessElement(fromString(guardCounter++)),
 					//guardsTab[counter] = evaluate(guard)
 							cmd.getCommand(i, j), currentSize);
 				}
@@ -1048,11 +1054,12 @@ public abstract class KernelGenerator
 	 * Mark command index in guardsArray and sum rates/counts (simpler implementation for DTMC - 
 	 * just add guard tab value, whether it is 0 or 1; in CTMC, rate is added only in one case).
 	 * @param parent
+	 * @param svTranslations
 	 * @param guardArray
 	 * @param cmd
 	 * @param size
 	 */
-	protected abstract void guardsSynAddGuard(ComplexKernelComponent parent, CLVariable guardArray, Command cmd, CLVariable size);
+	protected abstract void guardsSynAddGuard(ComplexKernelComponent parent, StateVector.Translations svTranslations, CLVariable guardArray, Command cmd, CLVariable size);
 
 	/*********************************
 	 * SYNCHRONIZED UPDATE
@@ -1092,27 +1099,34 @@ public abstract class KernelGenerator
 			 * Obtain variables required to save, create a structure (when necessary),
 			 * initialize it with StateVector values.
 			 */
-			Set<PrismVariable> varsToSave = cmd.variablesCopiedBeforeUpdate();
-			CLVariable savedVarsInstance = null;
-			StructureType savedVarsType = null;
-			if (!varsToSave.isEmpty()) {
-				savedVarsType = new StructureType(String.format("SAVE_VARIABLES_SYNCHR_%s", cmd.synchLabel));
-				for (PrismVariable var : varsToSave) {
-					CLVariable structureVar = new CLVariable(new StdVariableType(var), StateVector.translateSVField(var.name));
-					savedVarsType.addVariable(structureVar);
-				}
-				//add to global declarations
-				additionalDeclarations.add(savedVarsType.getDefinition());
+			SavedVariables savedVarsType = new SavedVariables(
+					cmd.variablesCopiedBeforeUpdate(),
+					cmd.synchLabel
+					);
+			//add to global declarations
+			additionalDeclarations.add(savedVarsType.getDefinition());
 
-				savedVarsInstance = new CLVariable(savedVarsType, "oldSV");
-				CLValue[] init = new CLValue[varsToSave.size()];
-				int i = 0;
-				for (PrismVariable var : varsToSave) {
-					init[i++] = stateVector.accessField(StateVector.translateSVField(var.name));
-				}
-				savedVarsInstance.setInitValue(savedVarsType.initializeStdStructure(init));
-			}
-
+			StateVector.Translations translations = this.stateVector.createTranslations(stateVector);
+			//CLVariable savedVarsInstance = null;
+			//StructureType savedVarsType = null;
+//			if (!varsToSave.isEmpty()) {
+//				savedVarsType = new StructureType(String.format("SAVE_VARIABLES_SYNCHR_%s", cmd.synchLabel));
+//				for (PrismVariable var : varsToSave) {
+//					CLVariable structureVar = new CLVariable(new StdVariableType(var), StateVector.translateSVField(var.name));
+//					savedVarsType.addVariable(structureVar);
+//				}
+//				//add to global declarations
+//				additionalDeclarations.add(savedVarsType.getDefinition());
+//
+//				savedVarsInstance = new CLVariable(savedVarsType, "oldSV");
+//				CLValue[] init = new CLValue[varsToSave.size()];
+//				int i = 0;
+//				for (PrismVariable var : varsToSave) {
+//					init[i++] = stateVector.accessField(StateVector.translateSVField(var.name));
+//				}
+//				savedVarsInstance.setInitValue(savedVarsType.initializeStdStructure(init));
+//			}
+			CLVariable savedVarsInstance = savedVarsType.createInstance(stateVector, "oldSV");
 			try {
 				current.addArg(stateVector);
 				current.addArg(synState);
@@ -1121,9 +1135,8 @@ public abstract class KernelGenerator
 				current.addLocalVar(totalSize);
 				current.addLocalVar( loopDetector.synUpdateFunctionLocalVars() );
 
-				if (savedVarsInstance != null) {
-					current.addLocalVar(savedVarsInstance);
-				}
+				if (savedVarsInstance != null)
+					current.addLocalVar( savedVarsInstance );
 
 				updateSynAdditionalVars(current, cmd);
 			} catch (KernelException e) {
@@ -1151,7 +1164,7 @@ public abstract class KernelGenerator
 			for (int i = 0; i < cmd.getModulesNum(); ++i) {
 
 				moduleSize = synState.accessField("moduleSize").accessElement(fromString(i));
-				updateSynBeforeUpdateLabel(current, cmd, i, guardsTab, guard, moduleSize, totalSize, propability);
+				updateSynBeforeUpdateLabel(current, translations, cmd, i, guardsTab, guard, moduleSize, totalSize, propability);
 				/**
 				 * call selected update
 				 */
@@ -1197,7 +1210,8 @@ public abstract class KernelGenerator
 	 * @param totalSize
 	 * @param probability
 	 */
-	protected abstract void updateSynBeforeUpdateLabel(Method parent, SynchronizedCommand cmd, int moduleNumber, CLVariable guardsTab, CLVariable guard,
+	protected abstract void updateSynBeforeUpdateLabel(Method parent, StateVector.Translations translations,
+			SynchronizedCommand cmd, int moduleNumber, CLVariable guardsTab, CLVariable guard,
 			CLVariable moduleSize, CLVariable totalSize, CLVariable probability);
 
 	/**
@@ -1219,7 +1233,7 @@ public abstract class KernelGenerator
 	 * @param savedVariables
 	 * @return 'direct' update method
 	 */
-	protected Method updateSynLabelMethod(SynchronizedCommand synCmd, StructureType savedVariables)
+	protected Method updateSynLabelMethod(SynchronizedCommand synCmd, SavedVariables savedVariables)
 	{
 		Method current = new Method(String.format("updateSynchronized__%s", synCmd.synchLabel),
 				loopDetector.synLabelUpdateFunctionReturnType());
@@ -1231,10 +1245,7 @@ public abstract class KernelGenerator
 		CLVariable guard = new CLVariable(new StdVariableType(StdType.UINT8), "guard");
 		CLVariable probabilityPtr = new CLVariable(new PointerType(new StdVariableType(StdType.FLOAT)), "prob");
 		// saved values - optional argument
-		CLVariable oldSV = null;
-		if (savedVariables != null) {
-			oldSV = new CLVariable(new PointerType(savedVariables), "oldSV");
-		}
+		CLVariable oldSV = savedVariables.createPointer("oldSV");
 
 		CLVariable probability = probabilityPtr.dereference();
 		try {
@@ -1266,20 +1277,12 @@ public abstract class KernelGenerator
 
 		// Create translations variable -> savedStructure.variable
 		// Provide alternative access to state vector variable (instead of regular structure)
-		// TODO: refactor this by moving to StateVector
-		Map<String, CLVariable> savedTranslations = null;
-		if (oldSV != null) {
-			savedTranslations = new HashMap<>();
-
-			for (CLVariable var : savedVariables.getFields()) {
-				String name = var.varName.substring(StateVector.STATE_VECTOR_PREFIX.length());
-				CLVariable second = oldSV.accessField(var.varName);
-				savedTranslations.put(name, second);
-			}
-		}
+		// Map<String, CLVariable> savedTranslations = null;
+		SavedVariables.Translations savedTranslations = savedVariables.createTranslations(oldSV);
+		SavedVariables.Translations localCopy = savedTranslations.copy();
 		// variables saved in single update
-		Map<String, CLVariable> varsSaved = new HashMap<>();
-
+		StateVector.Translations svPtrTranslations = this.stateVector.createTranslations(stateVector);
+		
 		//for-each module
 		for (int i = 0; i < synCmd.getModulesNum(); ++i) {
 			_switch.addCase(fromString(i));
@@ -1303,17 +1306,33 @@ public abstract class KernelGenerator
 					IfElse ifElse = new IfElse(createBinaryExpression(probability.getSource(), Operator.LT,
 							fromString(convertPrismRate(svPtrTranslations, savedTranslations, rate))));
 					if (!update.isActionTrue(0)) {
-						ifElse.addExpression(0, updateSynLabelMethodProbabilityRecompute(probability, null, rate, savedTranslations));
+						ifElse.addExpression(0, updateSynLabelMethodProbabilityRecompute(probability, null, rate, svPtrTranslations,
+								savedTranslations));
 
-						StateVector.addSavedVariables(stateVector, ifElse, 0, update.getAction(0), savedTranslations, varsSaved);
-						// make temporary copy, we may ovewrite some variables
-						Map<String, CLVariable> newSavedTranslations;
-						if (savedTranslations != null) {
-							newSavedTranslations = new HashMap<>(savedTranslations);
-						} else {
-							newSavedTranslations = new HashMap<>();
+						//StateVector.addSavedVariables(stateVector, ifElse, 0, update.getAction(0), savedTranslations, varsSaved);
+						//SavedVariables.Translations savedTranslations = savedVariables.createTranslations()
+						// make temporary copy, we may overwrite some variables
+						// TODO: is the statement above true?
+						//Map<String, CLVariable> newSavedTranslations;
+//						if (savedTranslations != null) {
+//							newSavedTranslations = new HashMap<>(savedTranslations);
+//						} else {
+//							newSavedTranslations = new HashMap<>();
+//						}
+//						newSavedTranslations.putAll(varsSaved);
+						localCopy.clear();
+						Collection<CLVariable> localVars = SavedVariables.createTranslations(
+								stateVector,
+								update.getAction(0),
+								savedTranslations,
+								localCopy
+								);
+						for(CLVariable localVar : localVars) {
+							ifElse.addExpression(0, localVar.getDefinition());
 						}
-						newSavedTranslations.putAll(varsSaved);
+						// make temporary copy, we may overwrite some variables
+						// TODO: is the statement above true?
+						SavedVariables.Translations newSavedTranslations = savedTranslations.copy();
 
 						ifElse.addExpression(0, loopDetector.synLabelUpdateFunctionConvertAction(
 								stateVector, update.getAction(0), actionsCount, svPtrTranslations, newSavedTranslations
@@ -1324,17 +1343,29 @@ public abstract class KernelGenerator
 						rate.addRate(update.getRate(k));
 						ifElse.addElif(createBinaryExpression(probability.getSource(), Operator.LT,
 								fromString(convertPrismRate(svPtrTranslations, savedTranslations, rate))));
-						ifElse.addExpression(k, updateSynLabelMethodProbabilityRecompute(probability, previous, update.getRate(k), savedTranslations));
+						ifElse.addExpression(k, updateSynLabelMethodProbabilityRecompute(probability, previous, update.getRate(k),
+								svPtrTranslations, savedTranslations));
 
-						StateVector.addSavedVariables(stateVector, ifElse, k, update.getAction(k), savedTranslations, varsSaved);
-						// make temporary copy, we may ovewrite some variables
-						Map<String, CLVariable> newSavedTranslations;
-						if (savedTranslations != null) {
-							newSavedTranslations = new HashMap<>(savedTranslations);
-						} else {
-							newSavedTranslations = new HashMap<>();
+//						StateVector.addSavedVariables(stateVector, ifElse, k, update.getAction(k), savedTranslations, varsSaved);
+//						// make temporary copy, we may ovewrite some variables
+//						Map<String, CLVariable> newSavedTranslations;
+//						if (savedTranslations != null) {
+//							newSavedTranslations = new HashMap<>(savedTranslations);
+//						} else {
+//							newSavedTranslations = new HashMap<>();
+//						}
+//						newSavedTranslations.putAll(varsSaved);
+						localCopy.clear();
+						Collection<CLVariable> localVars = SavedVariables.createTranslations(
+								stateVector,
+								update.getAction(k),
+								savedTranslations,
+								localCopy
+								);
+						for(CLVariable localVar : localVars) {
+							ifElse.addExpression(k, localVar.getDefinition());
 						}
-						newSavedTranslations.putAll(varsSaved);
+						SavedVariables.Translations newSavedTranslations = savedTranslations.copy();
 
 						if (!update.isActionTrue(k)) {
 							ifElse.addExpression(k, loopDetector.synLabelUpdateFunctionConvertAction(
@@ -1346,15 +1377,26 @@ public abstract class KernelGenerator
 				} else {
 					if (!update.isActionTrue(0)) {
 
-						StateVector.addSavedVariables(stateVector, internalSwitch, j, update.getAction(0), savedTranslations, varsSaved);
-						// make temporary copy, we may ovewrite some variables
-						Map<String, CLVariable> newSavedTranslations;
-						if (savedTranslations != null) {
-							newSavedTranslations = new HashMap<>(savedTranslations);
-						} else {
-							newSavedTranslations = new HashMap<>();
+//						StateVector.addSavedVariables(stateVector, internalSwitch, j, update.getAction(0), savedTranslations, varsSaved);
+//						// make temporary copy, we may ovewrite some variables
+//						Map<String, CLVariable> newSavedTranslations;
+//						if (savedTranslations != null) {
+//							newSavedTranslations = new HashMap<>(savedTranslations);
+//						} else {
+//							newSavedTranslations = new HashMap<>();
+//						}
+//						newSavedTranslations.putAll(varsSaved);
+						localCopy.clear();
+						Collection<CLVariable> localVars = savedVariables.createTranslations(
+								stateVector,
+								update.getAction(0),
+								savedTranslations,
+								localCopy
+								);
+						for(CLVariable localVar : localVars) {
+							internalSwitch.addExpression(j, localVar.getDefinition());
 						}
-						newSavedTranslations.putAll(varsSaved);
+						SavedVariables.Translations newSavedTranslations = savedTranslations.copy();
 			
 						internalSwitch.addExpression(j, loopDetector.synLabelUpdateFunctionConvertAction(
 								stateVector, update.getAction(0), actionsCount, svPtrTranslations, newSavedTranslations
@@ -1402,20 +1444,22 @@ public abstract class KernelGenerator
 	 * @param current
 	 * @return expression recomputing probability before going to an action
 	 */
-	protected Expression updateSynLabelMethodProbabilityRecompute(CLVariable probability, Rate before, Rate current, Map<String, CLVariable> savedVariables)
+	protected Expression updateSynLabelMethodProbabilityRecompute(CLVariable probability, Rate before, Rate current,
+			StateVector.Translations svTranslations,
+			SavedVariables.Translations savedVariables)
 	{
 		Expression compute = null;
 		if (before != null) {
 			compute = createBinaryExpression(probability.getSource(), Operator.SUB,
 			//probability - sum of rates before
-					fromString(convertPrismRate(svPtrTranslations, savedVariables, before)));
+					fromString(convertPrismRate(svTranslations, savedVariables, before)));
 		} else {
 			compute = probability.getSource();
 		}
 		addParentheses(compute);
 		return createAssignment(probability, createBinaryExpression(compute, Operator.DIV,
 		//divide by current interval
-				fromString(convertPrismRate(svPtrTranslations, savedVariables, current))));
+				fromString(convertPrismRate(svTranslations, savedVariables, current))));
 	}
 
 	/*********************************
@@ -1440,14 +1484,19 @@ public abstract class KernelGenerator
 	/**
 	 * @return state vector structure type
 	 */
-	public StructureType getSVType()
-	{
-		return stateVectorType;
-	}
+//	public StructureType getSVType()
+//	{
+//		return stateVectorType;
+//	}
 
 	public AbstractAutomaton getModel()
 	{
 		return model;
+	}
+	
+	public StateVector getSV()
+	{
+		return stateVector;
 	}
 
 	/**
@@ -1460,21 +1509,21 @@ public abstract class KernelGenerator
 	 * - field name ends with NAME
 	 * @return
 	 */
-	public Map<String, String> getSVPtrTranslations()
-	{
-		return svPtrTranslations;
-	}
+//	public Map<String, String> getSVPtrTranslations()
+//	{
+//		return svPtrTranslations;
+//	}
 
 	/**
 	 * TODO: temporary, remove
 	 * @return
 	 */
-	public Map<String, String> getSVTranslations()
-	{
-		StructureType stateVectorType = getSVType();
-		CLVariable stateVector = localVars.get(LocalVar.STATE_VECTOR);
-		return StateVector.getSVTranslations(stateVector, stateVectorType);
-	}
+//	public Map<String, String> getSVTranslations()
+//	{
+//		StructureType stateVectorType = getSVType();
+//		CLVariable stateVector = localVars.get(LocalVar.STATE_VECTOR);
+//		return StateVector.getSVTranslations(stateVector, stateVectorType);
+//	}
 	
 	/**
 	 * Get local var declared in main kernel method.

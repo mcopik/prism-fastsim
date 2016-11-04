@@ -410,14 +410,14 @@ public class KernelGeneratorCTMC extends KernelGenerator
 	}
 
 	@Override
-	protected void guardsSynAddGuard(ComplexKernelComponent parent, CLVariable guardArray, Command cmd, CLVariable size)
+	protected void guardsSynAddGuard(ComplexKernelComponent parent, StateVector.Translations svTranslations, CLVariable guardArray, Command cmd, CLVariable size)
 	{
 		//TODO: optimize this by removing if and setting rate add:
 		// rateSum += rate*guards, firstly setting guards[0] = PRISM_guard
-		IfElse ifElse = new IfElse(convertPrismGuard(svPtrTranslations, cmd.getGuard()));
+		IfElse ifElse = new IfElse(convertPrismGuard(svTranslations, cmd.getGuard()));
 		ifElse.addExpression(createBinaryExpression(size.getSource(), Operator.ADD_AUGM,
 		//converted rate
-				new Expression(convertPrismRate(svPtrTranslations, null, cmd.getRateSum()))));
+				new Expression(convertPrismRate(svTranslations, cmd.getRateSum()))));
 		ifElse.addExpression(createAssignment(guardArray, fromString(1)));
 		// transition counting requested: current_counter++;
 		if(localVars.containsKey(LocalVar.TRANSITIONS_COUNTER)) {
@@ -457,7 +457,8 @@ public class KernelGeneratorCTMC extends KernelGenerator
 	}
 
 	@Override
-	protected void updateSynBeforeUpdateLabel(Method parent, SynchronizedCommand cmd, int moduleNumber, CLVariable guardsTab, CLVariable guard,
+	protected void updateSynBeforeUpdateLabel(Method parent, StateVector.Translations translations,
+			SynchronizedCommand cmd, int moduleNumber, CLVariable guardsTab, CLVariable guard,
 			CLVariable moduleSize, CLVariable totalSize, CLVariable probability)
 	{
 		/**
@@ -498,7 +499,7 @@ public class KernelGeneratorCTMC extends KernelGenerator
 			Switch _switch = new Switch(guard);
 			for (int i = 0; i < cmd.getCommandNumber(moduleNumber); ++i) {
 				Rate rateSum = cmd.getCommand(moduleNumber, i).getRateSum();
-				Expression convertedRate = ExpressionGenerator.convertPrismRate(svPtrTranslations, null, rateSum);
+				Expression convertedRate = ExpressionGenerator.convertPrismRate(translations, rateSum);
 				_switch.addCase(new Expression(Integer.toString(i)));
 				_switch.addExpression(i, ExpressionGenerator.createAssignment(newSum, convertedRate));
 			}

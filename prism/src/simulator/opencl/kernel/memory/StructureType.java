@@ -38,7 +38,7 @@ import java.util.TreeMap;
 import simulator.opencl.kernel.expression.Expression;
 import simulator.opencl.kernel.expression.Include;
 
-public class StructureType implements VariableTypeInterface, UDType
+public class StructureType implements VariableTypeInterface, UserDefinedType
 {
 	/**
 	 * Used mainly for the initialization.

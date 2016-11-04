@@ -34,6 +34,8 @@ import simulator.opencl.automaton.Guard;
 import simulator.opencl.automaton.PrismVariable;
 import simulator.opencl.automaton.update.Action;
 import simulator.opencl.automaton.update.Rate;
+import simulator.opencl.kernel.SavedVariables;
+import simulator.opencl.kernel.StateVector;
 import simulator.opencl.kernel.memory.CLValue;
 import simulator.opencl.kernel.memory.CLVariable;
 import simulator.opencl.kernel.memory.ExpressionValue;
@@ -227,12 +229,13 @@ public class ExpressionGenerator
 	 * @param savedVariables if not null, then references to 'save' place - will be used instead of translation in previous map
 	 * @return action converted from PRISM model to OpenCL
 	 */
-	static public Expression convertPrismAction(CLVariable stateVector, Action action, Map<String, String> translations, Map<String, CLVariable> savedVariables)
+	static public Expression convertPrismAction(CLVariable stateVector, Action action, StateVector.Translations translations,
+			SavedVariables.Translations savedVariables)
 	{
 		StringBuilder builder = new StringBuilder();
 		for (Pair<PrismVariable, parser.ast.Expression> expr : action.expressions) {
 
-			builder.append(translations.get(expr.first.name)).append(" = ");
+			builder.append(translations.translate(expr.first.name)).append(" = ");
 			builder.append(convertPrismUpdate(stateVector, expr.second, translations, savedVariables).getSource());
 			builder.append(";\n");
 		}
@@ -249,18 +252,18 @@ public class ExpressionGenerator
 	 * @return action converted from PRISM model to OpenCL
 	 */
 	//TODO: move to loopdetector?
-	static public KernelComponent convertPrismAction(CLVariable stateVector, Action action, Map<String, String> translations,
-			Map<String, CLVariable> savedVariables, CLVariable changeFlag, CLVariable oldValue)
+	static public KernelComponent convertPrismAction(CLVariable stateVector, Action action, StateVector.Translations translations,
+			SavedVariables.Translations savedVariables, CLVariable changeFlag, CLVariable oldValue)
 	{
 		ExpressionList list = new ExpressionList();
 		for (Pair<PrismVariable, parser.ast.Expression> expr : action.expressions) {
 
-			list.addExpression(createAssignment(oldValue, new Expression(translations.get(expr.first.name))));
+			list.addExpression(createAssignment(oldValue, new Expression(translations.translate(expr.first.name))));
 
-			String destinationSVName = translations.get(expr.first.name);
+			String destinationSVName = translations.translate(expr.first.name);
 			Preconditions.checkCondition(destinationSVName != null);
 
-			Expression mainAssignment = new Expression(String.format("%s = %s", translations.get(expr.first.name),
+			Expression mainAssignment = new Expression(String.format("%s = %s", translations.translate(expr.first.name),
 					convertPrismUpdate(stateVector, expr.second, translations, savedVariables).getSource()));
 			addParentheses(mainAssignment);
 			list.addExpression(createBinaryExpression(changeFlag.getSource(), Operator.LAND_AUGM, createConditionalAssignment(
@@ -270,6 +273,16 @@ public class ExpressionGenerator
 		return list;
 	}
 
+	static public Expression convertPrismUpdate(CLVariable stateVector, parser.ast.Expression expr, StateVector.Translations translations)
+	{
+		StringBuilder assignment = new StringBuilder();
+		assignment.append(convertActionWithSV(stateVector, translations, null, expr.toString()));
+		convertEquality(assignment);
+		builderReplace(assignment, "|", "||");
+		builderReplace(assignment, "&", "&&");
+		return new Expression(assignment.toString());
+	}
+	
 	/**
 	 * @param stateVector
 	 * @param expr
@@ -277,8 +290,8 @@ public class ExpressionGenerator
 	 * @param savedVariables if not null, then references to 'save' place - will be used instead of translation in previous map
 	 * @return convert variable update from PRISM model to OpenCL
 	 */
-	static public Expression convertPrismUpdate(CLVariable stateVector, parser.ast.Expression expr, Map<String, String> translations,
-			Map<String, CLVariable> savedVariables)
+	static public Expression convertPrismUpdate(CLVariable stateVector, parser.ast.Expression expr, StateVector.Translations translations,
+			SavedVariables.Translations savedVariables)
 	{
 		StringBuilder assignment = new StringBuilder();
 		assignment.append(convertActionWithSV(stateVector, translations, savedVariables, expr.toString()));
@@ -312,12 +325,13 @@ public class ExpressionGenerator
 	 * @param action
 	 * @return action with replaced all references to PRISM model variables
 	 */
-	static private String convertActionWithSV(CLVariable stateVector, Map<String, String> translations, Map<String, CLVariable> savedVariables, String action)
+	static private String convertActionWithSV(CLVariable stateVector, StateVector.Translations translations,
+			SavedVariables.Translations savedVariables, String action)
 	{
 		StringBuilder builder = new StringBuilder(action);
 		for (Map.Entry<String, String> entry : translations.entrySet()) {
 
-			if (savedVariables != null && savedVariables.containsKey(entry.getKey())) {
+			if (savedVariables != null && savedVariables.hasTranslation(entry.getKey())) {
 				continue;
 			}
 			builderReplaceMostCommon(builder, entry.getKey(), entry.getValue());
@@ -337,18 +351,18 @@ public class ExpressionGenerator
 	 * @param rate
 	 * @return rate of update with replaced all references to model variable
 	 */
-	static public Expression convertPrismRate(Map<String, String> translations, Map<String, CLVariable> savedVariables, Rate rate)
+	static public Expression convertPrismRate(StateVector.Translations translations,
+			SavedVariables.Translations savedVariables, Rate rate)
 	{
 		StringBuilder builder = new StringBuilder(rate.toString());
 		for (Map.Entry<String, String> entry : translations.entrySet()) {
 
-			if (savedVariables != null && savedVariables.containsKey(entry.getKey())) {
+			if ( savedVariables != null && savedVariables.hasTranslation(entry.getKey()) )
 				continue;
-			}
 			builderReplaceMostCommon(builder, entry.getKey(), entry.getValue());
 		}
 
-		if (savedVariables != null) {
+		if(savedVariables != null) {
 			for (Map.Entry<String, CLVariable> entry : savedVariables.entrySet()) {
 				builderReplaceMostCommon(builder, entry.getKey(), entry.getValue().varName);
 			}
@@ -356,13 +370,18 @@ public class ExpressionGenerator
 
 		return new Expression(builder.toString());
 	}
+	
+	static public Expression convertPrismRate(StateVector.Translations translations, Rate rate)
+	{
+		return convertPrismRate(translations, null, rate);
+	}
 
 	/**
 	 * @param translations contains translations of model variables to proper references at state vector structure
 	 * @param expr
 	 * @return PRISM property with replaced all references to model variable and fixed logical operators
 	 */
-	static public Expression convertPrismProperty(Map<String, String> translations, String expr)
+	static public Expression convertPrismProperty(StateVector.Translations translations, String expr)
 	{
 		StringBuilder builder = new StringBuilder(expr);
 		for (Map.Entry<String, String> entry : translations.entrySet()) {
@@ -380,7 +399,7 @@ public class ExpressionGenerator
 	 * @return PRISM guard with replaced all references to model variable and fixed logical operators. It has to be a single expression,
 	 * otherwise it couldn't be a logical condition with single value
 	 */
-	static public Expression convertPrismGuard(Map<String, String> translations, parser.ast.Expression expr)
+	static public Expression convertPrismGuard(StateVector.Translations translations, parser.ast.Expression expr)
 	{
 		return convertPrismGuard(translations, expr.toString());
 	}
@@ -391,7 +410,7 @@ public class ExpressionGenerator
 	 * @return PRISM guard with replaced all references to model variable and fixed logical operators. It has to be a single expression,
 	 * otherwise it couldn't be a logical condition with single value
 	 */
-	static public Expression convertPrismGuard(Map<String, String> translations, Guard expr)
+	static public Expression convertPrismGuard(StateVector.Translations translations, Guard expr)
 	{
 		return convertPrismGuard(translations, expr.toString());
 	}
@@ -400,7 +419,7 @@ public class ExpressionGenerator
 	 * Common implementation for method taking a preprocessed guard or a PRISM expression.
 	 * Documentation - look for overloaded methods.
 	 */
-	static private Expression convertPrismGuard(Map<String, String> translations, String expr)
+	static private Expression convertPrismGuard(StateVector.Translations translations, String expr)
 	{
 		StringBuilder builder = new StringBuilder(expr);
 		for (Map.Entry<String, String> entry : translations.entrySet()) {

@@ -40,6 +40,7 @@ import java.util.Map;
 import parser.ast.ExpressionLiteral;
 import prism.PrismLangException;
 import simulator.opencl.automaton.AbstractAutomaton.AutomatonType;
+import simulator.opencl.kernel.StateVector.Translations;
 import simulator.opencl.kernel.expression.ComplexKernelComponent;
 import simulator.opencl.kernel.expression.Expression;
 import simulator.opencl.kernel.expression.ExpressionGenerator;
@@ -54,11 +55,12 @@ import simulator.opencl.kernel.memory.StdVariableType;
 import simulator.opencl.kernel.memory.StructureType;
 import simulator.opencl.kernel.memory.CLVariable.Location;
 import simulator.opencl.kernel.memory.StdVariableType.StdType;
+import simulator.opencl.kernel.memory.UserDefinedType;
 import simulator.sampler.SamplerBoolean;
 import simulator.sampler.SamplerNext;
 import simulator.sampler.SamplerUntil;
 
-public abstract class ProbPropertyGenerator implements KernelComponentGenerator
+public abstract class ProbPropertyGenerator extends PropertyGenerator
 {
 	/**
 	 * Structure with two booleans: property value and information
@@ -93,11 +95,6 @@ public abstract class ProbPropertyGenerator implements KernelComponentGenerator
 	protected List<SamplerBoolean> properties = null;
 	
 	/**
-	 * True iff there are properties.
-	 */
-	protected boolean activeGenerator = false;
-	
-	/**
 	 * True iff property verification method requires passing time,
 	 * i.e. at least one property is a bounded until.
 	 */
@@ -118,16 +115,10 @@ public abstract class ProbPropertyGenerator implements KernelComponentGenerator
 	 */
 	Method propertyUpdateMethod = null;
 	
-	/**
-	 * Main generator.
-	 */
-	protected KernelGenerator generator = null;
-	
 	public ProbPropertyGenerator(KernelGenerator generator) throws PrismLangException, KernelException
 	{
-		this.generator = generator;
+		super(generator, generator.getProbProperties().size() > 0);
 		properties = generator.getProbProperties();
-		activeGenerator = properties.size() > 0;
 		if(!activeGenerator) {
 			return;
 		}
@@ -140,14 +131,6 @@ public abstract class ProbPropertyGenerator implements KernelComponentGenerator
 		}
 		
 		propertiesMethodCreate();
-	}
-	
-	/**
-	 * @return true iff generator is active and produces any code
-	 */
-	public boolean isGeneratorActive()
-	{
-		return activeGenerator;
 	}
 	
 	/**
@@ -276,7 +259,7 @@ public abstract class ProbPropertyGenerator implements KernelComponentGenerator
 	 * For a CTMC, a bounded until require special attention if the lower bound is equal to zero.
 	 * @param parent
 	 */
-	public abstract void kernelFirstUpdateProperties(ComplexKernelComponent parent);
+	public abstract void kernelFirstUpdateProperties(ComplexKernelComponent parent, StateVector.Translations translations);
 
 	/**
 	 * Create call to probabilistic property update method.
@@ -331,7 +314,7 @@ public abstract class ProbPropertyGenerator implements KernelComponentGenerator
 		 * Local variables and args.
 		 */
 		//StateVector * sv
-		CLVariable sv = new CLVariable(new PointerType(generator.getSVType()), "sv");
+		CLVariable sv = new CLVariable(new PointerType(stateVector.getType()), "sv");
 		propertyUpdateMethod.addArg(sv);
 		//PropertyState * property
 		CLVariable propertyState = new CLVariable(new PointerType(PROPERTY_STATE_STRUCTURE), "propertyState");
@@ -346,6 +329,9 @@ public abstract class ProbPropertyGenerator implements KernelComponentGenerator
 		CLVariable allKnown = new CLVariable(new StdVariableType(StdType.BOOL), "allKnown");
 		allKnown.setInitValue(StdVariableType.initialize(1));
 		propertyUpdateMethod.addLocalVar(allKnown);
+		
+		// create translations from PRISM vars to local instance of state vector
+		StateVector.Translations translations = stateVector.createTranslations(sv);
 
 		/**
 		 * For each property, add checking
@@ -362,20 +348,20 @@ public abstract class ProbPropertyGenerator implements KernelComponentGenerator
 			 * I don't think that this will be used in future.
 			 */
 			if (property instanceof SamplerNext) {
-				propertiesMethodAddNext(ifElse, (SamplerNext) property, currentProperty);
+				propertiesMethodAddNext(ifElse, translations, (SamplerNext) property, currentProperty);
 			}
 			/**
 			 * state_formulae U state_formulae
 			 */
 			else if (property instanceof SamplerUntil) {
-				propertiesMethodAddUntil(ifElse, (SamplerUntil) property, currentProperty);
+				propertiesMethodAddUntil(ifElse, translations, (SamplerUntil) property, currentProperty);
 			}
 			/**
 			 * state_formulae U[k1,k2] state_formulae
 			 * Requires additional timing args.
 			 */
 			else {
-				propertiesMethodAddBoundedUntil(propertyUpdateMethod, ifElse, property, currentProperty);
+				propertiesMethodAddBoundedUntil(propertyUpdateMethod, ifElse, translations, property, currentProperty);
 			}
 			// allKnown &= property[i].valueKnown
 			ifElse.addExpression(0, createBinaryExpression( allKnown.getSource(), 
@@ -406,7 +392,7 @@ public abstract class ProbPropertyGenerator implements KernelComponentGenerator
 	 * @throws PrismLangException
 	 */
 	protected abstract void propertiesMethodAddBoundedUntil(Method currentMethod, ComplexKernelComponent parent,
-			SamplerBoolean property, CLVariable propertyVar) throws PrismLangException;
+			StateVector.Translations translations, SamplerBoolean property, CLVariable propertyVar) throws PrismLangException;
 
 	/**
 	 * @param prop
@@ -425,11 +411,12 @@ public abstract class ProbPropertyGenerator implements KernelComponentGenerator
 	 * @param propertyVar
 	 * @throws PrismLangException
 	 */
-	protected void propertiesMethodAddNext(ComplexKernelComponent parent, SamplerNext property, CLVariable propertyVar) throws PrismLangException
+	protected void propertiesMethodAddNext(ComplexKernelComponent parent, StateVector.Translations translations,
+			SamplerNext property, CLVariable propertyVar) throws PrismLangException
 	{
 		String propertyString = visitPropertyExpression(property.getExpression()).toString();
-		IfElse ifElse = createPropertyCondition(propertyVar, false, propertyString, true, generator.getSVPtrTranslations());
-		createPropertyCondition(ifElse, propertyVar, false, null, false, generator.getSVPtrTranslations());
+		IfElse ifElse = createPropertyCondition(propertyVar, false, propertyString, true, translations);
+		createPropertyCondition(ifElse, propertyVar, false, null, false, translations);
 		parent.addExpression(ifElse);
 	}
 
@@ -440,17 +427,17 @@ public abstract class ProbPropertyGenerator implements KernelComponentGenerator
 	 * @param propertyVar
 	 * @throws PrismLangException
 	 */
-	protected void propertiesMethodAddUntil(ComplexKernelComponent parent, SamplerUntil property, CLVariable propertyVar) throws PrismLangException
+	protected void propertiesMethodAddUntil(ComplexKernelComponent parent, StateVector.Translations translations, SamplerUntil property, CLVariable propertyVar) throws PrismLangException
 	{
 		String propertyStringRight = visitPropertyExpression(property.getRightSide()).toString();
 		String propertyStringLeft = visitPropertyExpression(property.getLeftSide()).toString();
-		IfElse ifElse = createPropertyCondition(propertyVar, false, propertyStringRight, true, generator.getSVPtrTranslations());
+		IfElse ifElse = createPropertyCondition(propertyVar, false, propertyStringRight, true, translations);
 
 		/**
 		 * in F/G it is true, no need to check
 		 */
 		if (!(property.getLeftSide() instanceof ExpressionLiteral)) {
-			createPropertyCondition(ifElse, propertyVar, true, propertyStringLeft, false, generator.getSVPtrTranslations());
+			createPropertyCondition(ifElse, propertyVar, true, propertyStringLeft, false, translations);
 		}
 		parent.addExpression(ifElse);
 	}
@@ -464,7 +451,7 @@ public abstract class ProbPropertyGenerator implements KernelComponentGenerator
 	 * @return property verification in conditional - write results to property structure
 	 */
 	protected IfElse createPropertyCondition(CLVariable propertyVar, boolean negation, String condition,
-			boolean propertyValue, Map<String, String> svTranslations)
+			boolean propertyValue, StateVector.Translations svTranslations)
 	{
 		IfElse ifElse = null;
 		if (!negation) {
@@ -492,7 +479,7 @@ public abstract class ProbPropertyGenerator implements KernelComponentGenerator
 	 * @param propertyValue
 	 */
 	protected void createPropertyCondition(IfElse ifElse, CLVariable propertyVar, boolean negation, String condition,
-			boolean propertyValue, Map<String, String> svTranslations)
+			boolean propertyValue, StateVector.Translations svTranslations)
 	{
 		if (condition != null) {
 			if (!negation) {

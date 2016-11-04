@@ -2,7 +2,7 @@
 //	
 //	Copyright (c) 2002-
 //	Authors:
-//	* Marcin Copik <mcopik@gmail.com> (Silesian University of Technology)
+//	* Marcin Copik <mcopik@gmail.com> (RWTH Aachen, formerly Silesian University of Technology)
 //	
 //------------------------------------------------------------------------------
 //	
@@ -23,27 +23,35 @@
 //	Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 //	
 //==============================================================================
-package simulator.opencl.kernel.memory;
+package simulator.opencl.kernel;
 
-import java.util.List;
-
-import simulator.opencl.kernel.expression.Expression;
-import simulator.opencl.kernel.expression.Include;
-
-public interface UDType extends VariableTypeInterface
+public abstract class PropertyGenerator implements KernelComponentGenerator
 {
 	/**
-	 * @return list of includes for this type; null when none are necessary
+	 * Main generator.
 	 */
-	List<Include> getIncludes();
+	protected KernelGenerator generator = null;
 	
-	/**
-	 * @return declaration code for this type
-	 */
-	Expression getDeclaration();
+	protected StateVector stateVector = null;
 
 	/**
-	 * @return definition code for this type
+	 * True if there is at least one property.
 	 */
-	Expression getDefinition();
+	protected boolean activeGenerator = false;
+	
+	PropertyGenerator(KernelGenerator generator, boolean active)
+	{
+		this.generator = generator;
+		stateVector = generator.getSV();
+		activeGenerator = active;
+	}
+	
+	/**
+	 * @return true iff generator is active and produces any code
+	 */
+	public boolean isGeneratorActive()
+	{
+		return activeGenerator;
+	}
+	
 }

@@ -60,10 +60,13 @@ public class CommandGeneratorDTMC extends CommandGenerator
 	{
 		if(activeGenerator) {
 			checkGuards = createGuardsMethod();
-			return checkGuards.callMethod(
+			CLVariable transactionSize =
+					generator.kernelGetLocalVar(LocalVar.UNSYNCHRONIZED_SIZE);
+			return createAssignment(transactionSize,
+					checkGuards.callMethod(
 					generator.kernelGetLocalVar(LocalVar.STATE_VECTOR).convertToPointer(),
 					kernelGuardsTab
-					);
+					));
 		}
 		return new Expression();
 	}
@@ -107,7 +110,8 @@ public class CommandGeneratorDTMC extends CommandGenerator
 	}
 
 	@Override
-	protected void guardsMethodCreateCondition(Method currentMethod, int position, Expression guard)
+	protected void guardsMethodCreateCondition(Method currentMethod, StateVector.Translations translations,
+			int position, Expression guard)
 	{
 		CLVariable tabPos = checkGuardsVars.get(CheckGuardsVar.GUARDS_TAB).
 				accessElement(postIncrement( checkGuardsVars.get(CheckGuardsVar.COUNTER) ));
@@ -127,7 +131,7 @@ public class CommandGeneratorDTMC extends CommandGenerator
 	 ********************************/
 
 	@Override
-	protected void updateMethodPerformSelection(Method currentMethod) throws KernelException
+	protected void updateMethodPerformSelection(Method currentMethod, StateVector.Translations translations) throws KernelException
 	{
 		//INPUT: selectionSum - float [0, numberOfAllCommands];
 		CLVariable sum = currentMethod.getArg("selectionSum");

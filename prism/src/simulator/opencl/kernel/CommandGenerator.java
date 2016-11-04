@@ -132,6 +132,9 @@ public abstract class CommandGenerator implements KernelComponentGenerator
 		
 		commands = generator.getCommands();
 		activeGenerator = commands != null;
+		if(!activeGenerator) {
+			return;
+		}
 
 		kernelGuardsTab = new CLVariable(
 				new ArrayType(new StdVariableType(0, commands.length), commands.length),
@@ -263,7 +266,7 @@ public abstract class CommandGenerator implements KernelComponentGenerator
 		 * Args
 		 */
 		//StateVector * sv
-		CLVariable sv = new CLVariable(new PointerType( generator.getSVType() ), "sv");
+		CLVariable sv = new CLVariable(new PointerType( generator.getSV().getType() ), "sv");
 		currentMethod.addArg(sv);
 		//bool * guardsTab
 		CLVariable guards = new CLVariable(
@@ -286,12 +289,15 @@ public abstract class CommandGenerator implements KernelComponentGenerator
 		counter.setInitValue(StdVariableType.initialize(0));
 		currentMethod.addLocalVar(counter);
 		checkGuardsVars.put(CheckGuardsVar.COUNTER, counter);
+		
+		StateVector.Translations translations = generator.getSV().createTranslations(sv);
 
 		for (int i = 0; i < commands.length; ++i) {
 			guardsMethodCreateCondition(
 					currentMethod,
+					translations,
 					i,
-					convertPrismGuard(generator.getSVPtrTranslations(), commands[i].getGuard())
+					convertPrismGuard(translations, commands[i].getGuard())
 					);
 		}
 
@@ -321,7 +327,8 @@ public abstract class CommandGenerator implements KernelComponentGenerator
 	 * @param position
 	 * @param guard
 	 */
-	protected abstract void guardsMethodCreateCondition(Method currentMethod, int position, Expression guard);
+	protected abstract void guardsMethodCreateCondition(Method currentMethod, StateVector.Translations translations,
+			int position, Expression guard);
 
 	/**
 	 * Returns counter of evaluated guards (integer) for DTMC or sum of rates (float) for CTMC.
@@ -343,7 +350,7 @@ public abstract class CommandGenerator implements KernelComponentGenerator
 		LoopDetector loopDetector = generator.getLoopDetector();
 		Method currentMethod = new Method(UPDATE_GUARDS_NAME, loopDetector.updateFunctionReturnType());
 		//StateVector * sv
-		CLVariable sv = new CLVariable(new PointerType( generator.getSVType() ), "sv");
+		CLVariable sv = new CLVariable(new PointerType( generator.getSV().getType() ), "sv");
 		currentMethod.addArg(sv);
 		//bool * guardsTab
 		CLVariable guards = new CLVariable(new PointerType(new StdVariableType(0, commands.length)), "guardsTab");
@@ -359,14 +366,15 @@ public abstract class CommandGenerator implements KernelComponentGenerator
 		// loop detection vars
 		currentMethod.addLocalVar(loopDetector.updateFunctionLocalVars());
 
+		StateVector.Translations svPtrTranslations = generator.getSV().createTranslations(sv);
+		
 		/**
 		 * Performs tasks depending on automata type
 		 */
 		updateMethodAdditionalArgs(currentMethod);
 		updateMethodLocalVars(currentMethod);
-		updateMethodPerformSelection(currentMethod);
+		updateMethodPerformSelection(currentMethod, svPtrTranslations);
 
-		Map<String, String> svPtrTranslations = generator.getSVPtrTranslations();
 		CLVariable guardsTabSelection = guards.accessElement(selection.getSource());
 		Switch _switch = new Switch(guardsTabSelection.getSource());
 		int switchCounter = 0;
@@ -376,7 +384,8 @@ public abstract class CommandGenerator implements KernelComponentGenerator
 			Rate rate = new Rate(update.getRate(0));
 			Action action;
 			// variables saved in this action 
-			Map<String, CLVariable> savedVariables = new HashMap<>();
+			//Map<String, CLVariable> savedVariables = new HashMap<>();
+			SavedVariables.Translations savedVariables = SavedVariables.Translations.createEmpty();
 
 			// if there is more than one action possible, then create a conditional to choose between them
 			// for one action, it's unnecessary
@@ -387,11 +396,20 @@ public abstract class CommandGenerator implements KernelComponentGenerator
 				_switch.addExpression(switchCounter, loopDetector.updateFunctionMultipleActions());
 				
 				IfElse ifElse = new IfElse(createBinaryExpression(selectionSum.getSource(), Operator.LT,
-						fromString(convertPrismRate(svPtrTranslations, null, rate))));
+						fromString(convertPrismRate(svPtrTranslations, rate))));
 				//first one goes to 'if'
 				if (!update.isActionTrue(0)) {
 					action = update.getAction(0);
-					StateVector.addSavedVariables(sv, ifElse, 0, action, null, savedVariables);
+					//StateVector.addSavedVariables(sv, ifElse, 0, action, null, savedVariables);
+
+					Collection<CLVariable> localVars = SavedVariables.createTranslations(
+							sv,
+							action,
+							savedVariables
+							);
+					for(CLVariable localVar : localVars) {
+						ifElse.addExpression(0, localVar.getDefinition());
+					}
 					ifElse.addExpression(0,
 							loopDetector.updateFunctionConvertAction(sv, action, actionsCount, svPtrTranslations, savedVariables)
 							);
@@ -404,7 +422,18 @@ public abstract class CommandGenerator implements KernelComponentGenerator
 
 					if (!update.isActionTrue(j)) {
 						action = update.getAction(j);
-						StateVector.addSavedVariables(sv, ifElse, 0, action, null, savedVariables);
+						//StateVector.addSavedVariables(sv, ifElse, 0, action, null, savedVariables);
+
+						savedVariables.clear();
+						Collection<CLVariable> localVars = SavedVariables.createTranslations(
+								sv,
+								action,
+								savedVariables
+								);
+						for(CLVariable localVar : localVars) {
+							ifElse.addExpression(j, localVar.getDefinition());
+						}
+
 						ifElse.addExpression(j,
 								loopDetector.updateFunctionConvertAction(sv, action, actionsCount, svPtrTranslations, savedVariables)
 								);
@@ -416,7 +445,17 @@ public abstract class CommandGenerator implements KernelComponentGenerator
 				if (!update.isActionTrue(0)) {
 					_switch.addCase(new Expression(Integer.toString(i)));
 					action = update.getAction(0);
-					StateVector.addSavedVariables(sv, _switch, switchCounter, action, null, savedVariables);
+					
+					savedVariables.clear();
+					Collection<CLVariable> localVars = SavedVariables.createTranslations(
+							sv,
+							action,
+							savedVariables
+							);
+					for(CLVariable localVar : localVars) {
+						_switch.addExpression(switchCounter, localVar.getDefinition());
+					}
+					
 					_switch.addExpression(switchCounter++,
 							loopDetector.updateFunctionConvertAction(sv, action, actionsCount, svPtrTranslations, savedVariables)
 							);
@@ -437,9 +476,10 @@ public abstract class CommandGenerator implements KernelComponentGenerator
 	 * CTMC: updates have different probability, one need to walk through all actions and sum rates,
 	 * until the selection is reached
 	 * @param currentMethod
+	 * @param translations
 	 * @throws KernelException
 	 */
-	protected abstract void updateMethodPerformSelection(Method currentMethod) throws KernelException;
+	protected abstract void updateMethodPerformSelection(Method currentMethod, StateVector.Translations translations) throws KernelException;
 
 	/**
 	 * DTMC: number of commands

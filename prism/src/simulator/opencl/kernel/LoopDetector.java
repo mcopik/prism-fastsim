@@ -159,12 +159,14 @@ public class LoopDetector
 		canExitOnLoop = canDetectLoop &&
 				propertyGenerator.canExitOnLoop() && rewardGenerator.canExitOnLoop();
 		
-		/**
-		 * For CTMC we need to manually define a counter for all transitions.
-		 * Request from parent generator to use this counter.
-		 */
-		if(generator.getModel().getType() == AutomatonType.CTMC) {
-			generator.kernelCreateTransitionCounter();
+		if(canDetectLoop) {
+			/**
+			 * For CTMC we need to manually define a counter for all transitions.
+			 * Request from parent generator to use this counter.
+			 */
+			if(generator.getModel().getType() == AutomatonType.CTMC) {
+				generator.kernelCreateTransitionCounter();
+			}
 		}
 	}
 	
@@ -176,7 +178,9 @@ public class LoopDetector
 			varLoopDetection.setInitValue(StdVariableType.initialize(0));
 			vars.add(varLoopDetection);
 			
-			vars.add( generator.kernelGetLocalVar(LocalVar.TRANSITIONS_COUNTER) );
+			if(generator.getModel().getType() == AutomatonType.CTMC) {
+				vars.add( generator.kernelGetLocalVar(LocalVar.TRANSITIONS_COUNTER) );
+			}
 			
 			return vars;
 		}
@@ -269,8 +273,8 @@ public class LoopDetector
 	 * @return
 	 */
 	public KernelComponent updateFunctionConvertAction(CLVariable sv, Action action,
-			int actionsCount, Map<String,String> svPtrTranslations,
-			Map<String,CLVariable> savedVariables)
+			int actionsCount, StateVector.Translations svPtrTranslations,
+			SavedVariables.Translations savedVariables)
 	{
 		if (canDetectLoop && actionsCount == 1) {
 			return convertPrismAction(sv, action, svPtrTranslations, savedVariables,
@@ -386,8 +390,8 @@ public class LoopDetector
 	 * @return
 	 */
 	public KernelComponent synLabelUpdateFunctionConvertAction(CLVariable sv, Action action,
-			int actionsCount, Map<String,String> svPtrTranslations,
-			Map<String,CLVariable> savedVariables)
+			int actionsCount, StateVector.Translations svPtrTranslations,
+			SavedVariables.Translations savedVariables)
 	{
 		return updateFunctionConvertAction(sv, action, actionsCount, svPtrTranslations, savedVariables);
 	}	
