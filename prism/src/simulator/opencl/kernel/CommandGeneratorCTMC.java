@@ -54,6 +54,7 @@ import simulator.opencl.kernel.memory.CLValue;
 import simulator.opencl.kernel.memory.CLVariable;
 import simulator.opencl.kernel.memory.PointerType;
 import simulator.opencl.kernel.memory.StdVariableType;
+import simulator.opencl.kernel.memory.VariableTypeInterface;
 import simulator.opencl.kernel.memory.StdVariableType.StdType;
 
 public class CommandGeneratorCTMC extends CommandGenerator
@@ -81,6 +82,12 @@ public class CommandGeneratorCTMC extends CommandGenerator
 		
 		transitionsCountRequested =
 				generator.kernelGetLocalVar(LocalVar.TRANSITIONS_COUNTER) != null;
+	}
+	
+	@Override
+	public VariableTypeInterface kernelUpdateSizeType()
+	{
+		return new StdVariableType(StdType.FLOAT);
 	}
 	
 	@Override

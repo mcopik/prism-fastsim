@@ -57,24 +57,14 @@ import simulator.opencl.kernel.memory.PointerType;
 import simulator.opencl.kernel.memory.StdVariableType;
 import simulator.opencl.kernel.memory.StructureType;
 import simulator.opencl.kernel.memory.StdVariableType.StdType;
+import simulator.opencl.kernel.memory.VariableTypeInterface;
 
-public abstract class CommandGenerator implements KernelComponentGenerator
+public abstract class CommandGenerator extends AbstractGenerator implements KernelComponentGenerator
 {
-
-	/**
-	 * Main generator.
-	 */
-	protected KernelGenerator generator = null;
-	
 	/**
 	 * Model commands.
 	 */
 	protected Command[] commands = null;
-	
-	/**
-	 * True iff there are non-synchronized commands.
-	 */
-	protected boolean activeGenerator = false;
 	
 	/**
 	 * Local kernel variable
@@ -128,14 +118,12 @@ public abstract class CommandGenerator implements KernelComponentGenerator
 	
 	public CommandGenerator(KernelGenerator generator) throws KernelException
 	{
-		this.generator = generator;
-		
-		commands = generator.getCommands();
-		activeGenerator = commands != null;
+		super(generator, generator.getCommands().length > 0);
 		if(!activeGenerator) {
 			return;
 		}
 
+		commands = generator.getCommands();
 		kernelGuardsTab = new CLVariable(
 				new ArrayType(new StdVariableType(0, commands.length), commands.length),
 				"guardsTab"
@@ -150,7 +138,6 @@ public abstract class CommandGenerator implements KernelComponentGenerator
 			return new CommandGeneratorDTMC(generator);
 		}
 	}
-
 
 	@Override
 	public Collection<? extends KernelComponent> getDefinitions()
@@ -170,11 +157,6 @@ public abstract class CommandGenerator implements KernelComponentGenerator
 		return Collections.emptyList();
 	}
 	
-	public boolean isActive()
-	{
-		return activeGenerator;
-	}
-	
 	/**
 	 * @return boolean array marking active guards
 	 */
@@ -185,6 +167,13 @@ public abstract class CommandGenerator implements KernelComponentGenerator
 		}
 		return Collections.emptyList();
 	}
+	
+	/**
+	 * For DTMC this is an integer holding values between [0, maximal count of transitions)
+	 * For CTMC this is a floating-point number.
+	 * @return
+	 */
+	public abstract VariableTypeInterface kernelUpdateSizeType();
 	
 	/**
 	 * DTMC:

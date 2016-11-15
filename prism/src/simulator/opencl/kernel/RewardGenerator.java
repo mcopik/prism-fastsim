@@ -87,7 +87,7 @@ import simulator.sampler.SamplerRewardReach;
  * Requires only new state vector.
  * 4) Recheck reward properties.
  */
-public abstract class RewardGenerator extends PropertyGenerator
+public abstract class RewardGenerator extends AbstractGenerator
 {
 	/**
 	 * Structure contains two fields:
@@ -1104,8 +1104,9 @@ public abstract class RewardGenerator extends PropertyGenerator
 				CLVariable property = propertiesStateVar.accessElement(fromString(i)).accessField("propertyState");
 				CLVariable valueKnown = propertiesStateVar.accessElement(fromString(i)).accessField("valueKnown");
 				//TODO: proper loop detection
-				Expression succesfullComputation = createBinaryExpression(valueKnown.getSource(), ExpressionGenerator.Operator.LOR,
-						generator.kernelLoopExpression());
+				//Expression succesfullComputation = createBinaryExpression(valueKnown.getSource(), ExpressionGenerator.Operator.LOR,
+				//		generator.kernelLoopExpression());
+				Expression succesfullComputation = valueKnown.getSource();
 				Expression assignment = ExpressionGenerator.createConditionalAssignment(ExpressionGenerator.addParentheses(succesfullComputation), property
 						.getSource().toString(), "NAN");
 	

@@ -60,7 +60,7 @@ import simulator.sampler.SamplerBoolean;
 import simulator.sampler.SamplerNext;
 import simulator.sampler.SamplerUntil;
 
-public abstract class ProbPropertyGenerator extends PropertyGenerator
+public abstract class ProbPropertyGenerator extends AbstractGenerator
 {
 	/**
 	 * Structure with two booleans: property value and information

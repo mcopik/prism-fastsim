@@ -46,6 +46,8 @@ import simulator.opencl.kernel.expression.ExpressionGenerator.Operator;
 import simulator.opencl.kernel.memory.CLValue;
 import simulator.opencl.kernel.memory.CLVariable;
 import simulator.opencl.kernel.memory.StdVariableType;
+import simulator.opencl.kernel.memory.VariableTypeInterface;
+import simulator.opencl.kernel.memory.StdVariableType.StdType;
 
 public class CommandGeneratorDTMC extends CommandGenerator
 {
@@ -53,6 +55,12 @@ public class CommandGeneratorDTMC extends CommandGenerator
 	public CommandGeneratorDTMC(KernelGenerator generator) throws KernelException
 	{
 		super(generator);
+	}
+	
+	@Override
+	public VariableTypeInterface kernelUpdateSizeType()
+	{
+		return new StdVariableType(0, commands.length);
 	}
 	
 	@Override

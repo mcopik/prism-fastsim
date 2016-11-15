@@ -122,6 +122,15 @@ public abstract class ComplexKernelComponent implements KernelComponent
 		}
 	}
 
+	public void addExpression(Collection<KernelComponent> expressions)
+	{
+		Preconditions.checkNotNull(expressions, "Trying to add null reference to expression!");
+		for(KernelComponent expr : expressions)
+		{
+			addExpression(expr);
+		}
+	}
+
 	/**
 	 * Calls correctExpression for every expression.
 	 * @param expr
