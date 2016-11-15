@@ -68,8 +68,11 @@ public class SynchCommandGeneratorDTMC extends SynchCommandGenerator
 	public SynchCommandGeneratorDTMC(KernelGenerator generator)
 	{
 		super(generator);
-		for (SynchronizedCommand cmd : synCommands) {
-			maximalNumberOfSynchsUpdates += cmd.getMaxCommandsNum();
+		
+		if( isGeneratorActive() ) {
+			for (SynchronizedCommand cmd : synCommands) {
+				maximalNumberOfSynchsUpdates += cmd.getMaxCommandsNum();
+			}	
 		}
 	}
 	
