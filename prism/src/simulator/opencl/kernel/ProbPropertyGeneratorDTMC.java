@@ -58,7 +58,7 @@ public class ProbPropertyGeneratorDTMC extends ProbPropertyGenerator
 	@Override
 	protected boolean isTimedProperty(SamplerBoolean property)
 	{
-		return property instanceof SamplerBoundedUntilCont;
+		return property instanceof SamplerBoundedUntilDisc;
 	}
 
 	/**
