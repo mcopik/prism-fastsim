@@ -102,7 +102,7 @@ public class KernelGeneratorCTMC extends KernelGenerator
 	public void mainMethodDefineLocalVars(Method currentMethod) throws KernelException
 	{
 		//time
-		CLVariable varTime = new CLVariable(varTimeType, "time");
+		CLVariable varTime = new CLVariable(timeVariableType(), "time");
 		varTime.setInitValue(StdVariableType.initialize(0.0f));
 		currentMethod.addLocalVar(varTime);
 		localVars.put(LocalVar.TIME, varTime);
@@ -196,11 +196,12 @@ public class KernelGeneratorCTMC extends KernelGenerator
 		}
 		//we assume that this is an even number!
 		else {
+			Expression twicePathLen = createBinaryExpression(kernelGetLocalVar(LocalVar.PATH_LENGTH).getSource(), Operator.MUL,
+					fromString(2));
 			rndNumber = new Expression(String.format("%s%%%d",
-			//pathLength*2
-					addParentheses(createBinaryExpression(varPathLength.getSource(), Operator.MUL,
-					// % numbersPerRandom
-							fromString(2))).toString(), config.prngType.numbersPerRandomize()));
+					//pathLength*2 % numbersPerRandom
+					addParentheses(twicePathLen).toString(), config.prngType.numbersPerRandomize()
+					));
 		}
 		selection.setInitValue(config.prngType.getRandomFloat(fromString(rndNumber), selectionSize));
 		return selection;

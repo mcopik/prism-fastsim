@@ -94,7 +94,7 @@ public class KernelGeneratorDTMC extends KernelGenerator
 	public void mainMethodDefineLocalVars(Method currentMethod) throws KernelException
 	{
 		//time
-		CLVariable varTime = new CLVariable(varTimeType, "time");
+		CLVariable varTime = new CLVariable(timeVariableType(), "time");
 		varTime.setInitValue(StdVariableType.initialize(0));
 		currentMethod.addLocalVar(varTime);
 		localVars.put(LocalVar.TIME, varTime);
@@ -122,7 +122,10 @@ public class KernelGeneratorDTMC extends KernelGenerator
 	protected void mainMethodCallNonsynUpdateImpl(ComplexKernelComponent parent, CLValue... args) throws KernelException
 	{
 		if (args.length == 0) {
-			Expression rndNumber = new Expression(String.format("%s%%%d", varPathLength.getSource().toString(), config.prngType.numbersPerRandomize()));
+			Expression rndNumber = new Expression(String.format("%s%%%d",
+					kernelGetLocalVar(LocalVar.PATH_LENGTH).getSource().toString(),
+					config.prngType.numbersPerRandomize()
+					));
 			CLValue random = config.prngType.getRandomUnifFloat(rndNumber);
 			parent.addExpression(
 					cmdGenerator.kernelCallUpdate(random, kernelGetLocalVar(LocalVar.UNSYNCHRONIZED_SIZE))
@@ -166,9 +169,11 @@ public class KernelGeneratorDTMC extends KernelGenerator
 	protected CLVariable mainMethodSelectionVar(Expression selectionSize)
 	{
 		CLVariable selection = new CLVariable(new StdVariableType(StdType.FLOAT), "selection");
-		Expression rndNumber = new Expression(String.format("%s%%%d", varPathLength.getSource().toString(),
-		//pathLength%2 for Random123
-				config.prngType.numbersPerRandomize()));
+		Expression rndNumber = new Expression(String.format("%s%%%d",
+				kernelGetLocalVar(LocalVar.PATH_LENGTH).getSource().toString(),
+				//pathLength%2 for Random123
+				config.prngType.numbersPerRandomize()
+				));
 		selection.setInitValue(config.prngType.getRandomUnifFloat(fromString(rndNumber)));
 		return selection;
 	}

@@ -79,12 +79,12 @@ public abstract class KernelGenerator
 {
 	//protected CLVariable varTime = null;
 	//TODO: move to parent
-	public VariableTypeInterface varTimeType = null;
+	//public VariableTypeInterface varTimeType = null;
 	//protected CLVariable varSelectionSize = null;
 	//protected CLVariable varStateVector = null;
-	protected CLVariable varPathLength = null;
+	//protected CLVariable varPathLength = null;
 	//protected CLVariable varSynSelectionSize = null;
-	protected CLVariable varGuardsTab = null;
+	//protected CLVariable varGuardsTab = null;
 	//protected CLVariable[] varSynchronizedStates = null;
 	
 	public enum LocalVar
@@ -117,7 +117,11 @@ public abstract class KernelGenerator
 		 * Count of all transitions.
 		 * May be required 
 		 */
-		TRANSITIONS_COUNTER
+		TRANSITIONS_COUNTER,
+		/**
+		 * Length of generated path, counted from zero.
+		 */
+		PATH_LENGTH
 	}
 
 	protected final static EnumMap<LocalVar, String> LOCAL_VARIABLES_NAMES;
@@ -283,7 +287,7 @@ public abstract class KernelGenerator
 		// create translations from model variable to StateVector structure, accessed by a pointer
 		//CLVariable sv = new CLVariable(new PointerType(stateVectorType), "sv");
 		//StateVector.createTranslations(sv, stateVectorType, svPtrTranslations);
-		varTimeType = timeVariableType();
+		//varTimeType = timeVariableType();
 		int synSize = model.synchCmdsNumber();
 		int size = model.commandsNumber();
 
@@ -442,8 +446,9 @@ public abstract class KernelGenerator
 		}
 
 		//pathLength
-		varPathLength = new CLVariable(new StdVariableType(StdType.UINT32), "pathLength");
+		CLVariable varPathLength = new CLVariable(new StdVariableType(StdType.UINT32), "pathLength");
 		currentMethod.addLocalVar(varPathLength);
+		localVars.put(LocalVar.PATH_LENGTH, varPathLength);
 		//flag for loop detection
 		currentMethod.addLocalVar(loopDetector.getLocalVars());
 		//additional local variables, mainly selectionSize. depends on DTMC/CTMC
