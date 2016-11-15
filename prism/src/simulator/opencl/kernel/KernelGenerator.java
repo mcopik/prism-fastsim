@@ -549,8 +549,12 @@ public abstract class KernelGenerator
 
 		/**
 		 * Deadlock when number of possible choices is 0.
+		 * 
+		 * Handle properties when path generation stops due to lack of actions to take.
 		 */
 		IfElse deadlockState = new IfElse(kernelDeadlockExpression());
+		deadlockState.addExpression( propertyGenerator.kernelHandleDeadlock() );
+		deadlockState.addExpression( rewardGenerator.kernelHandleDeadlock() );
 		deadlockState.addExpression(new Expression("break;\n"));
 		loop.addExpression(deadlockState);
 
@@ -642,7 +646,6 @@ public abstract class KernelGenerator
 		/**
 		 * If there are some reward properties, add a 
 		 */
-		parent.addExpression(rewardGenerator.kernelBeforeUpdate(localVars.get(LocalVar.STATE_VECTOR)));
 		mainMethodCallNonsynUpdateImpl(parent, args);
 	}
 
@@ -807,12 +810,23 @@ public abstract class KernelGenerator
 	 */
 	public Expression kernelActiveUpdates()
 	{
-		CLVariable varSelectionSize = kernelGetLocalVar(LocalVar.UNSYNCHRONIZED_SIZE);
-		CLVariable varSynSelectionSize = kernelGetLocalVar(LocalVar.SYNCHRONIZED_SIZE);
 		CLVariable varTransitioncounter = kernelGetLocalVar(LocalVar.TRANSITIONS_COUNTER);
 		if (varTransitioncounter != null) {
 			return varTransitioncounter.getSource();
-		} else if (cmdGenerator.isGeneratorActive() &&
+		} else {
+			return kernelActiveUpdatesSize();
+		}
+	}
+	
+	/**
+	 * @return expression with size of active transitions - float or integer
+	 */
+	public Expression kernelActiveUpdatesSize()
+	{
+		CLVariable varSelectionSize = kernelGetLocalVar(LocalVar.UNSYNCHRONIZED_SIZE);
+		CLVariable varSynSelectionSize = kernelGetLocalVar(LocalVar.SYNCHRONIZED_SIZE);
+
+		if (cmdGenerator.isGeneratorActive() &&
 				synCmdGenerator.isGeneratorActive() ) {
 			return createBinaryExpression(
 					varSelectionSize.getSource(),

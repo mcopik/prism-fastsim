@@ -129,7 +129,7 @@ public class KernelGeneratorCTMC extends KernelGenerator
 					Operator.SUB, random.getSource());
 			substrRng = new Expression(String.format("log(%s)", substrRng.getSource()));
 			// it may be a complex expression
-			Expression sum = addParentheses(kernelActiveUpdates());
+			Expression sum = addParentheses(kernelActiveUpdatesSize());
 			substrRng = createBinaryExpression(substrRng, Operator.DIV, sum);
 			// updated = time - new value
 			// OR time -= new value
@@ -149,7 +149,7 @@ public class KernelGeneratorCTMC extends KernelGenerator
 			//1 - random()
 					Operator.SUB, random.getSource());
 			substrRng = new Expression(String.format("log(%s)", substrRng.getSource()));
-			Expression sum = addParentheses(kernelActiveUpdates());
+			Expression sum = addParentheses(kernelActiveUpdatesSize());
 			substrRng = createBinaryExpression(substrRng, Operator.DIV, sum);
 			// time -= new value
 			parent.addExpression(addComma(createBinaryExpression(varTime.getSource(), Operator.SUB_AUGM, substrRng)));
