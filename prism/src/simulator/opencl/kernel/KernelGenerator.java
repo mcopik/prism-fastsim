@@ -508,6 +508,8 @@ public abstract class KernelGenerator
 		 * check which guards are active
 		 */
 		loop.addExpression(cmdGenerator.kernelCallGuardCheck());
+		loop.addExpression(synCmdGenerator.kernelCallGuardCheck());
+		
 		/**
 		 * If unsynchronized is not active and we count transitions,
 		 * the counter has to be reseted before calling synchronized.

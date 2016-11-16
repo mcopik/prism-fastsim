@@ -156,6 +156,7 @@ public abstract class SynchCommandGenerator extends AbstractGenerator implements
 			List<Method> methods = new ArrayList<>();
 			methods.addAll(synchronizedGuards);
 			methods.addAll(synchronizedUpdates);
+			methods.addAll(updateHelpers);
 			return methods;
 		}
 		return Collections.emptyList();
@@ -168,6 +169,7 @@ public abstract class SynchCommandGenerator extends AbstractGenerator implements
 	{
 		if(activeGenerator) {
 			int counter = 0;
+			kernelSynchronizedStates = new CLVariable[synchronizedStates.size()];
 			for (Map.Entry<String, StructureType> types : synchronizedStates.entrySet()) {
 				kernelSynchronizedStates[counter++ ] = new CLVariable(types.getValue(),
 				//synchState_label
@@ -206,7 +208,8 @@ public abstract class SynchCommandGenerator extends AbstractGenerator implements
 	{
 		if(activeGenerator) {
 			ExpressionList code = new ExpressionList();
-			
+
+			createGuardsMethod();
 			code.addExpression(createAssignment(
 					generator.kernelGetLocalVar(LocalVar.SYNCHRONIZED_SIZE), fromString(0))
 					);
@@ -238,6 +241,7 @@ public abstract class SynchCommandGenerator extends AbstractGenerator implements
 						kernelSynchronizedStates[i].accessField("size").getSource()
 						));
 			}
+			return code;
 		}
 		return new ExpressionList();
 	}
@@ -254,6 +258,7 @@ public abstract class SynchCommandGenerator extends AbstractGenerator implements
 		if(activeGenerator) {
 			CLVariable varStateVector = generator.kernelGetLocalVar(LocalVar.STATE_VECTOR);
 			List<KernelComponent> code = new ArrayList<>();
+			createUpdateFunction();
 
 			if (synCommands.length > 1) {
 				/**
@@ -528,6 +533,7 @@ public abstract class SynchCommandGenerator extends AbstractGenerator implements
 	{
 		synchronizedUpdates = new ArrayList<>();
 		updateDefinitions = new ArrayList<>();
+		updateHelpers = new ArrayList<>();
 
 		for (SynchronizedCommand cmd : synCommands) {
 
