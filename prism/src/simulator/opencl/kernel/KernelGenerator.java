@@ -292,12 +292,9 @@ public abstract class KernelGenerator
 		int size = model.commandsNumber();
 
 		this.propertyGenerator = ProbPropertyGenerator.createGenerator(this, model.getType());
-		additionalDeclarations.addAll(propertyGenerator.getDefinitions());
 
 		this.rewardProperties = rewardProperties;
 		this.rewardGenerator = RewardGenerator.createGenerator(this, model.getType());
-		additionalDeclarations.addAll(rewardGenerator.getDefinitions());
-
 		// loop detector
 		this.loopDetector = new LoopDetector(this, propertyGenerator, rewardGenerator);
 		
@@ -323,8 +320,6 @@ public abstract class KernelGenerator
 		
 		cmdGenerator = CommandGenerator.createGenerator(this);
 		synCmdGenerator = SynchCommandGenerator.createGenerator(this);
-		additionalDeclarations.addAll(cmdGenerator.getDefinitions());
-		additionalDeclarations.addAll(synCmdGenerator.getDefinitions());
 		// PRNG definitions
 		if (prngType.getAdditionalDefinitions() != null) {
 			additionalDeclarations.addAll(prngType.getAdditionalDefinitions());
@@ -342,6 +337,10 @@ public abstract class KernelGenerator
 	 */
 	public List<KernelComponent> getAdditionalDeclarations()
 	{
+		additionalDeclarations.addAll(propertyGenerator.getDefinitions());
+		additionalDeclarations.addAll(rewardGenerator.getDefinitions());
+		additionalDeclarations.addAll(cmdGenerator.getDefinitions());
+		additionalDeclarations.addAll(synCmdGenerator.getDefinitions());
 		return additionalDeclarations;
 	}
 
@@ -508,7 +507,6 @@ public abstract class KernelGenerator
 		 * check which guards are active
 		 */
 		loop.addExpression(cmdGenerator.kernelCallGuardCheck());
-		loop.addExpression(synCmdGenerator.kernelCallGuardCheck());
 		
 		/**
 		 * If unsynchronized is not active and we count transitions,
@@ -648,6 +646,7 @@ public abstract class KernelGenerator
 		/**
 		 * If there are some reward properties, add a 
 		 */
+		parent.addExpression(rewardGenerator.kernelBeforeUpdate(localVars.get(LocalVar.STATE_VECTOR)));
 		mainMethodCallNonsynUpdateImpl(parent, args);
 	}
 

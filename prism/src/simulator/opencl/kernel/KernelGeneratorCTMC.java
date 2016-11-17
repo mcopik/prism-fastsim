@@ -170,7 +170,6 @@ public class KernelGeneratorCTMC extends KernelGenerator
 	protected void mainMethodCallNonsynUpdateImpl(ComplexKernelComponent parent, CLValue... args) throws KernelException
 	{
 		CLVariable varSelectionSize = kernelGetLocalVar(LocalVar.UNSYNCHRONIZED_SIZE);
-		parent.addExpression(rewardGenerator.kernelBeforeUpdate(localVars.get(LocalVar.STATE_VECTOR)));
 		CLValue random = null;
 		if (args.length == 0) {
 			random = config.prngType.getRandomFloat(fromString(0), varSelectionSize.getSource());
