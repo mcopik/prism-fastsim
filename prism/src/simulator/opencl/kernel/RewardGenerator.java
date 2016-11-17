@@ -31,6 +31,7 @@ import static simulator.opencl.kernel.expression.ExpressionGenerator.createAssig
 import static simulator.opencl.kernel.expression.ExpressionGenerator.createBinaryExpression;
 import static simulator.opencl.kernel.expression.ExpressionGenerator.createNegation;
 import static simulator.opencl.kernel.expression.ExpressionGenerator.fromString;
+
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -45,6 +46,8 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
 import java.util.TreeMap;
+
+import com.nativelibs4java.opencl.CLDevice.LocalMemType;
 
 import parser.ast.RewardStruct;
 import parser.ast.RewardStructItem;
@@ -1239,7 +1242,9 @@ public abstract class RewardGenerator extends AbstractGenerator
 	protected abstract Expression callStateRewardFunction(Method method, CLVariable stateVector, CLVariable rewardStructure);
 	
 	/**
-	 * Reachability: nothing!
+	 * Reachability: last verification call.
+	 * Instead of calling function which implements many properties,
+	 * directly inject code here. Avoid unnecessary double evaluation of inst/cumul.
 	 * 
 	 * Instantaneous: verified, current state reward.
 	 * State won't change due to lack of actions to take.
@@ -1250,31 +1255,38 @@ public abstract class RewardGenerator extends AbstractGenerator
 	 * 
 	 * @return
 	 * @throws KernelException 
+	 * @throws PrismLangException 
 	 */
-	public Collection<KernelComponent> kernelHandleDeadlock() throws KernelException
+	public Collection<KernelComponent> kernelHandleDeadlock() throws KernelException, PrismLangException
 	{
 		if(activeGenerator) {
 			List<KernelComponent> exprs = new ArrayList<>();
+			CLVariable stateVector = generator.kernelGetLocalVar(LocalVar.STATE_VECTOR);
+			StateVector.Translations translations = this.stateVector.createTranslations(stateVector);
 			
 			int counter = 0;
 			for(SamplerDouble sampler : rewardProperties)
 			{
-				if( isCumulative(sampler) || isInstantaneous(sampler)) {
+				CLVariable propertyVar = propertiesStateVar.accessElement( fromString(counter++) );
+				CLVariable valueKnown = propertyVar.accessField(REWARD_PROPERTY_STATE_FIELD_VALUE_KNOWN);
+				CLVariable propertyState = propertyVar.accessField(REWARD_PROPERTY_STATE_FIELD_PROPERTY_STATE);
+				CLVariable rewardStruct = rewardStructuresVars.get( sampler.getRewardIndex() );
+				/**
+				 * Write results if property value is not known
+				 */
+				IfElse writeResults = new IfElse( createNegation(valueKnown.getSource()) );
+
+				if( isReachability(sampler) ) {
+					createPropertyReachability(writeResults, translations, (SamplerRewardReach) sampler,
+							propertyVar, rewardStruct);
+				} else {
 				
-					CLVariable propertyVar = propertiesStateVar.accessElement( fromString(counter) );
-					CLVariable valueKnown = propertyVar.accessField(REWARD_PROPERTY_STATE_FIELD_VALUE_KNOWN);
-					CLVariable propertyState = propertyVar.accessField(REWARD_PROPERTY_STATE_FIELD_PROPERTY_STATE);
-					CLVariable rewardStruct = rewardStructuresVars.get( sampler.getRewardIndex() );
 					// TODO: this should be removed - don't process a reward when there's no data
 					if(rewardStruct == null)
 						continue;
 					CLVariable stateReward = rewardStruct.accessField(REWARD_STRUCTURE_VAR_CURRENT_STATE);
 					CLVariable cumulReward = rewardStruct.accessField(REWARD_STRUCTURE_VAR_CUMULATIVE_TOTAL);
 
-					/**
-					 * Write results if property value is not known
-					 */
-					IfElse writeResults = new IfElse( createNegation(valueKnown.getSource()) );
 					writeResults.addExpression( createAssignment(valueKnown, fromString("true")) );
 					/**
 					 * Cumulative: multiply state reward and add with cumulative
@@ -1318,9 +1330,8 @@ public abstract class RewardGenerator extends AbstractGenerator
 								stateReward != null ? stateReward.getSource() : fromString(0.0)
 								));
 					}
-					exprs.add(writeResults);
 				}
-				++counter;
+				exprs.add(writeResults);
 			}
 			return exprs;
 		}
