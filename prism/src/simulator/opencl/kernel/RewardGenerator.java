@@ -261,7 +261,6 @@ public abstract class RewardGenerator extends AbstractGenerator
 	 */
 	protected Collection<SamplerDouble> rewardProperties = null;
 	
-	
 	/**
 	 * Set to true if there is a property which needs to know the current time for verification.
 	 * Used to generate arguments for property methods.
@@ -269,6 +268,11 @@ public abstract class RewardGenerator extends AbstractGenerator
 	 * Currently only reachability reward doesn't need a time argument. 
 	 */
 	protected boolean timedReward = false;
+	
+	/**
+	 * Can we detect and exit on loop?
+	 */
+	protected boolean canDetectLoop = true;
 
 	public RewardGenerator(KernelGenerator generator) throws KernelException
 	{
@@ -287,6 +291,8 @@ public abstract class RewardGenerator extends AbstractGenerator
 		for(SamplerDouble sampler : rewardProperties) {
 			if( !isReachability(sampler) ) {
 				timedReward = true;
+				if( isCumulative(sampler) )
+					canDetectLoop = false;
 			}
 		}
 		
@@ -324,7 +330,7 @@ public abstract class RewardGenerator extends AbstractGenerator
 	 */
 	public boolean canDetectLoop()
 	{
-		return !timedReward;
+		return canDetectLoop;
 	}
 
 	/**
@@ -1331,6 +1337,104 @@ public abstract class RewardGenerator extends AbstractGenerator
 								));
 					}
 				}
+				exprs.add(writeResults);
+			}
+			return exprs;
+		}
+		return Collections.emptyList();
+	}
+
+	/**
+	 * Loop detection happens after taking a transition which didn't not change
+	 * current state.
+	 * 
+	 * Reachability: if it has not been verified so far, it won't -
+	 * path property is going to be always false due to steady values of state vector.
+	 * Decision: do not generate additional code
+	 * 
+	 * Instantaneous: not verified property implies a timebound has not been reached yet.
+	 * Final value includes only current state reward which has been computed in previous
+	 * iteration (state values has not changed) and this value is final.
+	 * A finite timebound will be reached after taking loop transition finitely many times.
+	 * Decision: write current state reward
+	 * 
+	 * Cumulative: a little bit more complicated. One needs to remember that cumulative reward
+	 * depends on state reward with time spent in this state and transition reward with
+	 * count of transitions to take.
+	 * 
+	 * a) state - already known
+	 * b) time spent in state - easily computed from timebound and current time
+	 * c) transition reward - already known
+	 * d) number of transitions to take - has to be computed
+	 * 
+	 * DTMC:
+	 * time spent in state = number of transitions = time_bound - current time
+	 * time_bound has to be an integer, hence no need to use (ceil)
+	 * final value: cumulative += time_diff * (current_state + transition_rew)
+	 *
+	 * CTMC:
+	 * time spent in state = time_bound - current_time
+	 * number of transitions to take: we don't know that but we know time distribution,
+	 * because the parameter of exponential distribution is not going to change
+	 * Optimize by skipping this process when transition reward is zero.
+	 * 
+	 * cumulative += time_diff * current_state;
+	 * if(transition_rw is not close enough to zero) {
+	 *  while (time < time_bound) {
+	 * 	 cumulative += transition_rw;
+	 * 	 update_time();
+	 *   randomize();
+	 *  }
+	 * }
+	 * 
+	 * @return
+	 * @throws KernelException 
+	 * @throws PrismLangException 
+	 */
+	public Collection<KernelComponent> kernelHandleLoop() throws KernelException, PrismLangException
+	{
+		if(activeGenerator) {
+
+			List<KernelComponent> exprs = new ArrayList<>();
+			CLVariable stateVector = generator.kernelGetLocalVar(LocalVar.STATE_VECTOR);
+			StateVector.Translations translations = this.stateVector.createTranslations(stateVector);
+			
+			int counter = 0;
+			for(SamplerDouble sampler : rewardProperties)
+			{
+				if( isReachability(sampler) ) {
+					++counter;
+					continue;
+				}
+				CLVariable propertyVar = propertiesStateVar.accessElement( fromString(counter++) );
+				CLVariable valueKnown = propertyVar.accessField(REWARD_PROPERTY_STATE_FIELD_VALUE_KNOWN);
+				CLVariable propertyState = propertyVar.accessField(REWARD_PROPERTY_STATE_FIELD_PROPERTY_STATE);
+				CLVariable rewardStruct = rewardStructuresVars.get( sampler.getRewardIndex() );
+
+				// TODO: this should be removed - don't process a reward when there's no data
+				if(rewardStruct == null)
+					continue;
+				
+				CLVariable stateReward = rewardStruct.accessField(REWARD_STRUCTURE_VAR_CURRENT_STATE);
+				CLVariable cumulReward = rewardStruct.accessField(REWARD_STRUCTURE_VAR_CUMULATIVE_TOTAL);
+				/**
+				 * Write results if property value is not known
+				 */
+				IfElse writeResults = new IfElse( createNegation(valueKnown.getSource()) );
+				writeResults.addExpression( createAssignment(valueKnown, fromString("true")) );
+
+				if( isCumulative(sampler) ) {
+					
+				} else {
+					/**
+					 * Just write state reward.
+					 */
+					writeResults.addExpression( createAssignment(
+							propertyState,
+							stateReward != null ? stateReward.getSource() : fromString(0.0)
+							));
+				}
+				++counter;
 				exprs.add(writeResults);
 			}
 			return exprs;

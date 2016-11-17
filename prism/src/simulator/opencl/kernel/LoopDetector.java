@@ -37,6 +37,7 @@ import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 
+import prism.PrismLangException;
 import simulator.opencl.automaton.AbstractAutomaton.AutomatonType;
 import simulator.opencl.automaton.update.Action;
 import simulator.opencl.kernel.KernelGenerator.LocalVar;
@@ -213,8 +214,10 @@ public class LoopDetector
 	 * Create conditional which stops computation when there was no change in values and there was only on update.
 	 * This code should be injected as a last expression in the main loop.
 	 * @param parent
+	 * @throws KernelException 
+	 * @throws PrismLangException 
 	 */
-	public void kernelLoopDetection(ComplexKernelComponent parent)
+	public void kernelLoopDetection(ComplexKernelComponent parent) throws PrismLangException, KernelException
 	{
 		if (canDetectLoop) {
 			// no change?
@@ -225,13 +228,13 @@ public class LoopDetector
 			IfElse loop = new IfElse(createBinaryExpression(updateFlag, Operator.LAND, updateSize));
 			loop.setConditionNumber(0);
 			
-			loop.addExpression( rewardGenerator.kernelUpdateProperties(
+			/*loop.addExpression( rewardGenerator.kernelUpdateProperties(
 					generator.kernelGetLocalVar(LocalVar.STATE_VECTOR),
 					generator.kernelGetLocalVar(LocalVar.TIME))
-					);
+					);*/
 			
 			loop.addExpression( propertyGenerator.kernelHandleLoop() );
-			//loop.addExpression( rewardGenerator.kernelHandleLoop() );
+			loop.addExpression( rewardGenerator.kernelHandleLoop() );
 			
 			loop.addExpression(new Expression("break;\n"));
 
