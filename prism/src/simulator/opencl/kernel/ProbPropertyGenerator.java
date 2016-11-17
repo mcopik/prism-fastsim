@@ -338,13 +338,12 @@ public abstract class ProbPropertyGenerator extends AbstractGenerator
 	 * For each implemented property, loop doesn't change the evaluation -
 	 * path properties are still going to be the same.
 	 * 
-	 * The only case where a change can be observed is CSL Until with lower bound.
-	 * There we have to evaluate path properties and decide whether there 
+	 * Essentially the problem is exactly the same as for deadlock case.
 	 * @return
 	 */
 	public Collection<KernelComponent> kernelHandleLoop()
 	{
-		return Collections.emptyList();
+		return kernelHandleDeadlock();
 	}
 
 	/**

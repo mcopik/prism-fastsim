@@ -230,7 +230,7 @@ public class LoopDetector
 					generator.kernelGetLocalVar(LocalVar.TIME))
 					);
 			
-			//loop.addExpression( propertyGenerator.kernelHandleLoop() );
+			loop.addExpression( propertyGenerator.kernelHandleLoop() );
 			//loop.addExpression( rewardGenerator.kernelHandleLoop() );
 			
 			loop.addExpression(new Expression("break;\n"));
