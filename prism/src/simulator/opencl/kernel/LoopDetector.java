@@ -225,11 +225,14 @@ public class LoopDetector
 			IfElse loop = new IfElse(createBinaryExpression(updateFlag, Operator.LAND, updateSize));
 			loop.setConditionNumber(0);
 			
-			loop.addExpression( propertyGenerator.kernelUpdateProperties() );
 			loop.addExpression( rewardGenerator.kernelUpdateProperties(
 					generator.kernelGetLocalVar(LocalVar.STATE_VECTOR),
 					generator.kernelGetLocalVar(LocalVar.TIME))
 					);
+			
+			//loop.addExpression( propertyGenerator.kernelHandleLoop() );
+			//loop.addExpression( rewardGenerator.kernelHandleLoop() );
+			
 			loop.addExpression(new Expression("break;\n"));
 
 			parent.addExpression(loop);

@@ -27,7 +27,6 @@ package simulator.opencl.kernel;
 
 import static simulator.opencl.kernel.expression.ExpressionGenerator.createBinaryExpression;
 import static simulator.opencl.kernel.expression.ExpressionGenerator.fromString;
-
 import parser.ast.ExpressionLiteral;
 import prism.PrismLangException;
 import simulator.opencl.kernel.KernelGenerator.LocalVar;
@@ -36,6 +35,7 @@ import simulator.opencl.kernel.expression.Expression;
 import simulator.opencl.kernel.expression.IfElse;
 import simulator.opencl.kernel.expression.Method;
 import simulator.opencl.kernel.expression.ExpressionGenerator.Operator;
+import simulator.opencl.kernel.memory.CLValue;
 import simulator.opencl.kernel.memory.CLVariable;
 import simulator.opencl.kernel.memory.StdVariableType;
 import simulator.opencl.kernel.memory.StdVariableType.StdType;
@@ -104,25 +104,14 @@ public class ProbPropertyGeneratorCTMC extends ProbPropertyGenerator
 	}
 	
 	@Override
-	public Expression kernelUpdateProperties()
+	protected Expression kernelUpdatePropertiesTimed(CLVariable sv, CLValue updatedTime)
 	{
-		if(activeGenerator) {
-			CLVariable stateVector = generator.kernelGetLocalVar(LocalVar.STATE_VECTOR);
-			if (timedProperty) {
-				return propertyUpdateMethod.callMethod(
-						stateVector.convertToPointer(),
+		return propertyUpdateMethod.callMethod(
+						sv.convertToPointer(),
 						varPropertiesArray,
 						generator.kernelGetLocalVar(LocalVar.TIME),
-						generator.kernelGetLocalVar(LocalVar.UPDATED_TIME)
+						updatedTime
 						);
-			} else {
-				return propertyUpdateMethod.callMethod(
-						stateVector.convertToPointer(),
-						varPropertiesArray
-						);
-			}
-		}
-		return new Expression();
 	}
 
 	/**

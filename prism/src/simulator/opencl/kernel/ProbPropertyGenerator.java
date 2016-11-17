@@ -30,6 +30,7 @@ import static simulator.opencl.kernel.expression.ExpressionGenerator.createAssig
 import static simulator.opencl.kernel.expression.ExpressionGenerator.createBinaryExpression;
 import static simulator.opencl.kernel.expression.ExpressionGenerator.createNegation;
 import static simulator.opencl.kernel.expression.ExpressionGenerator.fromString;
+import static simulator.opencl.kernel.expression.ExpressionGenerator.getConstant;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -40,6 +41,7 @@ import java.util.Map;
 import parser.ast.ExpressionLiteral;
 import prism.PrismLangException;
 import simulator.opencl.automaton.AbstractAutomaton.AutomatonType;
+import simulator.opencl.kernel.KernelGenerator.LocalVar;
 import simulator.opencl.kernel.StateVector.Translations;
 import simulator.opencl.kernel.expression.ComplexKernelComponent;
 import simulator.opencl.kernel.expression.Expression;
@@ -47,10 +49,12 @@ import simulator.opencl.kernel.expression.ExpressionGenerator;
 import simulator.opencl.kernel.expression.IfElse;
 import simulator.opencl.kernel.expression.KernelComponent;
 import simulator.opencl.kernel.expression.Method;
+import simulator.opencl.kernel.expression.ExpressionGenerator.Constants;
 import simulator.opencl.kernel.memory.ArrayType;
 import simulator.opencl.kernel.memory.CLValue;
 import simulator.opencl.kernel.memory.CLVariable;
 import simulator.opencl.kernel.memory.PointerType;
+import simulator.opencl.kernel.memory.RValue;
 import simulator.opencl.kernel.memory.StdVariableType;
 import simulator.opencl.kernel.memory.StructureType;
 import simulator.opencl.kernel.memory.CLVariable.Location;
@@ -275,13 +279,70 @@ public abstract class ProbPropertyGenerator extends AbstractGenerator
 	/**
 	 * Create call to probabilistic property update method.
 	 */
-	public abstract Expression kernelUpdateProperties();
+	public Expression kernelUpdateProperties()
+	{
+		if(activeGenerator) {
+			CLVariable stateVector = generator.kernelGetLocalVar(LocalVar.STATE_VECTOR);
+			if (timedProperty) {
+				return kernelUpdatePropertiesTimed(
+						stateVector,
+						generator.kernelGetLocalVar(LocalVar.UPDATED_TIME)
+						);
+			} else {
+				return propertyUpdateMethod.callMethod(
+						stateVector.convertToPointer(),
+						varPropertiesArray
+						);
+			}
+		}
+		return new Expression();
+	}
+	
+	protected abstract Expression kernelUpdatePropertiesTimed(CLVariable sv, CLValue updatedTime);
 
 	/**
-	 * Currently implemented properties:
+	 * Every property except CSL Until with lower bound: reevaluate and
+	 * mark as evaluated by ignoring "valueKnown" field during kernel write.
+	 * Explanation is quite simple: state won't change.
+	 * 
+	 * If there is CSL timebounded until (equivalent to needsTimeDifference(),
+	 * call property evaluation by providing [currentTime, Inf].
+	 * This way we ensure that property is verified regardless of time bounds.
+	 * 
+	 * If property has not been verified so far and it is supposed to be verified
+	 * in interval [a,b], a state with enter time currentTime and leave time Inf
+	 * is going to override time bounds and evaluate right side path property.
+	 * 
 	 * @return
 	 */
 	public Collection<KernelComponent> kernelHandleDeadlock()
+	{
+		if(activeGenerator) {
+			CLVariable stateVector = generator.kernelGetLocalVar(LocalVar.STATE_VECTOR);
+			if (timedProperty) {
+				return Collections.<KernelComponent>singletonList(kernelUpdatePropertiesTimed(
+						stateVector,
+						new RValue( getConstant(Constants.INF) )
+						));
+			} else {
+				return Collections.<KernelComponent>singletonList(propertyUpdateMethod.callMethod(
+						stateVector.convertToPointer(),
+						varPropertiesArray
+						));
+			}
+		}
+		return Collections.emptyList();
+	}
+
+	/**
+	 * For each implemented property, loop doesn't change the evaluation -
+	 * path properties are still going to be the same.
+	 * 
+	 * The only case where a change can be observed is CSL Until with lower bound.
+	 * There we have to evaluate path properties and decide whether there 
+	 * @return
+	 */
+	public Collection<KernelComponent> kernelHandleLoop()
 	{
 		return Collections.emptyList();
 	}

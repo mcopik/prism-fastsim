@@ -35,6 +35,7 @@ import simulator.opencl.kernel.expression.Expression;
 import simulator.opencl.kernel.expression.IfElse;
 import simulator.opencl.kernel.expression.Method;
 import simulator.opencl.kernel.expression.ExpressionGenerator.Operator;
+import simulator.opencl.kernel.memory.CLValue;
 import simulator.opencl.kernel.memory.CLVariable;
 import simulator.opencl.kernel.memory.StdVariableType;
 import simulator.sampler.SamplerBoolean;
@@ -72,24 +73,13 @@ public class ProbPropertyGeneratorDTMC extends ProbPropertyGenerator
 	}
 	
 	@Override
-	public Expression kernelUpdateProperties()
+	protected Expression kernelUpdatePropertiesTimed(CLVariable sv, CLValue updatedTime)
 	{
-		if(activeGenerator) {
-			CLVariable stateVector = generator.kernelGetLocalVar(LocalVar.STATE_VECTOR);
-			if (timedProperty) {
-				return propertyUpdateMethod.callMethod(
-						stateVector.convertToPointer(),
-						varPropertiesArray,
-						generator.kernelGetLocalVar(LocalVar.TIME)
-						);
-			} else {
-				return propertyUpdateMethod.callMethod(
-						stateVector.convertToPointer(),
-						varPropertiesArray
-						);
-			}
-		}
-		return new Expression();
+		return propertyUpdateMethod.callMethod(
+				sv.convertToPointer(),
+				varPropertiesArray,
+				generator.kernelGetLocalVar(LocalVar.TIME)
+				);
 	}
 
 	/**
