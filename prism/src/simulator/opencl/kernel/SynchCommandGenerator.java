@@ -144,6 +144,7 @@ public abstract class SynchCommandGenerator extends AbstractGenerator implements
 			for (StructureType type : synchronizedStates.values()) {
 				list.add(type.getDefinition());
 			}
+			list.addAll(updateDefinitions);
 			return list;
 		}
 		return Collections.emptyList();
