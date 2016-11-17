@@ -519,17 +519,6 @@ public abstract class KernelGenerator
 		loop.addExpression(synCmdGenerator.kernelCallGuardCheck());
 		
 		/**
-		 * Deadlock when number of possible choices is 0.
-		 * 
-		 * Handle properties when path generation stops due to lack of actions to take.
-		 */
-		IfElse deadlockState = new IfElse(kernelDeadlockExpression());
-		deadlockState.addExpression( propertyGenerator.kernelHandleDeadlock() );
-		deadlockState.addExpression( rewardGenerator.kernelHandleDeadlock() );
-		deadlockState.addExpression(new Expression("break;\n"));
-		loop.addExpression(deadlockState);
-		
-		/**
 		 * update time -> in case of CTMC and bounded until we need two time values:
 		 * 1) entering state
 		 * 2) leaving state
@@ -558,6 +547,22 @@ public abstract class KernelGenerator
 		ifElse.addExpression(0, new Expression("break;\n"));
 		loop.addExpression(ifElse);
 
+
+		/**
+		 * Deadlock when number of possible choices is 0.
+		 * Handle properties when path generation stops due to lack of actions to take.
+		 * 
+		 * We process deadlock after checking properties because there are properties,
+		 * such as continuous time Instantaneous reward, where we may be able to verify property
+		 * in a deadlock state due to reaching time bound before entering current state.
+		 * 
+		 */
+		IfElse deadlockState = new IfElse(kernelDeadlockExpression());
+		deadlockState.addExpression( propertyGenerator.kernelHandleDeadlock() );
+		deadlockState.addExpression( rewardGenerator.kernelHandleDeadlock() );
+		deadlockState.addExpression(new Expression("break;\n"));
+		loop.addExpression(deadlockState);
+		
 		/**
 		 * call update method; 
 		 * most complex case - both nonsyn and synchronized updates

@@ -305,17 +305,35 @@ public abstract class ProbPropertyGenerator extends AbstractGenerator
 	 * mark as evaluated by ignoring "valueKnown" field during kernel write.
 	 * Explanation is quite simple: state won't change.
 	 * 
-	 * If there is CSL timebounded until (equivalent to needsTimeDifference(),
+	 * If there is CSL timebounded until (equivalent to needsTimeDifference),
 	 * call property evaluation by providing [currentTime, Inf].
 	 * This way we ensure that property is verified regardless of time bounds.
-	 * 
 	 * If property has not been verified so far and it is supposed to be verified
 	 * in interval [a,b], a state with enter time currentTime and leave time Inf
 	 * is going to override time bounds and evaluate right side path property.
 	 * 
+	 * This is ensured by calling property check in kernel code before this deadlock
+	 * code. Time update involves division by zero (rates sum) and calls with [time, Inf]
+	 * 
 	 * @return
 	 */
 	public Collection<KernelComponent> kernelHandleDeadlock()
+	{
+		return Collections.emptyList();
+	}
+
+	/**
+	 * For each implemented property, loop doesn't change the evaluation -
+	 * path properties are still going to be the same.
+	 * 
+	 * The only problem here are CSL properties with lower time bound.
+	 * For that purpose, evaluate properties with [time, Inf].
+	 * 
+	 * Essentially the problem is exactly the same as for deadlock case,
+	 * but we don't have an implicit property evaluation.
+	 * @return
+	 */
+	public Collection<KernelComponent> kernelHandleLoop()
 	{
 		if(activeGenerator) {
 			CLVariable stateVector = generator.kernelGetLocalVar(LocalVar.STATE_VECTOR);
@@ -332,18 +350,6 @@ public abstract class ProbPropertyGenerator extends AbstractGenerator
 			}
 		}
 		return Collections.emptyList();
-	}
-
-	/**
-	 * For each implemented property, loop doesn't change the evaluation -
-	 * path properties are still going to be the same.
-	 * 
-	 * Essentially the problem is exactly the same as for deadlock case.
-	 * @return
-	 */
-	public Collection<KernelComponent> kernelHandleLoop()
-	{
-		return kernelHandleDeadlock();
 	}
 
 	/**
