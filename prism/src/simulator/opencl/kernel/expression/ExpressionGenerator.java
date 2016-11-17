@@ -25,6 +25,7 @@
 //==============================================================================
 package simulator.opencl.kernel.expression;
 
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -39,6 +40,7 @@ import simulator.opencl.kernel.StateVector;
 import simulator.opencl.kernel.memory.CLValue;
 import simulator.opencl.kernel.memory.CLVariable;
 import simulator.opencl.kernel.memory.ExpressionValue;
+import simulator.opencl.kernel.memory.RValue;
 
 public class ExpressionGenerator
 {
@@ -119,6 +121,21 @@ public class ExpressionGenerator
 		operatorsSource.put(Operator.DIV_AUGM, "/=");
 		operatorsSource.put(Operator.LAND_AUGM, "&=");
 	}
+	
+	public enum Constants {
+		INF
+	}
+	private static final EnumMap<Constants, Expression> CONSTANTS;
+	static {
+		CONSTANTS = new EnumMap<>(Constants.class);
+		CONSTANTS.put(Constants.INF, fromString("INFINITY") );
+	}
+	
+	static public Expression getConstant(Constants constant)
+	{
+		return CONSTANTS.get(constant);
+	}
+	
 
 	/**
 	 * @param expr1
