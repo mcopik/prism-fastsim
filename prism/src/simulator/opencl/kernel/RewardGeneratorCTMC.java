@@ -48,6 +48,7 @@ import simulator.opencl.kernel.memory.StdVariableType.StdType;
 import simulator.sampler.SamplerDouble;
 import simulator.sampler.SamplerRewardCumulCont;
 import simulator.sampler.SamplerRewardInstCont;
+import simulator.sampler.SamplerRewardReach;
 
 public class RewardGeneratorCTMC extends RewardGenerator
 {
@@ -78,6 +79,18 @@ public class RewardGeneratorCTMC extends RewardGenerator
 		}
 	}
 
+	@Override
+	protected boolean isInstantaneous(SamplerDouble sampler)
+	{
+		return sampler instanceof SamplerRewardInstCont;
+	}
+
+	@Override
+	protected boolean isCumulative(SamplerDouble sampler)
+	{
+		return sampler instanceof SamplerRewardCumulCont;
+	}
+	
 	@Override
 	protected void initializeRewardRequiredVarsCumulative(Map<Class<? extends SamplerDouble>, String[]> map)
 	{
@@ -159,7 +172,7 @@ public class RewardGeneratorCTMC extends RewardGenerator
 		 * Current_time > barrier
 		 */
 		Expression differenceCall = standardFunctionCall("fabs", createBinaryExpression(NEW_TIME_ARG.getSource(), Operator.SUB, expectedTime) );
-		Expression timeAboveCond = createBinaryExpression( differenceCall, Operator.GT, fromString(1e-5));
+		Expression timeAboveCond = createBinaryExpression( differenceCall, Operator.GT, fromString(1e-7));
 		IfElse timeAbove = new IfElse(timeAboveCond);
 		timeAbove.addExpression( createAssignment(propertyState, prevStateReward != null ? prevStateReward.getSource() : fromString(0.0)) );
 		timeAbove.addExpression(0, createAssignment(valueKnown, fromString("true")));
@@ -171,7 +184,6 @@ public class RewardGeneratorCTMC extends RewardGenerator
 		timeAbove.addExpression(1, createAssignment(propertyState, curStateReward != null ? curStateReward.getSource() : fromString(0.0)) );
 		timeAbove.addExpression(1, createAssignment(valueKnown, fromString("true")));
 		timeReached.addExpression(timeAbove);
-		// TODO: deadlock
 		
 		ifElse.addExpression( timeReached );
 	}

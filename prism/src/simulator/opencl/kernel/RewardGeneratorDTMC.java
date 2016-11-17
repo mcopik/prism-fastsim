@@ -40,7 +40,9 @@ import simulator.opencl.kernel.expression.Method;
 import simulator.opencl.kernel.memory.CLVariable;
 import simulator.opencl.kernel.memory.StructureType;
 import simulator.sampler.SamplerDouble;
+import simulator.sampler.SamplerRewardCumulCont;
 import simulator.sampler.SamplerRewardCumulDisc;
+import simulator.sampler.SamplerRewardInstCont;
 import simulator.sampler.SamplerRewardInstDisc;
 
 public class RewardGeneratorDTMC extends RewardGenerator
@@ -53,6 +55,19 @@ public class RewardGeneratorDTMC extends RewardGenerator
 			generateRewardCode();
 		}
 	}
+
+	@Override
+	protected boolean isInstantaneous(SamplerDouble sampler)
+	{
+		return sampler instanceof SamplerRewardInstDisc;
+	}
+
+	@Override
+	protected boolean isCumulative(SamplerDouble sampler)
+	{
+		return sampler instanceof SamplerRewardCumulDisc;
+	}
+	
 
 	@Override
 	protected void initializeRewardRequiredVarsCumulative(Map<Class<? extends SamplerDouble>, String[]> map)

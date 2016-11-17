@@ -57,9 +57,20 @@ import simulator.opencl.kernel.memory.CLVariable.Location;
 import simulator.opencl.kernel.memory.StdVariableType.StdType;
 import simulator.opencl.kernel.memory.UserDefinedType;
 import simulator.sampler.SamplerBoolean;
+import simulator.sampler.SamplerBoundedUntilDisc;
 import simulator.sampler.SamplerNext;
 import simulator.sampler.SamplerUntil;
 
+/**
+ * Currently implemented properties:
+ * - NeXt
+ * - unbounded Until
+ * - bounded until
+ * 
+ * Handling deadlocks:
+ * in all type of properties the state evaluation is crucial.
+ *
+ */
 public abstract class ProbPropertyGenerator extends AbstractGenerator
 {
 	/**
@@ -265,7 +276,16 @@ public abstract class ProbPropertyGenerator extends AbstractGenerator
 	 * Create call to probabilistic property update method.
 	 */
 	public abstract Expression kernelUpdateProperties();
-	
+
+	/**
+	 * Currently implemented properties:
+	 * @return
+	 */
+	public Collection<KernelComponent> kernelHandleDeadlock()
+	{
+		return Collections.emptyList();
+	}
+
 	/**
 	 * Generate code for writing reward result into an OpenCL buffer.
 	 * @param threadPosition

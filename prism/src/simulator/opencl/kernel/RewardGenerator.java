@@ -25,12 +25,12 @@
 //==============================================================================
 package simulator.opencl.kernel;
 
+import static simulator.opencl.kernel.expression.ExpressionGenerator.addParentheses;
 import static simulator.opencl.kernel.expression.ExpressionGenerator.convertPrismProperty;
 import static simulator.opencl.kernel.expression.ExpressionGenerator.createAssignment;
 import static simulator.opencl.kernel.expression.ExpressionGenerator.createBinaryExpression;
 import static simulator.opencl.kernel.expression.ExpressionGenerator.createNegation;
 import static simulator.opencl.kernel.expression.ExpressionGenerator.fromString;
-
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -70,6 +70,8 @@ import simulator.opencl.kernel.memory.StdVariableType;
 import simulator.opencl.kernel.memory.StdVariableType.StdType;
 import simulator.opencl.kernel.memory.StructureType;
 import simulator.sampler.SamplerDouble;
+import simulator.sampler.SamplerRewardCumulCont;
+import simulator.sampler.SamplerRewardCumulDisc;
 import simulator.sampler.SamplerRewardInstCont;
 import simulator.sampler.SamplerRewardInstDisc;
 import simulator.sampler.SamplerRewardReach;
@@ -96,6 +98,17 @@ public abstract class RewardGenerator extends AbstractGenerator
 	 * depends on the runtime configuration
 	 */
 	protected final StructureType REWARD_PROPERTY_STATE_STRUCTURE;
+
+	/**
+	 * Reward property structure field marking if property has been successfully evaluated.
+	 */
+	protected final String REWARD_PROPERTY_STATE_FIELD_VALUE_KNOWN = "valueKnown";
+	
+	/**
+	 * Reward property structure field containing evaluation.
+	 */
+	protected final String REWARD_PROPERTY_STATE_FIELD_PROPERTY_STATE = "propertyState";
+	
 
 	/**
 	 * Type of array containing states of all properties.
@@ -269,7 +282,7 @@ public abstract class RewardGenerator extends AbstractGenerator
 		 * Set to true when there's at least one reward which needs to know the current time.
 		 */
 		for(SamplerDouble sampler : rewardProperties) {
-			if( !(sampler instanceof SamplerRewardReach) ) {
+			if( !isReachability(sampler) ) {
 				timedReward = true;
 			}
 		}
@@ -319,6 +332,42 @@ public abstract class RewardGenerator extends AbstractGenerator
 	public boolean canExitOnLoop()
 	{
 		return canDetectLoop();
+	}
+	
+	protected boolean isReachability(SamplerDouble sampler)
+	{
+		return sampler instanceof SamplerRewardReach;
+	}
+
+	/**
+	 * @param sampler
+	 * @return true iff SamplerRewardInstCont/Disc
+	 */
+	protected abstract boolean isInstantaneous(SamplerDouble sampler);
+
+	/**
+	 * @param sampler
+	 * @return true iff SamplerRewardCumulCont/Disc
+	 */
+	protected abstract boolean isCumulative(SamplerDouble sampler);
+	
+	protected Number getTime(SamplerDouble sampler) throws KernelException
+	{
+		if( isInstantaneous(sampler) ) {
+			if(sampler instanceof SamplerRewardInstCont) {
+				return ((SamplerRewardInstCont)sampler).getTime();
+			} else {
+				return ((SamplerRewardInstDisc)sampler).getTime();
+			}
+		} else if ( isCumulative(sampler) ) {
+			if(sampler instanceof SamplerRewardCumulCont) {
+				return ((SamplerRewardCumulCont)sampler).getTime();
+			} else {
+				return ((SamplerRewardCumulDisc)sampler).getTime();
+			}
+		} else {
+			throw new KernelException("Attempt to extract time from a reachability/unknown sampler");
+		}
 	}
 	
 	/**
@@ -693,7 +742,7 @@ public abstract class RewardGenerator extends AbstractGenerator
 		method.addArg(pointerSV);
 		if (timedReward) {
 			// Type of time inherited from the main generator
-			argPropertyTime = new CLVariable(generator.varTimeType, "time");
+			argPropertyTime = new CLVariable(generator.timeVariableType(), "time");
 			method.addArg(argPropertyTime);
 		}
 		// Pointer to array of properties
@@ -725,7 +774,7 @@ public abstract class RewardGenerator extends AbstractGenerator
 			 * }
 			 */
 			CLVariable currentProperty = propertyStatesVar.accessElement( fromString(index) );
-			CLVariable valueKnown = currentProperty.accessField("valueKnown");
+			CLVariable valueKnown = currentProperty.accessField(REWARD_PROPERTY_STATE_FIELD_VALUE_KNOWN);
 			IfElse ifElse = new IfElse(createNegation(valueKnown.getSource()));
 			
 			/**
@@ -748,13 +797,13 @@ public abstract class RewardGenerator extends AbstractGenerator
 				/**
 				 * Reachability reward.
 				 */
-				if (sampler instanceof SamplerRewardReach) {
+				if ( isReachability(sampler) ) {
 					createPropertyReachability(ifElse, translations, (SamplerRewardReach) sampler, currentProperty, rewardStatePointer);
 				}
 				/**
-				 * DTMC/CTMC instanteous reward
+				 * DTMC/CTMC instantaneous reward
 				 */
-				else if (sampler instanceof SamplerRewardInstCont || sampler instanceof SamplerRewardInstDisc) {
+				else if ( isInstantaneous(sampler) ) {
 					createPropertyInst(ifElse, sampler, currentProperty, rewardStatePointer);
 				}
 				/**
@@ -764,7 +813,7 @@ public abstract class RewardGenerator extends AbstractGenerator
 					createPropertyCumul(ifElse, sampler, currentProperty, rewardStatePointer);
 				}
 			} else {
-				CLVariable propertyState = currentProperty.accessField("propertyState");
+				CLVariable propertyState = currentProperty.accessField(REWARD_PROPERTY_STATE_FIELD_PROPERTY_STATE);
 				ifElse.addExpression(0, createAssignment(propertyState, fromString(0.0)));
 				ifElse.addExpression(0, createAssignment(valueKnown, fromString("true")));
 			}
@@ -830,8 +879,8 @@ public abstract class RewardGenerator extends AbstractGenerator
 	{
 		IfElse ifElse = null;
 		ifElse = new IfElse(convertPrismProperty(translations, condition));
-		CLVariable valueKnown = propertyVar.accessField("valueKnown");
-		CLVariable propertyState = propertyVar.accessField("propertyState");
+		CLVariable valueKnown = propertyVar.accessField(REWARD_PROPERTY_STATE_FIELD_VALUE_KNOWN);
+		CLVariable propertyState = propertyVar.accessField(REWARD_PROPERTY_STATE_FIELD_PROPERTY_STATE);
 		ifElse.addExpression(0, createAssignment(propertyState, propertyValue));
 		ifElse.addExpression(0, createAssignment(valueKnown, fromString("true")));
 		return ifElse;
@@ -856,8 +905,8 @@ public abstract class RewardGenerator extends AbstractGenerator
 	
 	private void createPropertyCondition(CLVariable propertyVar, IfElse ifElse, Expression propertyValue)
 	{
-		CLVariable valueKnown = propertyVar.accessField("valueKnown");
-		CLVariable propertyState = propertyVar.accessField("propertyState");
+		CLVariable valueKnown = propertyVar.accessField(REWARD_PROPERTY_STATE_FIELD_VALUE_KNOWN);
+		CLVariable propertyState = propertyVar.accessField(REWARD_PROPERTY_STATE_FIELD_PROPERTY_STATE);
 		ifElse.addExpression(0, createAssignment(propertyState, propertyValue));
 		ifElse.addExpression(0, createAssignment(valueKnown, fromString("true")));
 	}
@@ -925,8 +974,8 @@ public abstract class RewardGenerator extends AbstractGenerator
 	protected StructureType createPropertyStateType()
 	{
 		StructureType type = new StructureType("RewardState");
-		type.addVariable(new CLVariable(rewardVarsType(), "propertyState"));
-		type.addVariable(new CLVariable(new StdVariableType(StdType.BOOL), "valueKnown"));
+		type.addVariable(new CLVariable(rewardVarsType(), REWARD_PROPERTY_STATE_FIELD_PROPERTY_STATE));
+		type.addVariable(new CLVariable(new StdVariableType(StdType.BOOL), REWARD_PROPERTY_STATE_FIELD_VALUE_KNOWN));
 		return type;
 	}
 
@@ -948,8 +997,8 @@ public abstract class RewardGenerator extends AbstractGenerator
 	 * 
 	 * For every reward structure:
 	 * - reward reachability - total cumulative reward
-	 * - instanteous reward DTMC - current state reward
-	 * - instanteous reward CTMC - current and previous state reward
+	 * - instantaneous reward DTMC - current state reward
+	 * - instantaneous reward CTMC - current and previous state reward
 	 * - cumulative DTMC - total cumulative reward
 	 * - cumulative CTMC - total cumulative reward, previous state & transition reward,
 	 * 		current state reward for deadlock
@@ -1101,8 +1150,8 @@ public abstract class RewardGenerator extends AbstractGenerator
 			for (int i = 0; i < rewardProperties.size(); ++i) {
 				CLVariable result = kernelArgs.get(i).accessElement(threadPosition);
 	
-				CLVariable property = propertiesStateVar.accessElement(fromString(i)).accessField("propertyState");
-				CLVariable valueKnown = propertiesStateVar.accessElement(fromString(i)).accessField("valueKnown");
+				CLVariable property = propertiesStateVar.accessElement(fromString(i)).accessField(REWARD_PROPERTY_STATE_FIELD_PROPERTY_STATE);
+				CLVariable valueKnown = propertiesStateVar.accessElement(fromString(i)).accessField(REWARD_PROPERTY_STATE_FIELD_VALUE_KNOWN);
 				//TODO: proper loop detection
 				//Expression succesfullComputation = createBinaryExpression(valueKnown.getSource(), ExpressionGenerator.Operator.LOR,
 				//		generator.kernelLoopExpression());
@@ -1188,6 +1237,95 @@ public abstract class RewardGenerator extends AbstractGenerator
 	 * @return
 	 */
 	protected abstract Expression callStateRewardFunction(Method method, CLVariable stateVector, CLVariable rewardStructure);
+	
+	/**
+	 * Reachability: nothing!
+	 * 
+	 * Instantaneous: verified, current state reward.
+	 * State won't change due to lack of actions to take.
+	 * 
+	 * Cumulative: verified,
+	 * add current state reward * missing_time
+	 * No transition rewards due to lack of actions.
+	 * 
+	 * @return
+	 * @throws KernelException 
+	 */
+	public Collection<KernelComponent> kernelHandleDeadlock() throws KernelException
+	{
+		if(activeGenerator) {
+			List<KernelComponent> exprs = new ArrayList<>();
+			
+			int counter = 0;
+			for(SamplerDouble sampler : rewardProperties)
+			{
+				if( isCumulative(sampler) || isInstantaneous(sampler)) {
+				
+					CLVariable propertyVar = propertiesStateVar.accessElement( fromString(counter) );
+					CLVariable valueKnown = propertyVar.accessField(REWARD_PROPERTY_STATE_FIELD_VALUE_KNOWN);
+					CLVariable propertyState = propertyVar.accessField(REWARD_PROPERTY_STATE_FIELD_PROPERTY_STATE);
+					CLVariable rewardStruct = rewardStructuresVars.get( sampler.getRewardIndex() );
+					// TODO: this should be removed - don't process a reward when there's no data
+					if(rewardStruct == null)
+						continue;
+					CLVariable stateReward = rewardStruct.accessField(REWARD_STRUCTURE_VAR_CURRENT_STATE);
+					CLVariable cumulReward = rewardStruct.accessField(REWARD_STRUCTURE_VAR_CUMULATIVE_TOTAL);
+
+					/**
+					 * Write results if property value is not known
+					 */
+					IfElse writeResults = new IfElse( createNegation(valueKnown.getSource()) );
+					writeResults.addExpression( createAssignment(valueKnown, fromString("true")) );
+					/**
+					 * Cumulative: multiply state reward and add with cumulative
+					 */
+					if( isCumulative(sampler) ) {
+						
+						/**
+						 * We may not compute state reward if cumulative consists
+						 * only from a transition reward.
+						 */
+						Expression totalReward = null;
+						if(stateReward != null) {
+							Number timeBound = getTime(sampler);
+							Expression timeDifference = addParentheses(createBinaryExpression(
+									fromString(timeBound),
+									Operator.SUB,
+									generator.kernelGetLocalVar(LocalVar.TIME).getSource()
+									));
+							Expression stateRewardAddition = createBinaryExpression(
+									timeDifference,
+									Operator.MUL,
+									stateReward.getSource()
+									);
+							totalReward = createBinaryExpression(
+									stateRewardAddition,
+									Operator.ADD,
+									cumulReward.getSource()
+									);
+						} else {
+							totalReward = cumulReward.getSource();
+						}
+								
+						writeResults.addExpression( createAssignment(propertyState, totalReward));
+					} 
+					/**
+					 * Instantaneous : current state reward
+					 */
+					else {
+						writeResults.addExpression( createAssignment(
+								propertyState,
+								stateReward != null ? stateReward.getSource() : fromString(0.0)
+								));
+					}
+					exprs.add(writeResults);
+				}
+				++counter;
+			}
+			return exprs;
+		}
+		return Collections.emptyList();
+	}
 	
 	/**
 	 * TODO: do we need a special case of checking at time 0 for CTMC?
