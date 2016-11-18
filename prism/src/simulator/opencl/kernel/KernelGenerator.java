@@ -887,6 +887,11 @@ public abstract class KernelGenerator
 		return synCommands;
 	}
 	
+	public PRNGType getPRNG()
+	{
+		return prngType;
+	}
+	
 	/**
 	 * @return visitor object to apply for PRISM code
 	 */

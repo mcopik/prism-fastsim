@@ -111,7 +111,6 @@ public abstract class RewardGenerator extends AbstractGenerator
 	 * Reward property structure field containing evaluation.
 	 */
 	protected final String REWARD_PROPERTY_STATE_FIELD_PROPERTY_STATE = "propertyState";
-	
 
 	/**
 	 * Type of array containing states of all properties.
@@ -291,8 +290,6 @@ public abstract class RewardGenerator extends AbstractGenerator
 		for(SamplerDouble sampler : rewardProperties) {
 			if( !isReachability(sampler) ) {
 				timedReward = true;
-				if( isCumulative(sampler) && sampler instanceof SamplerRewardCumulCont)
-					canDetectLoop = false;
 			}
 		}
 		
@@ -1375,7 +1372,9 @@ public abstract class RewardGenerator extends AbstractGenerator
 	 * CTMC:
 	 * time spent in state = time_bound - current_time
 	 * number of transitions to take: we don't know that but we know time distribution,
-	 * because the parameter of exponential distribution is not going to change
+	 * because the parameter of exponential distribution is not going to change.
+	 * Subtract once after finishing loop because it means we have already broke the
+	 * time bound and took one transition too much.
 	 * Optimize by skipping this process when transition reward is zero.
 	 * 
 	 * cumulative += time_diff * current_state;
@@ -1385,7 +1384,23 @@ public abstract class RewardGenerator extends AbstractGenerator
 	 * 	 update_time();
 	 *   randomize();
 	 *  }
+	 *  cumulative -= time > time_bound ? transition 0.0;
 	 * }
+	 * However, when number of randomized numbers per update > 1,
+	 * then we modify it by introducing boolean flag (casted to 0/1).
+	 * Currently used PRNGs generating either one or two numbers and for
+	 * simplicity we do not consider other cases; an assert has been hardcoded.
+	 * We start with flag=true and use it to access second(1) random number.
+	 * Then flag induces randomization and we flip it before ending current loop
+	 * iteration. This guarantees that in next iteration we access first(0) randon number,
+	 * no randomization is performed and the iteration after that uses second number and
+	 * randomizes again.
+	 * 
+	 * It is important to note that if time update after detecting loop breaches the timebound,
+	 * this procedure will work also as property verification, not only correction for loop detection.
+	 * time_diff becomes negative and program never steps into the while loop.
+	 * Computation is equivalent to correction implemented in property verification:
+	 * cumulative -= (time - time_bound)*current_state - (time > time_bound ? transition 0.0)
 	 * 
 	 * @return
 	 * @throws KernelException 
@@ -1396,8 +1411,6 @@ public abstract class RewardGenerator extends AbstractGenerator
 		if(activeGenerator) {
 
 			List<KernelComponent> exprs = new ArrayList<>();
-			CLVariable stateVector = generator.kernelGetLocalVar(LocalVar.STATE_VECTOR);
-			StateVector.Translations translations = this.stateVector.createTranslations(stateVector);
 			
 			int counter = 0;
 			for(SamplerDouble sampler : rewardProperties)

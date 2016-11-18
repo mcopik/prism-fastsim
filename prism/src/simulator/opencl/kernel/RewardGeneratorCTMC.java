@@ -29,13 +29,17 @@ import static simulator.opencl.kernel.expression.ExpressionGenerator.addParenthe
 import static simulator.opencl.kernel.expression.ExpressionGenerator.createBinaryExpression;
 import static simulator.opencl.kernel.expression.ExpressionGenerator.createAssignment;
 import static simulator.opencl.kernel.expression.ExpressionGenerator.createConditionalAssignment;
+import static simulator.opencl.kernel.expression.ExpressionGenerator.createNegation;
 import static simulator.opencl.kernel.expression.ExpressionGenerator.fromString;
 import static simulator.opencl.kernel.expression.ExpressionGenerator.standardFunctionCall;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 
+import prism.Preconditions;
 import prism.PrismLangException;
 import simulator.opencl.kernel.KernelGenerator.LocalVar;
 import simulator.opencl.kernel.expression.Expression;
@@ -43,12 +47,14 @@ import simulator.opencl.kernel.expression.IfElse;
 import simulator.opencl.kernel.expression.KernelComponent;
 import simulator.opencl.kernel.expression.ExpressionGenerator.Operator;
 import simulator.opencl.kernel.expression.Method;
+import simulator.opencl.kernel.expression.While;
 import simulator.opencl.kernel.memory.CLVariable;
 import simulator.opencl.kernel.memory.StdVariableType;
 import simulator.opencl.kernel.memory.StructureType;
 import simulator.opencl.kernel.memory.StdVariableType.StdType;
 import simulator.sampler.SamplerDouble;
 import simulator.sampler.SamplerRewardCumulCont;
+import simulator.sampler.SamplerRewardCumulDisc;
 import simulator.sampler.SamplerRewardInstCont;
 import simulator.sampler.SamplerRewardReach;
 
@@ -273,6 +279,141 @@ public class RewardGeneratorCTMC extends RewardGenerator
 	@Override
 	protected Collection<KernelComponent> handleLoopCumul(SamplerDouble sampler, CLVariable propertyDest, CLVariable rewardVar)
 	{
-		return Collections.emptyList();
+		CLVariable cumulReward = rewardVar.accessField(REWARD_STRUCTURE_VAR_CUMULATIVE_TOTAL);
+		CLVariable stateReward = rewardVar.accessField(REWARD_STRUCTURE_VAR_CURRENT_STATE);
+		CLVariable transReward = rewardVar.accessField(REWARD_STRUCTURE_VAR_PREVIOUS_TRANSITION);
+		CLVariable currentTime = generator.kernelGetLocalVar(LocalVar.TIME);
+		SamplerRewardCumulCont samplerCumul = (SamplerRewardCumulCont)sampler;
+		KernelGeneratorCTMC generatorCTMC = (KernelGeneratorCTMC)generator;
+		List<KernelComponent> exprs = new ArrayList<>();
+		
+		Expression timeDifference = addParentheses(createBinaryExpression(
+				fromString( samplerCumul.getTime() ),
+				Operator.SUB,
+				currentTime.getSource()
+				));
+		/**
+		 * Update cumulative reward by adding timeDiff * stateReward
+		 */
+		if(stateReward != null) {
+			Expression updatedRew = createBinaryExpression(
+					timeDifference,
+					Operator.MUL,
+					stateReward.getSource()
+					);
+			exprs.add( createBinaryExpression(
+					cumulReward.getSource(),
+					Operator.ADD_AUGM,
+					updatedRew
+					));
+		}
+		
+		/**
+		 * If transition reward is non-zero,
+		 * keeps iterating to update cumulative reward
+		 */
+		if(transReward != null) {
+			
+			PRNGType prng = generator.getPRNG();
+			/**
+			 * Current implementation handles PRNGs which produce one or two
+			 * random numbers per iteration. Keep this assertion to ensure that
+			 * this part of code is not forgotten when a new PRNG is implemented.
+			 * 
+			 * For details see method kernelHandleLoop() in RewardGenerator
+			 */
+			Preconditions.checkCondition( prng.numbersPerRandomize() <= 2 );
+			
+			// TODO: make epsilon constant
+			Expression transRwPos = createBinaryExpression(
+					transReward.getSource(),
+					Operator.GT,
+					fromString("1e-7")
+					);
+			IfElse updateTrans = new IfElse(transRwPos);
+			/**
+			 * Boolean flag when there two numbers to access.
+			 */
+			CLVariable randomFlag = null;
+			if(prng.numbersPerRandomize() > 1) {
+				randomFlag = new CLVariable(new StdVariableType(StdType.BOOL), "randomFlag");
+				randomFlag.setInitValue( StdVariableType.initialize(1) );
+				updateTrans.addExpression( randomFlag.getDefinition() );
+			}
+			
+			Expression timeReached = createBinaryExpression(
+					currentTime.getSource(),
+					Operator.LT,
+					fromString( samplerCumul.getTime() )
+					);
+			/**
+			 * while(time <= time_bound) {
+			 * 	//fill body
+			 * }
+			 */
+			While untilTimeReached = new While(timeReached);
+			/**
+			 * cumulative += transition_rw;
+			 */
+			untilTimeReached.addExpression( createBinaryExpression(
+					cumulReward.getSource(),
+					Operator.ADD_AUGM,
+					transReward.getSource()
+					));
+			/**
+			 * update_time()
+			 * Access PRNG through either 'zero' or flag position
+			 */
+			untilTimeReached.addExpression( generatorCTMC.timeUpdate(
+					currentTime, randomFlag != null ? randomFlag.getSource() : fromString(1)
+					));
+			/**
+			 * randomize() - always or when flag is true
+			 */
+			if( randomFlag != null ) {
+				IfElse ifFlag = new IfElse( randomFlag.getSource() );
+				ifFlag.addExpression( prng.randomize() );
+				untilTimeReached.addExpression( ifFlag );
+			} else {
+				untilTimeReached.addExpression( prng.randomize() );
+			}
+			/**
+			 * Flip flag
+			 */
+			if( randomFlag != null ) {
+				untilTimeReached.addExpression( createAssignment(
+						randomFlag,
+						createNegation(randomFlag.getSource())
+						));
+			}
+			/**
+			 * End loop
+			 */
+			updateTrans.addExpression(untilTimeReached);
+			
+			/**
+			 * Correct reward by subtracting an additional transition reward.
+			 * time > time_bound ? prevTransReward : 0.0
+			 */
+			Expression correction = createConditionalAssignment(
+					createBinaryExpression(currentTime.getSource(), Operator.GT, fromString(samplerCumul.getTime()) ),
+					transReward.getSource(),
+					fromString(0.0)
+					);
+			updateTrans.addExpression(createBinaryExpression(
+					cumulReward.getSource(),
+					Operator.SUB_AUGM,
+					correction
+					));
+			
+			exprs.add(updateTrans);
+		}
+
+		/**
+		 * Write final value
+		 */
+		exprs.add( createAssignment(propertyDest, cumulReward) );
+		
+		return exprs;
 	}
 }
