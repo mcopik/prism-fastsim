@@ -29,12 +29,16 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
 
+import static simulator.opencl.kernel.expression.ExpressionGenerator.addParentheses;
+import static simulator.opencl.kernel.expression.ExpressionGenerator.createAssignment;
 import static simulator.opencl.kernel.expression.ExpressionGenerator.createBinaryExpression;
 import static simulator.opencl.kernel.expression.ExpressionGenerator.fromString;
 import prism.PrismLangException;
+import simulator.opencl.kernel.KernelGenerator.LocalVar;
 import simulator.opencl.kernel.expression.Expression;
 import simulator.opencl.kernel.expression.ExpressionGenerator;
 import simulator.opencl.kernel.expression.IfElse;
+import simulator.opencl.kernel.expression.KernelComponent;
 import simulator.opencl.kernel.expression.ExpressionGenerator.Operator;
 import simulator.opencl.kernel.expression.Method;
 import simulator.opencl.kernel.memory.CLVariable;
@@ -67,7 +71,6 @@ public class RewardGeneratorDTMC extends RewardGenerator
 	{
 		return sampler instanceof SamplerRewardCumulDisc;
 	}
-	
 
 	@Override
 	protected void initializeRewardRequiredVarsCumulative(Map<Class<? extends SamplerDouble>, String[]> map)
@@ -98,14 +101,7 @@ public class RewardGeneratorDTMC extends RewardGenerator
 		/**
 		 * Simple update: just add transition and state reward.
 		 */
-		Expression newValue = null;
-		if (stateReward != null && transitionReward != null) {
-			newValue = ExpressionGenerator.createBinaryExpression(stateReward.getSource(), Operator.ADD, transitionReward.getSource());
-		} else if (stateReward != null ){
-			newValue = stateReward.getSource();
-		} else {
-			newValue = transitionReward.getSource();
-		}
+		Expression newValue = rewardsSum(stateReward, transitionReward);
 		return ExpressionGenerator.createBinaryExpression(cumulReward, Operator.ADD_AUGM, newValue);
 	}
 	
@@ -143,5 +139,52 @@ public class RewardGeneratorDTMC extends RewardGenerator
 	protected Expression callStateRewardFunction(Method method, CLVariable stateVector, CLVariable rewardStructure)
 	{
 		return method.callMethod(stateVector.convertToPointer(), rewardStructure.convertToPointer());
+	}
+	
+	@Override
+	protected Collection<KernelComponent> handleLoopCumul(SamplerDouble sampler, CLVariable propertyDest, CLVariable rewardVar)
+	{
+		CLVariable cumulReward = rewardVar.accessField(REWARD_STRUCTURE_VAR_CUMULATIVE_TOTAL);
+		CLVariable currentTime = generator.kernelGetLocalVar(LocalVar.TIME);
+		SamplerRewardCumulDisc samplerCumul = (SamplerRewardCumulDisc)sampler;
+		
+		Expression timeDifference = addParentheses(createBinaryExpression(
+				fromString( samplerCumul.getTime() ),
+				Operator.SUB,
+				currentTime.getSource()
+				));
+		Expression rewardUpdate = rewardsSum(
+				rewardVar.accessField(REWARD_STRUCTURE_VAR_CURRENT_STATE),
+				rewardVar.accessField(REWARD_STRUCTURE_VAR_PREVIOUS_TRANSITION)
+				);
+		rewardUpdate = createBinaryExpression(
+				rewardUpdate,
+				Operator.MUL,
+				timeDifference
+				);
+		rewardUpdate = createBinaryExpression(
+				cumulReward.getSource(),
+				Operator.ADD,
+				rewardUpdate
+				);
+		
+		return Collections.<KernelComponent>singletonList(
+				createAssignment(propertyDest, rewardUpdate)
+				);
+	}
+	
+	private Expression rewardsSum(CLVariable stateReward, CLVariable transitionReward)
+	{
+		if (stateReward != null && transitionReward != null) {
+			return addParentheses(createBinaryExpression(
+					stateReward.getSource(),
+					Operator.ADD,
+					transitionReward.getSource()
+					));
+		} else if (stateReward != null ){
+			return stateReward.getSource();
+		} else {
+			return transitionReward.getSource();
+		}
 	}
 }

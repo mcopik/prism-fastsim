@@ -33,12 +33,14 @@ import static simulator.opencl.kernel.expression.ExpressionGenerator.fromString;
 import static simulator.opencl.kernel.expression.ExpressionGenerator.standardFunctionCall;
 
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Map;
 
 import prism.PrismLangException;
 import simulator.opencl.kernel.KernelGenerator.LocalVar;
 import simulator.opencl.kernel.expression.Expression;
 import simulator.opencl.kernel.expression.IfElse;
+import simulator.opencl.kernel.expression.KernelComponent;
 import simulator.opencl.kernel.expression.ExpressionGenerator.Operator;
 import simulator.opencl.kernel.expression.Method;
 import simulator.opencl.kernel.memory.CLVariable;
@@ -266,5 +268,11 @@ public class RewardGeneratorCTMC extends RewardGenerator
 		else {
 			return method.callMethod(stateVector.convertToPointer(), rewardStructure.convertToPointer());
 		}
+	}
+	
+	@Override
+	protected Collection<KernelComponent> handleLoopCumul(SamplerDouble sampler, CLVariable propertyDest, CLVariable rewardVar)
+	{
+		return Collections.emptyList();
 	}
 }

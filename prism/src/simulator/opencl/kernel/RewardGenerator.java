@@ -291,7 +291,7 @@ public abstract class RewardGenerator extends AbstractGenerator
 		for(SamplerDouble sampler : rewardProperties) {
 			if( !isReachability(sampler) ) {
 				timedReward = true;
-				if( isCumulative(sampler) )
+				if( isCumulative(sampler) && sampler instanceof SamplerRewardCumulCont)
 					canDetectLoop = false;
 			}
 		}
@@ -1416,7 +1416,6 @@ public abstract class RewardGenerator extends AbstractGenerator
 					continue;
 				
 				CLVariable stateReward = rewardStruct.accessField(REWARD_STRUCTURE_VAR_CURRENT_STATE);
-				CLVariable cumulReward = rewardStruct.accessField(REWARD_STRUCTURE_VAR_CUMULATIVE_TOTAL);
 				/**
 				 * Write results if property value is not known
 				 */
@@ -1424,7 +1423,7 @@ public abstract class RewardGenerator extends AbstractGenerator
 				writeResults.addExpression( createAssignment(valueKnown, fromString("true")) );
 
 				if( isCumulative(sampler) ) {
-					
+					writeResults.addExpression( handleLoopCumul(sampler, propertyState, rewardStruct) );
 				} else {
 					/**
 					 * Just write state reward.
@@ -1441,6 +1440,15 @@ public abstract class RewardGenerator extends AbstractGenerator
 		}
 		return Collections.emptyList();
 	}
+	
+	/**
+	 * Implement evaluating cumulative reward when a loop is detected, as described in @see kernelHandleLoop
+	 * @param sampler
+	 * @param propertyVar
+	 * @param rewardVar
+	 * @return
+	 */
+	protected abstract Collection<KernelComponent> handleLoopCumul(SamplerDouble sampler, CLVariable propertyDest, CLVariable rewardVar);
 	
 	/**
 	 * TODO: do we need a special case of checking at time 0 for CTMC?
