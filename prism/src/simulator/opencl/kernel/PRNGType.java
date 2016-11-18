@@ -25,6 +25,7 @@
 //==============================================================================
 package simulator.opencl.kernel;
 
+import java.util.Collection;
 import java.util.List;
 
 import simulator.RandomNumberGenerator;
@@ -143,9 +144,8 @@ public abstract class PRNGType
 	public abstract int numbersPerRandomize();
 	/**
 	 * @return
-	 * @throws KernelException
 	 */
-	public abstract KernelComponent randomize() throws KernelException;
+	public abstract Collection<KernelComponent> randomize();
 	/**
 	 * Get randNumber-th integer from interval [0,max)
 	 * @param randNumber

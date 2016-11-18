@@ -26,6 +26,8 @@
 package simulator.opencl.kernel;
 
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 
 import simulator.opencl.kernel.expression.Expression;
@@ -109,9 +111,9 @@ public class PRNGmwc64x extends PRNGType
 	}
 
 	@Override
-	public KernelComponent randomize() throws KernelException
+	public Collection<KernelComponent> randomize()
 	{
-		return null;
+		return Collections.emptyList();
 	}
 
 	@Override

@@ -26,6 +26,7 @@
 package simulator.opencl.kernel;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 
 import org.bridj.Pointer;
@@ -109,7 +110,7 @@ public class PRNGRandom123 extends PRNGType
 	 */
 	public PRNGRandom123(String varName)
 	{
-		super(varName, INCLUDES, ADDITIONAL_ARGS, 0);
+		super(varName, INCLUDES, ADDITIONAL_ARGS);//, 0);
 	}
 	/**
 	 * Create PRNG instance with name and seed.
@@ -161,11 +162,11 @@ public class PRNGRandom123 extends PRNGType
 	 * @see simulator.gpu.opencl.kernel.PRNGType#randomize()
 	 */
 	@Override
-	public KernelComponent randomize() throws KernelException
+	public Collection<KernelComponent> randomize()
 	{
-		ExpressionList list = new ExpressionList();
-		list.addExpression(new Expression("rand = threefry2x32(ctr, key);"));
-		list.addExpression(new Expression("ctr.v[0]++;"));
+		List<KernelComponent> list = new ArrayList<>();
+		list.add(new Expression("rand = threefry2x32(ctr, key);"));
+		list.add(new Expression("ctr.v[0]++;"));
 		return list;
 	}
 
