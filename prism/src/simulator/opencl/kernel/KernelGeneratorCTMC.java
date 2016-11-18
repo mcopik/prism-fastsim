@@ -123,17 +123,10 @@ public class KernelGeneratorCTMC extends KernelGenerator
 		// time = updated_time;
 		if (varUpdatedTime != null) {
 	    	CLVariable varTime = localVars.get(LocalVar.TIME);
-			CLValue random = config.prngType.getRandomUnifFloat(fromString(1));
-			Expression substrRng = createBinaryExpression(fromString(1),
-			//1 - random()
-					Operator.SUB, random.getSource());
-			substrRng = new Expression(String.format("log(%s)", substrRng.getSource()));
-			// it may be a complex expression
-			Expression sum = addParentheses(kernelActiveUpdatesSize());
-			substrRng = createBinaryExpression(substrRng, Operator.DIV, sum);
 			// updated = time - new value
 			// OR time -= new value
-			substrRng = createBinaryExpression(varTime.getSource(), Operator.SUB, substrRng);
+			Expression substrRng = createBinaryExpression(varTime.getSource(), Operator.SUB,
+					timeUpdate( fromString(1) ) );
 			parent.addExpression(createAssignment(varUpdatedTime, substrRng));
 		}
 	}
@@ -144,19 +137,28 @@ public class KernelGeneratorCTMC extends KernelGenerator
     	CLVariable varUpdatedTime = localVars.get(LocalVar.UPDATED_TIME);
     	CLVariable varTime = localVars.get(LocalVar.TIME);
 		if (varUpdatedTime == null) {
-			CLValue random = config.prngType.getRandomUnifFloat(fromString(1));
-			Expression substrRng = createBinaryExpression(fromString(1),
-			//1 - random()
-					Operator.SUB, random.getSource());
-			substrRng = new Expression(String.format("log(%s)", substrRng.getSource()));
-			Expression sum = addParentheses(kernelActiveUpdatesSize());
-			substrRng = createBinaryExpression(substrRng, Operator.DIV, sum);
 			// time -= new value
-			parent.addExpression(addComma(createBinaryExpression(varTime.getSource(), Operator.SUB_AUGM, substrRng)));
+			parent.addExpression(addComma( timeUpdate(varTime, fromString(1)) ));
 		} else {
             // OR updated = time - new value
 			parent.addExpression(createAssignment(varTime, varUpdatedTime));
 		}
+	}
+	
+	public Expression timeUpdate(Expression randPos)
+	{
+		CLValue random = config.prngType.getRandomUnifFloat(randPos);
+		Expression substrRng = createBinaryExpression(fromString(1),
+				//1 - random()
+				Operator.SUB, random.getSource());
+		substrRng = new Expression(String.format("log(%s)", substrRng.getSource()));
+		Expression sum = addParentheses(kernelActiveUpdatesSize());
+		return createBinaryExpression(substrRng, Operator.DIV, sum);
+	}
+	
+	public Expression timeUpdate(CLVariable varTime, Expression randPos)
+	{
+		return createBinaryExpression(varTime.getSource(), Operator.SUB_AUGM, timeUpdate(randPos));
 	}
 
 	@Override
