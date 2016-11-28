@@ -779,7 +779,7 @@ public abstract class RewardGenerator extends AbstractGenerator
 			 *  }
 			 * }
 			 */
-			CLVariable currentProperty = propertyStatesVar.accessElement( fromString(index) );
+			CLVariable currentProperty = propertyStatesVar.accessElement( fromString(index++) );
 			CLVariable valueKnown = currentProperty.accessField(REWARD_PROPERTY_STATE_FIELD_VALUE_KNOWN);
 			IfElse ifElse = new IfElse(createNegation(valueKnown.getSource()));
 			
@@ -1446,7 +1446,6 @@ public abstract class RewardGenerator extends AbstractGenerator
 							stateReward != null ? stateReward.getSource() : fromString(0.0)
 							));
 				}
-				++counter;
 				exprs.add(writeResults);
 			}
 			return exprs;

@@ -407,10 +407,6 @@ public abstract class ProbPropertyGenerator extends AbstractGenerator
 		propertyUpdateMethod.addArg(propertyState);
 		//Time variable - uint/float
 		propertiesMethodTimeArg(propertyUpdateMethod);
-		//uint counter
-		CLVariable counter = new CLVariable(new StdVariableType(0, properties.size()), "counter");
-		counter.setInitValue(StdVariableType.initialize(0));
-		propertyUpdateMethod.addLocalVar(counter);
 		//bool allKnown - will be returned 
 		CLVariable allKnown = new CLVariable(new StdVariableType(StdType.BOOL), "allKnown");
 		allKnown.setInitValue(StdVariableType.initialize(1));
@@ -419,13 +415,14 @@ public abstract class ProbPropertyGenerator extends AbstractGenerator
 		// create translations from PRISM vars to local instance of state vector
 		StateVector.Translations translations = stateVector.createTranslations(sv);
 
+		int index = 0;
 		/**
 		 * For each property, add checking
 		 */
 		for (int i = 0; i < properties.size(); ++i) {
 			SamplerBoolean property = properties.get(i);
 			
-			CLVariable currentProperty = propertyState.accessElement(counter.getSource());
+			CLVariable currentProperty = propertyState.accessElement( fromString(index++) );
 			CLVariable valueKnown = currentProperty.accessField("valueKnown");
 
 			IfElse ifElse = new IfElse(createNegation(valueKnown.getSource()));
