@@ -29,8 +29,12 @@ package prism;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 
+import jdk.internal.org.objectweb.asm.tree.MethodNode;
 import parser.Values;
 import parser.ast.Expression;
 import parser.ast.ExpressionReward;
@@ -196,6 +200,7 @@ public class PrismCL implements PrismModelListener
 	private boolean simDeviceGiven = false;
 	private boolean simDeviceTypeGiven = false;
 	private boolean simManual = false;
+	private boolean simSimultaneously = false;
 	private SimulationMethod simMethod = null;
 
 	// strategy export info
@@ -310,6 +315,61 @@ public class PrismCL implements PrismModelListener
 			if (modelBuildFail)
 				continue;
 
+			// for simulation we can do multiple properties at once
+			// but it does NOT work currently with experiments
+			if(simulate && simSimultaneously)
+			{
+				Result[] results_;
+				
+				try {
+					// Check for experiment - disallowed
+					Values allConsts = new Values();
+					for(int jj = 0; jj < undefinedConstants.length; ++jj) {
+						if(undefinedConstants[jj].getNumPropertyIterations() > 1) {
+							throw new PrismException("Model check experiment is not allowed for simulation with simultaneous"
+									+ " processing of all properties!");
+						}
+						allConsts.addValues( undefinedConstants[jj].getPFConstantValues() );
+					}
+
+					List<Expression> properties = new ArrayList<>();
+					for(Property p : propertiesToCheck)
+						properties.add( p.getExpression() );
+					SimulationSettings settings = processSimulationOptions(properties);
+					simMethod = settings.getMethod();
+					
+					if(propertiesFile != null) {
+						propertiesFile.setSomeUndefinedConstants(allConsts);
+					}
+					
+					results_ = prism.modelCheckSimulatorSimultaneously(propertiesFile, properties, allConsts, null, simMaxPath,
+							settings);
+				} catch(PrismException exc) {
+					error(exc.getMessage(), true);
+					results_ = new Result[propertiesToCheck.size()];
+					results_[0] = new Result(exc);
+					for(int ii = 1; ii < results.length; ++ii) {
+						results_[ii] = results_[0];
+					}
+				}
+					
+				if(test) {
+					Values allConsts = new Values(definedMFConstants);
+					allConsts.addValues(definedPFConstants);
+					allConsts.addValues(modulesFile.getConstantValues());
+					allConsts.addValues(propertiesFile.getConstantValues());
+					for(int ii = 0; ii < propertiesToCheck.size(); ++ii) {
+						testResult(test, allConsts, propertiesToCheck.get(ii), results_[ii]);
+					}
+				}
+				
+				int idx = 0;
+				for(Result r : results_)
+					results[idx++].setResult(definedMFConstants, definedPFConstants, r.getResult());
+				// Move to next model
+				continue;
+			}
+			
 			// Work through list of properties to be checked
 			for (j = 0; j < numPropertiesToCheck; j++) {
 
@@ -1578,6 +1638,8 @@ public class PrismCL implements PrismModelListener
 					} else {
 						errorAndExit("No value specified for -" + sw + " switch");
 					}
+				} else if (sw.equals("simsimult")) {
+					simSimultaneously = true;
 				}
 
 				// FURTHER OPTIONS - NEED TIDYING/FIXING
@@ -2024,22 +2086,21 @@ public class PrismCL implements PrismModelListener
 		}
 	}
 
+	private SimulationSettings processSimulationOptions(Expression expr) throws PrismException
+	{
+		return processSimulationOptions( Collections.singleton(expr) );
+	}
+	
 	/**
 	 * Process the simulation-related command-line options and generate
 	 * a SimulationMethod object to be used for approximate model checking.
 	 * @param expr The property to be checked (note: constants may not be defined)
 	 * @throws PrismException if there are problems with the specified options
 	 */
-	private SimulationSettings processSimulationOptions(Expression expr) throws PrismException
+	private SimulationSettings processSimulationOptions(Collection<Expression> exprs) throws PrismException
 	{
 		SimulationSettings simSettings = null;
 		SimulationMethod aSimMethod = null;
-
-		// See if property to be checked is a reward (R) operator
-		boolean isReward = (expr instanceof ExpressionReward);
-
-		// See if property to be checked is quantitative (=?)
-		boolean isQuant = Expression.isQuantitative(expr);
 
 		// Pick defaults for simulation settings not set from command-line
 		if (!simApproxGiven)
@@ -2057,12 +2118,48 @@ public class PrismCL implements PrismModelListener
 			simMaxReward = prism.getSettings().getDouble(PrismSettings.SIMULATOR_MAX_REWARD);
 		if (!simMaxPathGiven)
 			simMaxPath = prism.getSettings().getLong(PrismSettings.SIMULATOR_DEFAULT_MAX_PATH);
-
-		// Pick a default method, if not specified
-		// (CI for quantitative, SPRT for bounded)
-		if (simMethodName == null) {
-			simMethodName = isQuant ? "ci" : "sprt";
+		
+		boolean hasQuant = false;
+		boolean hasQualit = false;
+		boolean hasReward = false;
+		for(Expression expr : exprs)
+		{
+			boolean type = Expression.isQuantitative(expr);
+			hasQuant |= type;
+			hasQualit |= !type;
+			hasReward |= expr instanceof ExpressionReward;
 		}
+		
+		/**
+		 * For probabilistic property 
+		 */
+		
+		/**
+		 * If a method has been selected:
+		 * a) CI/ACI/APMC - proceed
+		 * b) SPRT - ensure that we have no quantitative properties
+		 * If a method has NOT been selected:
+		 * a) only qualitative - choose SPRT
+		 * b) otherwise - choose CI
+		 */
+		if (simMethodName != null) {
+			if(simMethodName.equals("sprt") && hasQualit ) {
+				throw new PrismException("Quantitative and qualitative properties can not be processed simultaneously with SPRT method."
+						+ " Please split properties or choose a different simulation method.");
+			}
+		} else {
+			simMethodName = hasQuant ? "ci" : "sprt";
+		}
+		
+		/**
+		 * When number of samples to generate is not given, we take one of two approaches:
+		 * - manually provide number of iterations to check if variance is null or not
+		 * - do it automatically - two different constructors for probabilistic and rewards
+		 * 
+		 * Current approach for GUI is slightly different - use max reward only when provided.
+		 * TODO: revise that if it is really what we want.
+		 */
+		boolean isReward = simMaxRewardGiven;
 
 		// CI
 		if (simMethodName.equals("ci")) {
@@ -2110,7 +2207,7 @@ public class PrismCL implements PrismModelListener
 		}
 		// APMC
 		else if (simMethodName.equals("apmc")) {
-			if (isReward) {
+			if (hasReward) {
 				throw new PrismException("Cannot use the APMC method on reward properties; try CI (switch -simci) instead");
 			}
 			if (simApproxGiven && simConfidenceGiven && simNumSamplesGiven) {
@@ -2132,9 +2229,6 @@ public class PrismCL implements PrismModelListener
 		}
 		// SPRT
 		else if (simMethodName.equals("sprt")) {
-			if (isQuant) {
-				throw new PrismException("Cannot use SPRT on a quantitative (=?) property");
-			}
 			aSimMethod = new SPRTMethod(simConfidence, simConfidence, simWidth);
 			if (simApproxGiven) {
 				mainLog.printWarning("Option -simapprox is not used for the SPRT method and is being ignored");
@@ -2436,6 +2530,30 @@ public class PrismCL implements PrismModelListener
 	{
 		prism.closeDown(true);
 		System.exit(i);
+	}
+	
+	private void testResult(boolean doTest, Values constants, Property p, Result res)
+	{
+		if (doTest) {
+			try {
+				mainLog.println();
+				boolean testResult = false;
+				if (!simulate) {
+					testResult = p.checkAgainstExpectedResult(res.getResult(), constants);
+				} else {
+					testResult = p.checkAgainstExpectedResult(res.getResult(), constants, res.getSimulationMethod());
+				}
+				if (testResult) {
+					mainLog.println("Testing result: PASS");
+				} else {
+					mainLog.println("Testing result: NOT TESTED");
+				}
+			} catch (PrismException e) {
+				mainLog.println("Testing result: FAIL: " + e.getMessage());
+				if (testExitsOnFail)
+					errorAndExit("Testing failed");
+			}
+		}
 	}
 
 	// main method
