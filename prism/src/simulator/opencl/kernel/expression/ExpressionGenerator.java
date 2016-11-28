@@ -35,12 +35,15 @@ import simulator.opencl.automaton.Guard;
 import simulator.opencl.automaton.PrismVariable;
 import simulator.opencl.automaton.update.Action;
 import simulator.opencl.automaton.update.Rate;
+import simulator.opencl.kernel.KernelException;
 import simulator.opencl.kernel.SavedVariables;
 import simulator.opencl.kernel.StateVector;
 import simulator.opencl.kernel.memory.CLValue;
 import simulator.opencl.kernel.memory.CLVariable;
 import simulator.opencl.kernel.memory.ExpressionValue;
 import simulator.opencl.kernel.memory.RValue;
+import simulator.opencl.kernel.memory.StdVariableType;
+import simulator.opencl.kernel.memory.VariableTypeInterface;
 
 public class ExpressionGenerator
 {
@@ -134,6 +137,25 @@ public class ExpressionGenerator
 	static public Expression getConstant(Constants constant)
 	{
 		return CONSTANTS.get(constant);
+	}
+	
+	static public Method nonLazyAnd(int argsCount) throws KernelException
+	{
+		Preconditions.checkCondition(argsCount > 0);
+		VariableTypeInterface boolType = new StdVariableType(StdVariableType.StdType.BOOL);
+		Method f = new Method("or", boolType);
+		int idx = 0;
+		
+		CLVariable arg = new CLVariable(boolType, String.format("arg_%d", idx++) );
+		f.addArg(arg);
+		Expression returnExpr = arg.getSource();
+		for(int i = 1; i < argsCount; ++i) {
+			arg = new CLVariable(boolType, String.format("arg_%d", idx++) );
+			f.addArg(arg);
+			returnExpr = createBinaryExpression(returnExpr, Operator.LAND, arg.getSource());
+		}
+		f.addReturn(returnExpr);
+		return f;
 	}
 	
 

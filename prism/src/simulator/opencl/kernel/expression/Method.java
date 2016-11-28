@@ -176,6 +176,24 @@ public class Method extends ComplexKernelComponent
 	
 	/**
 	 * Generate an expression of calling this method,
+	 * using given expressions.
+	 * @param args
+	 * @return
+	 */
+	public Expression callMethod(Expression... args)
+	{
+		StringBuilder builder = new StringBuilder(methodName);
+		builder.append("(");
+		for (Expression arg : args) {
+			builder.append(arg.getSource()).append(",");
+		}
+		builder.deleteCharAt(builder.length() - 1);
+		builder.append(")");
+		return new Expression(builder.toString());
+	}
+	
+	/**
+	 * Generate an expression of calling this method,
 	 * using given values for method arguments.
 	 * Important: the method doesn't check the correctness of arguments!
 	 * @param args

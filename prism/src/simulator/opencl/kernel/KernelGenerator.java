@@ -209,8 +209,10 @@ public abstract class KernelGenerator
 	 * - property verification
 	 * - reward update
 	 */
-	protected EnumMap<KernelMethods, Method> helperMethods = new EnumMap<>(KernelMethods.class);
+	//protected EnumMap<KernelMethods, Method> helperMethods = new EnumMap<>(KernelMethods.class);
 
+	protected List<Method> helperMethods = new ArrayList<>();
+	
 	/**
 	 * Main kernel method.
 	 */
@@ -350,7 +352,7 @@ public abstract class KernelGenerator
 	public Collection<Method> getHelperMethods()
 	{
 		List<Method> ret = new ArrayList<>();
-		ret.addAll(helperMethods.values());
+		ret.addAll(helperMethods);
 		ret.addAll(cmdGenerator.getMethods());
 		ret.addAll(synCmdGenerator.getMethods());
 		ret.addAll(propertyGenerator.getMethods());
@@ -530,12 +532,17 @@ public abstract class KernelGenerator
 		
 		/**
 		 * if all properties and reward properties are known, then we can end iterating
+		 * 
+		 * In a case where both type of properties are present, use a non-lazy logical operator &&
+		 * Simple && is short-circuited and it will lead to incorrect results; simply of one functions
+		 * may not be evaluated.
 		 */
 		Expression propertyCall = null;
 		if (propertyGenerator.isGeneratorActive() && rewardGenerator.isGeneratorActive()) {
-			propertyCall = createBinaryExpression(
+			Method nonLazy = ExpressionGenerator.nonLazyAnd(2);
+			helperMethods.add(nonLazy);
+			propertyCall = nonLazy.callMethod(
 					propertyGenerator.kernelUpdateProperties(),
-					Operator.LAND, 
 					rewardGenerator.kernelUpdateProperties(varStateVector, localVars.get(LocalVar.TIME))
 					);
 		} else if (rewardGenerator.isGeneratorActive()) {
